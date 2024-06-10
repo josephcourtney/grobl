@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "grobl"
+version = "0.1.0"
+description = "A script to display directory structure and Python file contents"
+readme = "README.md"
+requires-python = ">=3.6"
+authors = [
+    { name = "Joseph M Courtney", email = "joseph.m.courtney@gmail.com" },
+]
+dependencies = ["pyperclip"]
+
+[project.scripts]
+grobl = "grobl.main:main"
+
+
+[tool.grobl]
+exclude_tree = ["*.jsonl", "*.jsonl.*", "tests/*", "cov.xml", "*.log", "*.tmp"]
+exclude_print = ["*.json", "*.html"]
