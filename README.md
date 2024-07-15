@@ -1,115 +1,149 @@
-# Grobl
+# grobl
 
-**Grobl** is a command-line tool designed to generate and copy a complete code project file tree along with the contents of valid text files. It's particularly useful for sharing code projects in communication platforms.
+`grobl` is a command-line utility designed to summarize the contents of a code project and copy it into the clipboard in markdown format. It is primarily useful for interacting with LLM-based code assistants. It generates a file tree structure and prints the contents of valid text files within specified directories. It automatically ignores typical computer-generated files like build directories, linter caches, etc. It has configuration options for excluding certain files or directories from the tree display and file printing.
 
 ## Features
 
-- Generate a file tree for a given list of paths.
-- Exclude specific files and directories from the tree display.
-- Print contents of valid text files (source code, markdown, txt, etc.).
-- Exclude specific files from printing their contents while still showing them in the tree.
-- Parse settings from `pyproject.toml` files in the directory hierarchy.
-- Copy the output to the clipboard for easy sharing.
+- Generate a file tree structure for specified directories.
+- Print contents of valid text files.
+- Exclude files or directories from the tree display and file printing using patterns.
+- Detect project types based on specific markers and apply corresponding exclusion patterns.
+- Support for different output formats: plain text, JSON, and Markdown.
+- Copy the final output to the clipboard.
 
 ## Installation
 
-### Prerequisites
+To install `grobl`, clone the repository and install the required dependencies:
 
-- Python 3.11 or later.
-- `pipx` for isolated Python application installations.
-
-### Install using `pipx`
-
-To install `grobl`, use the following command:
-
-```bash
-pipx install grobl
-```
-
-If you don't have pipx installed, you can install it using:
-
-```bash
-python -m pip install --user pipx
-python -m pipx ensurepath
+```sh
+git clone https://github.com/your-username/grobl.git
+cd grobl
+pip install -r requirements.txt
 ```
 
 ## Usage
 
-To use grobl, run the following command:
+To run `grobl` and generate a summary of your project, navigate to the root directory of your project and run the following command:
 
-```bash
-grobl <paths> [--exclude-tree <patterns>] [--exclude-print <patterns>]
+```sh
+grobl
 ```
 
-Arguments
-- `<paths>`: List of file paths to include in the tree.
-- `--exclude-tree`: Patterns to exclude from the tree display.
-- `--exclude-print`: Patterns to exclude from file printing.
+This will generate a file tree structure and print the contents of valid text files within the current directory and its subdirectories. You can also specify specific directories to include or exclude using the following options:
 
-Example
-
-```bash
-grobl ./snoop/apriquot ./snoop/weasel --exclude-tree "*.md" --exclude-print "*.css"
+```sh
+grobl --include dir1,dir2 --exclude dir3,dir4
 ```
 
-This command will:
+## Configuration
 
-- Generate the file tree for the specified paths.
-- Exclude files matching *.md from the tree display.
-- Exclude files matching *.css from being printed.
-- Copy the final output to the clipboard.
+`grobl` can be configured using a configuration file or command-line options. The configuration file should be named `grobl.conf` and placed in the root directory of your project. The file should contain a JSON object with the following properties:
 
-## `pyproject.toml` Configuration
+- `include`: A list of directories to include in the file tree structure and file printing.
+- `exclude`: A list of directories or files to exclude from the file tree structure and file printing.
+- `output_format`: The output format for the summary. Valid values are `plain`, `json`, and `markdown`.
 
-You can configure grobl using a pyproject.toml file in your directory hierarchy. The settings in this file will affect the directories containing them and override settings from ancestor directories.
-Example pyproject.toml
+For example:
 
-```toml
-[tool.file_tree_printer]
-exclude_tree = ["*.jsonl", "*.jsonl.*", "tests/*", "cov.xml", "*.log", "*.tmp"]
-exclude_print = ["*.json", "*.html"]
+```json
+{
+  "include": [
+    "src",
+    "docs"
+  ],
+  "exclude": [
+    "node_modules",
+    "build"
+  ],
+  "output_format": "markdown"
+}
 ```
 
-Configuration Details
+You can also specify these options using command-line arguments:
 
-- `exclude_tree`: A list of glob patterns to exclude from the file tree display. Files and directories matching these patterns will not appear in the tree structure.
-- `exclude_print`: A list of glob patterns to exclude from file printing. Files matching these patterns will appear in the tree structure but their contents will not be printed.
-
-### Example Configuration
-
-Consider the following directory structure:
-
-```
-project-root/
-│
-├── pyproject.toml
-├── src/
-│   ├── main.py
-│   ├── utils.py
-│   └── config.json
-├── tests/
-│   ├── test_main.py
-│   └── test_utils.py
-└── README.md
+```sh
+grobl --include src,docs --exclude node_modules,build --output-format markdown
 ```
 
-With the following `pyproject.toml`:
+## Output
 
-```toml
-[tool.file_tree_printer]
-exclude_tree = ["tests/*", "*.json"]
-exclude_print = ["*.md"]
+The output of `grobl` will depend on the specified output format. Here are some examples:
+
+### Plain Text
+
+```
+File Tree:
+src
+  file1.txt
+  file2.txt
+docs
+  README.md
+  CHANGELOG.md
+
+File Contents:
+src/file1.txt:
+This is the contents of file1.txt
+
+src/file2.txt:
+This is the contents of file2.txt
+
+docs/README.md:
+This is the contents of README.md
+
+docs/CHANGELOG.md:
+This is the contents of CHANGELOG.md
 ```
 
-Running `grobl project-root/` will:
+### JSON
 
-1. Exclude the tests directory and config.json file from the tree display.
-2. Exclude README.md from being printed.
-3. Copy the output to the clipboard.
+```json
+{
+  "file_tree": {
+    "src": [
+      "file1.txt",
+      "file2.txt"
+    ],
+    "docs": [
+      "README.md",
+      "CHANGELOG.md"
+    ]
+  },
+  "file_contents": {
+    "src/file1.txt": "This is the contents of file1.txt",
+    "src/file2.txt": "This is the contents of file2.txt",
+    "docs/README.md": "This is the contents of README.md",
+    "docs/CHANGELOG.md": "This is the contents of CHANGELOG.md"
+  }
+}
+```
 
-## Contributing
+### Markdown
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue.
-License
+```markdown
+# File Tree
 
-This project is licensed under the MIT License.
+- src
+  - file1.txt
+  - file2.txt
+- docs
+  - README.md
+  - CHANGELOG.md
+
+# File Contents
+
+## src/file1.txt
+
+This is the contents of file1.txt
+
+## src/file2.txt
+
+This is the contents of file2.txt
+
+## docs/README.md
+
+This is the contents of README.md
+
+## docs/CHANGELOG.md
+
+This is the contents of CHANGELOG.md
+```
