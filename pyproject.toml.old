@@ -7,7 +7,7 @@ name = "grobl"
 version = "0.1.0"
 description = "A script to display directory structure and Python file contents"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.6"
 authors = [
     { name = "Joseph M Courtney", email = "joseph.m.courtney@gmail.com" },
 ]
