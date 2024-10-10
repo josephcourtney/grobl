@@ -1,7 +1,8 @@
 import logging
 import re
-from collections.abc import Generator
+from fnmatch import fnmatch
 from pathlib import Path
+from collections.abc import Generator
 
 import pyperclip
 
@@ -26,7 +27,7 @@ def find_common_ancestor(paths: list[Path]) -> Path:
         while not path.is_relative_to(common_ancestor):
             common_ancestor = common_ancestor.parent
 
-            if common_ancestor == common_ancestor.root:
+            if common_ancestor == Path("/"):
                 msg = "No common ancestor found"
                 raise PathNotFoundError(msg)
 
@@ -34,16 +35,30 @@ def find_common_ancestor(paths: list[Path]) -> Path:
 
 
 def match_exclude_patterns(path: Path, patterns: list[str]) -> bool:
-    """Check if a path matches any of the exclude patterns using regex."""
-    logging.debug("Checking path: %s against patterns: %s", path, patterns)
+    """Check if a path matches any of the exclude patterns using fnmatch."""
     for pattern in patterns:
-        try:
-            regex_pattern = re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".")
-            if re.fullmatch(regex_pattern, str(path)):
-                return True
-        except re.error:
-            logging.exception("Regex error with pattern: %s", pattern)
+        if fnmatch(str(path), pattern):
+            return True
     return False
+
+
+def traverse_directory_tree(
+    current_path: Path, paths: list[Path], exclude_patterns: list[str], callback
+):
+    """General-purpose directory tree traversal function."""
+    items = [
+        item
+        for item in current_path.iterdir()
+        if (
+            any(item.is_relative_to(p) for p in paths)
+            and not item.name.startswith(".")
+            and not match_exclude_patterns(item, exclude_patterns)
+        )
+    ]
+    for item in sorted(items, key=lambda x: x.name):
+        callback(item)
+        if item.is_dir():
+            traverse_directory_tree(item, paths, exclude_patterns, callback)
 
 
 def enumerate_file_tree(
@@ -120,32 +135,19 @@ def traverse_and_print_files(
     terminal_output = []  # For the terminal summary
     total_lines = 0  # Initialize total line count
 
-    def traverse_subtree(current_path: Path) -> None:
+    def collect_file_data(item: Path):
         nonlocal total_lines  # Use nonlocal to modify outer variable
-        items = list(current_path.iterdir())
-        items = [
-            item
-            for item in items
-            if (
-                any(item.is_relative_to(p) for p in paths)
-                and not item.name.startswith(".")
-                and not match_exclude_patterns(item, exclude_patterns)
-            )
-        ]
-        for item in sorted(items, key=lambda x: x.name):
-            if item.is_dir():
-                traverse_subtree(item)
-            elif item.is_file() and is_text_file(item):
-                relative_path = item.relative_to(common_ancestor.parent)
-                line_count = count_lines(item)  # Count lines
-                clipboard_output.append(f"\n{relative_path}:")
-                clipboard_output.append("```")
-                clipboard_output.append(read_file_contents(item))
-                clipboard_output.append("```")
-                terminal_output.append(f"{relative_path}: ({line_count} lines)")
-                total_lines += line_count  # Add to total line count
+        if item.is_file() and is_text_file(item):
+            relative_path = item.relative_to(common_ancestor.parent)
+            line_count = count_lines(item)  # Count lines
+            clipboard_output.append(f"\n{relative_path}:")
+            clipboard_output.append("```")
+            clipboard_output.append(read_file_contents(item))
+            clipboard_output.append("```")
+            terminal_output.append(f"{relative_path}: ({line_count} lines)")
+            total_lines += line_count  # Add to total line count
 
-    traverse_subtree(common_ancestor)
+    traverse_directory_tree(common_ancestor, paths, exclude_patterns, collect_file_data)
     return "\n".join(clipboard_output), "\n".join(terminal_output), total_lines  # Return outputs
 
 
@@ -166,6 +168,11 @@ def print_summary(file_tree: str, total_lines: int) -> None:
     print("---------------------------------")
 
 
+def copy_to_clipboard(content: str):
+    """Abstract clipboard functionality for easier testing."""
+    pyperclip.copy(content)
+
+
 def main():
     setup_logging()
 
@@ -177,7 +184,7 @@ def main():
 
     final_output = f"{tree_output}\n\n{files_output}"
 
-    pyperclip.copy(final_output)  # Copy the output to clipboard without line counts
+    copy_to_clipboard(final_output)  # Copy the output to clipboard without line counts
     print("Output copied to clipboard")
 
     # Print summary with line counts for terminal
@@ -186,3 +193,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

@@ -16,7 +16,6 @@ dependencies = ["pyperclip"]
 [project.scripts]
 grobl = "grobl.main:main"
 
-
 [tool.grobl]
 exclude_tree = ["*.jsonl", "*.jsonl.*", "tests/*", "cov.xml", "*.log", "*.tmp"]
 exclude_print = ["*.json", "*.html"]
