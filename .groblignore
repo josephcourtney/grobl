@@ -1,0 +1,8 @@
+.groblignore
+.gitignore
+.git/
+.pytest_cache/
+.python-version
+.venv/
+uv.lock
+ruff.toml

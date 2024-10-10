@@ -1,8 +1,5 @@
-import argparse
-import json
 import logging
 import re
-import tomllib
 from collections.abc import Generator
 from pathlib import Path
 
@@ -38,15 +35,14 @@ def find_common_ancestor(paths: list[Path]) -> Path:
 
 def match_exclude_patterns(path: Path, patterns: list[str]) -> bool:
     """Check if a path matches any of the exclude patterns using regex."""
-    logging.debug(f"Checking path: {path} against patterns: {patterns}")
+    logging.debug("Checking path: %s against patterns: %s", path, patterns)
     for pattern in patterns:
         try:
-            # Escape special characters in pattern and replace wildcard characters with regex equivalents
-            regex_pattern = re.escape(pattern).replace(r'\*', '.*').replace(r'\?', '.')
+            regex_pattern = re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".")
             if re.fullmatch(regex_pattern, str(path)):
                 return True
-        except re.error as e:
-            logging.error(f"Regex error with pattern: {pattern} - {e}")
+        except re.error:
+            logging.exception("Regex error with pattern: %s", pattern)
     return False
 
 
@@ -57,7 +53,7 @@ def enumerate_file_tree(
     common_ancestor = find_common_ancestor(paths)
     yield common_ancestor.name
 
-    def generate_subtree(current_path: Path, prefix: str):
+    def generate_subtree(current_path: Path, prefix: str) -> Generator[str, None, None]:
         items = list(current_path.iterdir())
         items = [
             item
@@ -70,9 +66,9 @@ def enumerate_file_tree(
         ]
         for index, item in enumerate(sorted(items, key=lambda x: x.name)):
             connector = "├── " if index < len(items) - 1 else "└── "
+            new_prefix = f"{prefix}{'|   ' if index < len(items) - 1 else '    '}"
             yield f"{prefix}{connector}{item.name}"
             if item.is_dir():
-                new_prefix = f"{prefix}{'│   ' if index < len(items) - 1 else '    '}"
                 yield from generate_subtree(item, new_prefix)
 
     yield from generate_subtree(common_ancestor, "")
@@ -94,25 +90,38 @@ def read_file_contents(file_path: Path) -> str:
         with file_path.open("r", encoding="utf-8", errors="ignore") as file:
             return file.read()
     except FileNotFoundError:
-        logging.error(f"File not found: {file_path}")
-    except Exception as e:
-        logging.error(f"Error reading file {file_path}: {e}")
+        logging.exception("File not found: %s", file_path)
+    except Exception:
+        logging.exception("Error reading file %s", file_path)
     return ""
+
+
+def count_lines(file_path: Path) -> int:
+    """Count the number of lines in a file."""
+    if not file_path.is_file():
+        return 0
+    try:
+        with file_path.open("r", encoding="utf-8", errors="ignore") as file:
+            return sum(1 for _ in file)
+    except Exception:
+        logging.exception("Error reading file for line count %s", file_path)
+    return 0
 
 
 def traverse_and_print_files(
     paths: list[Path],
     exclude_patterns: list[str] | None = None,
-    exclude_files_from_printing: list[str] | None = None,
-    file_type_patterns: list[str] | None = None,
-) -> str:
+) -> tuple[str, str, int]:  # Return file output, terminal output, and total lines
     paths = [p.resolve() for p in paths]
     common_ancestor = find_common_ancestor(paths)
     exclude_patterns = exclude_patterns or []
-    exclude_files_from_printing = exclude_files_from_printing or []
-    output = []
+
+    clipboard_output = []  # For the clipboard content
+    terminal_output = []  # For the terminal summary
+    total_lines = 0  # Initialize total line count
 
     def traverse_subtree(current_path: Path) -> None:
+        nonlocal total_lines  # Use nonlocal to modify outer variable
         items = list(current_path.iterdir())
         items = [
             item
@@ -126,140 +135,53 @@ def traverse_and_print_files(
         for item in sorted(items, key=lambda x: x.name):
             if item.is_dir():
                 traverse_subtree(item)
-            elif (
-                item.is_file()
-                and is_text_file(item)
-                and not match_exclude_patterns(item, exclude_files_from_printing)
-                and (not file_type_patterns or match_exclude_patterns(item, file_type_patterns))
-            ):
+            elif item.is_file() and is_text_file(item):
                 relative_path = item.relative_to(common_ancestor.parent)
-                output.append(f"\n{relative_path}:")
-                output.append("```")
-                output.append(read_file_contents(item))
-                output.append("```")
+                line_count = count_lines(item)  # Count lines
+                clipboard_output.append(f"\n{relative_path}:")
+                clipboard_output.append("```")
+                clipboard_output.append(read_file_contents(item))
+                clipboard_output.append("```")
+                terminal_output.append(f"{relative_path}: ({line_count} lines)")
+                total_lines += line_count  # Add to total line count
 
     traverse_subtree(common_ancestor)
-    return "\n".join(output)
+    return "\n".join(clipboard_output), "\n".join(terminal_output), total_lines  # Return outputs
 
 
-def parse_pyproject_toml(path: Path) -> dict[str, list[str]]:
-    config = {"exclude_tree": [], "exclude_print": []}
+def read_groblignore(path: Path) -> list[str]:
+    """Read the .groblignore file and return a list of patterns to ignore."""
+    ignore_patterns = []
     if path.exists():
-        with path.open("rb") as file:
-            data = tomllib.load(file)
-            tool_settings = data.get("tool", {}).get("grobl", {})
-            config["exclude_tree"] = tool_settings.get("exclude_tree", [])
-            config["exclude_print"] = tool_settings.get("exclude_print", [])
-    return config
+        with path.open("r", encoding="utf-8") as file:
+            ignore_patterns = [line.strip() for line in file if line.strip() and not line.startswith("#")]
+    return ignore_patterns
 
 
-def gather_configs(paths: list[Path]) -> dict[str, list[str]]:
-    common_ancestor = find_common_ancestor(paths)
-    current_path = common_ancestor
-
-    final_config = {"exclude_tree": [], "exclude_print": []}
-
-    while current_path != current_path.parent:
-        config_path = current_path / "pyproject.toml"
-        config = parse_pyproject_toml(config_path)
-        final_config["exclude_tree"].extend(config["exclude_tree"])
-        final_config["exclude_print"].extend(config["exclude_print"])
-        current_path = current_path.parent
-
-    return final_config
-
-
-def detect_project_types(paths: list[Path], project_types_config: dict) -> list[str]:
-    project_types = set()
-    for path in paths:
-        for project_type, markers in project_types_config.items():
-            if any((path / marker).exists() for marker in markers):
-                project_types.add(project_type)
-    return list(project_types)
-
-
-def read_config_file(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as file:
-        return json.load(file)
+def print_summary(file_tree: str, total_lines: int) -> None:
+    """Print the summary of the copied content."""
+    print("\n--- Summary of Copied Content ---")
+    print(file_tree)
+    print(f"\nTotal Lines Copied: {total_lines}")
+    print("---------------------------------")
 
 
 def main():
     setup_logging()
 
-    parser = argparse.ArgumentParser(
-        description="Generate a file tree and print contents of valid text files."
-    )
-    parser.add_argument("paths", nargs="+", type=Path, help="List of file paths to include in the tree")
-    parser.add_argument(
-        "--exclude-tree", nargs="*", default=[], help="Patterns to exclude from the tree display"
-    )
-    parser.add_argument(
-        "--exclude-print", nargs="*", default=[], help="Patterns to exclude from file printing"
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=["plain", "json", "markdown"],
-        default="plain",
-        help="Specify the output format",
-    )
-    parser.add_argument("--config-file", type=Path, help="Path to a configuration file (JSON)")
-    parser.add_argument(
-        "--file-types", nargs="*", default=[], help="Patterns to include specific file types for printing"
-    )
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    args = parser.parse_args()
+    paths = [Path(p) for p in ["./"]]
+    ignore_patterns = read_groblignore(Path(".groblignore"))
 
-    # Set logging level based on debug flag
-    if args.debug:
-        setup_logging(logging.DEBUG)
-    else:
-        setup_logging(logging.INFO)
-
-    # Load configuration from file if provided
-    config_file_settings = {}
-    if args.config_file:
-        config_file_settings = read_config_file(args.config_file)
-
-    project_types_config = config_file_settings.get("project_types", {})
-    ignore_patterns = config_file_settings.get("ignore_patterns", {})
-
-    # Gather configurations from pyproject.toml files
-    configs = gather_configs(args.paths)
-
-    # Detect project types
-    project_types = detect_project_types(args.paths, project_types_config)
-
-    # Merge exclusion patterns for all detected project types
-    project_exclude_patterns = []
-    for project_type in project_types:
-        project_exclude_patterns.extend(ignore_patterns.get(project_type, {}).get("exclude_tree", []))
-
-    # Merge CLI arguments with pyproject.toml configurations, config file, and default values
-    exclude_tree_patterns = (
-        configs["exclude_tree"] + args.exclude_tree + config_file_settings.get("exclude_tree", [])
-        or project_exclude_patterns
-    )
-    exclude_print_patterns = (
-        configs["exclude_print"] + args.exclude_print + config_file_settings.get("exclude_print", []) or []
-    )
-
-    # Combine the exclusion patterns for tree and print
-    combined_exclude_patterns = list(set(exclude_tree_patterns + exclude_print_patterns))
-
-    tree_output = tree_structure_to_string(args.paths, combined_exclude_patterns)
-    files_output = traverse_and_print_files(
-        args.paths, combined_exclude_patterns, combined_exclude_patterns, args.file_types
-    )
+    tree_output = tree_structure_to_string(paths, ignore_patterns)
+    files_output, terminal_output, total_lines = traverse_and_print_files(paths, ignore_patterns)
 
     final_output = f"{tree_output}\n\n{files_output}"
 
-    if args.output_format == "json":
-        final_output = json.dumps({"tree": tree_output, "files": files_output}, indent=4)
-    elif args.output_format == "markdown":
-        final_output = f"## Directory Tree\n```\n{tree_output}\n```\n## File Contents\n{files_output}"
-
-    pyperclip.copy(final_output)
+    pyperclip.copy(final_output)  # Copy the output to clipboard without line counts
     print("Output copied to clipboard")
+
+    # Print summary with line counts for terminal
+    print_summary(terminal_output, total_lines)
 
 
 if __name__ == "__main__":
