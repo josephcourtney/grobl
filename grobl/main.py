@@ -102,8 +102,12 @@ def tree_structure_to_string(paths: list[Path], exclude_patterns: list[str] | No
 
 
 def is_text_file(file_path: Path) -> bool:
-    text_file_extensions = {".py", ".md", ".txt", ".json", ".html", ".css", ".js", ".ts", ".rs", ".toml"}
-    return file_path.suffix in text_file_extensions
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            f.read()
+        return True
+    except (UnicodeDecodeError, FileNotFoundError, OSError) as e:
+        return False
 
 
 def read_file_contents(file_path: Path) -> str:
