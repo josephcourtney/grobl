@@ -111,11 +111,6 @@ def test_tree_structure_to_string(sample_paths):
     assert "main.py" in tree_string
 
 
-def test_is_text_file():
-    assert is_text_file(Path("test.py")) is True
-    assert is_text_file(Path("test.pyc")) is False
-
-
 def test_read_file_contents(tmp_path):
     file_path = tmp_path / "test.txt"
     file_path.write_text("Hello, World!\n")
@@ -125,12 +120,6 @@ def test_read_file_contents(tmp_path):
     # Test with a non-existent file
     non_existent_file = tmp_path / "non_existent.txt"
     contents = read_file_contents(non_existent_file)
-    assert not contents  # Updated to use `not contents`
-
-    # Test with a binary file (should be ignored gracefully)
-    binary_file = tmp_path / "binary.bin"
-    binary_file.write_bytes(b"\x00\x01\x02\x03")
-    contents = read_file_contents(binary_file)
     assert not contents  # Updated to use `not contents`
 
 

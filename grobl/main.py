@@ -3,6 +3,16 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 
 import pyperclip
+import re
+
+def escape_markdown(text):
+    # Define the Markdown characters to escape
+    markdown_chars = r"([*_#\[\]{}()>+-.!])"
+
+    # Use regex to escape each Markdown character
+    escaped_text = re.sub(markdown_chars, r"\\\1", text)
+
+    return escaped_text
 
 
 class PathNotFoundError(Exception):
@@ -90,7 +100,8 @@ def enumerate_file_tree(
         for index, item in enumerate(sorted(items, key=lambda x: x.name)):
             connector = "├── " if index < len(items) - 1 else "└── "
             new_prefix = f"{prefix}{'|   ' if index < len(items) - 1 else '    '}"
-            yield f"{prefix}{connector}{item.name}"
+
+            yield f"{prefix}{connector}{escape_markdown(item.name)}"
             if item.is_dir() and not match_exclude_patterns(item, exclude_patterns, common_ancestor):
                 yield from generate_subtree(item, new_prefix)
 
@@ -126,21 +137,22 @@ def read_file_contents(file_path: Path) -> str:
 def count_lines(file_path: Path) -> int:
     """Count the number of lines in a file."""
     if not file_path.is_file():
-        return 0
+        return 0, 0
     try:
         with file_path.open("r", encoding="utf-8", errors="ignore") as file:
-            return sum(1 for _ in file)
+            contents = file.read()
+        return len(contents.splitlines()), len(contents)
     except Exception:
         logging.exception("Error reading file for line count %s", file_path)
-    return 0
+    return 0, 0
 
 
 def collect_file_data(item: Path, common_ancestor: Path, clipboard_output: list[str], terminal_output: list[str], total_lines: int) -> int:
     if item.is_file() and is_text_file(item):
         relative_path = item.relative_to(common_ancestor.parent)
-        line_count = count_lines(item)  # Count lines
+        line_count, characters = count_lines(item)  # Count lines
         clipboard_output.extend((f"\n{relative_path}:", "```", read_file_contents(item), "```"))
-        terminal_output.append(f"{relative_path}: ({line_count} lines)")
+        terminal_output.append(f"{relative_path}: ({line_count} lines | {characters} characters)")
         total_lines += line_count  # Add to total line count
     return total_lines
 
