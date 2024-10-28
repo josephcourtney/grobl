@@ -147,14 +147,15 @@ def count_lines(file_path: Path) -> int:
     return 0, 0
 
 
-def collect_file_data(item: Path, common_ancestor: Path, clipboard_output: list[str], terminal_output: list[str], total_lines: int) -> int:
+def collect_file_data(item: Path, common_ancestor: Path, clipboard_output: list[str], terminal_output: list[str], total_lines: int, total_characters: int) -> int:
     if item.is_file() and is_text_file(item):
         relative_path = item.relative_to(common_ancestor.parent)
-        line_count, characters = count_lines(item)  # Count lines
+        line_count, character_count = count_lines(item)  # Count lines
         clipboard_output.extend((f"\n{relative_path}:", "```", read_file_contents(item), "```"))
-        terminal_output.append(f"{relative_path}: ({line_count} lines | {characters} characters)")
-        total_lines += line_count  # Add to total line count
-    return total_lines
+        terminal_output.append(f"{relative_path}: ({line_count} lines | {character_count} characters)")
+        total_lines += line_count
+        total_characters += character_count
+    return total_lines, total_characters
 
 
 def traverse_and_collect(
@@ -178,17 +179,18 @@ def traverse_and_print_files(
     clipboard_output = []
     terminal_output = []
     total_lines = 0
+    total_characters = 0
 
     def collect_file_data_wrapper(item: Path) -> None:
         nonlocal total_lines, clipboard_output, terminal_output
-        total_lines = collect_file_data(item, common_ancestor, clipboard_output, terminal_output, total_lines)
+        total_lines = collect_file_data(item, common_ancestor, clipboard_output, terminal_output, total_lines, total_characters)
 
     # Shorten line length
     traverse_directory_tree(
         common_ancestor, paths, exclude_patterns, common_ancestor, collect_file_data_wrapper
     )
 
-    return "\n".join(clipboard_output), "\n".join(terminal_output), total_lines
+    return "\n".join(clipboard_output), "\n".join(terminal_output), total_lines, total_characters
 
 
 def read_groblignore(path: Path) -> list[str]:
@@ -200,11 +202,12 @@ def read_groblignore(path: Path) -> list[str]:
     return ignore_patterns
 
 
-def print_summary(file_tree: str, total_lines: int) -> None:
+def print_summary(file_tree: str, total_lines: int, total_characters: int) -> None:
     """Print the summary of the copied content."""
     print("\n--- Summary of Copied Content ---")
     print(file_tree)
-    print(f"\nTotal Lines Copied: {total_lines}")
+    print(f"\nTotal Lines: {total_lines}")
+    print(f"\nTotal Characters: {total_characters}")
     print("---------------------------------")
 
 
@@ -220,7 +223,7 @@ def main():
     ignore_patterns = read_groblignore(Path(".groblignore"))
 
     tree_output = tree_structure_to_string(paths, ignore_patterns)
-    files_output, terminal_output, total_lines = traverse_and_print_files(paths, ignore_patterns)
+    files_output, terminal_output, total_lines, total_characters = traverse_and_print_files(paths, ignore_patterns)
 
     final_output = f"{tree_output}\n\n{files_output}"
 
@@ -228,7 +231,7 @@ def main():
     clipboard_handler.copy(final_output)  # Copy the output to clipboard without line counts
     print("Output copied to clipboard")
 
-    print_summary(terminal_output, total_lines)
+    print_summary(terminal_output, total_lines, total_characters)
 
 
 if __name__ == "__main__":
