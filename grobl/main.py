@@ -182,8 +182,8 @@ def traverse_and_print_files(
     total_characters = 0
 
     def collect_file_data_wrapper(item: Path) -> None:
-        nonlocal total_lines, clipboard_output, terminal_output
-        total_lines = collect_file_data(item, common_ancestor, clipboard_output, terminal_output, total_lines, total_characters)
+        nonlocal total_lines, total_characters, clipboard_output, terminal_output
+        total_lines, total_characters = collect_file_data(item, common_ancestor, clipboard_output, terminal_output, total_lines, total_characters)
 
     # Shorten line length
     traverse_directory_tree(
