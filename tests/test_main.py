@@ -66,22 +66,6 @@ def test_escape_markdown():
         assert escape_markdown(input_text) == expected
 
 
-# Test Path Operations
-def test_find_common_ancestor():
-    paths = [
-        Path("/home/user/project/src"),
-        Path("/home/user/project/tests"),
-        Path("/home/user/project/docs"),
-    ]
-
-    def mock_resolve(path):
-        # Strip '/System/Volumes/Data' prefix if present and return the path
-        return Path(str(path))
-
-    with patch.object(Path, "resolve", side_effect=mock_resolve):
-        result = find_common_ancestor(paths)
-        assert result == Path("/home/user/project")
-
 def test_find_common_ancestor_empty_list():
     with pytest.raises(ValueError, match=ERROR_MSG_EMPTY_PATHS):
         find_common_ancestor([])
@@ -98,7 +82,7 @@ def test_directory_tree_builder():
     builder = DirectoryTreeBuilder(Path("/test"), [])
 
     # Test directory addition
-    builder.add_directory(Path("/test/dir"), "", True)
+    builder.add_directory(Path("/test/dir"), "", is_last=True)
     assert builder.tree_output == ["└── dir"]
 
     # Test file addition

@@ -10,6 +10,9 @@ import pyperclip
 ERROR_MSG_NO_COMMON_ANCESTOR = "No common ancestor found"
 ERROR_MSG_EMPTY_PATHS = "The list of paths is empty"
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
 
 # Utility function for escaping Markdown characters
 def escape_markdown(text: str) -> str:
@@ -30,13 +33,8 @@ class ClipboardInterface:
 
 
 class PyperclipClipboard(ClipboardInterface):
-    def copy(self, content: str) -> None:
+    def copy(self, content: str) -> None:  # noqa: PLR6301
         pyperclip.copy(content)
-
-
-# Logging setup
-def setup_logging(level=logging.INFO) -> None:
-    logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 # Core utility for finding a common ancestor path
@@ -73,19 +71,19 @@ class DirectoryTreeBuilder:
         self.total_lines += lines
         self.total_characters += characters
 
-    def add_file_to_tree(self, file_path: Path, prefix: str, is_last: bool) -> None:
+    def add_file_to_tree(self, file_path: Path, prefix: str, *, is_last: bool) -> None:
         """Add a file entry to the tree output."""
         connector = "└── " if is_last else "├── "
         self.tree_output.append(f"{prefix}{connector}{escape_markdown(file_path.name)}")
 
-    def add_directory(self, directory_path: Path, prefix: str, is_last: bool) -> None:
+    def add_directory(self, directory_path: Path, prefix: str, *, is_last: bool) -> None:
         """Add a directory entry to the tree output."""
         connector = "└── " if is_last else "├── "
         self.tree_output.append(f"{prefix}{connector}{escape_markdown(directory_path.name)}")
 
     def build_tree(self) -> str:
         """Build the full directory tree as a string."""
-        return "\n".join([self.base_path.name] + self.tree_output)
+        return "\n".join([self.base_path.name, *self.tree_output])
 
     def build_file_contents(self) -> str:
         """Build the collected file contents as a string."""
@@ -120,23 +118,34 @@ def match_exclude_patterns(path: Path, patterns: list[str], base_path: Path) -> 
     return any(relative_path.match(pattern) for pattern in patterns)
 
 
-# Directory traversal
+@dataclass
+class TraversalConfig:
+    paths: list[Path]
+    exclude_patterns: list[str]
+    base_path: Path
+
+
 def traverse_directory_tree(
     current_path: Path,
-    paths: list[Path],
-    exclude_patterns: list[str],
-    base_path: Path,
+    config: TraversalConfig,
     callback: Callable[[Path, str, bool], None],
     prefix: str = "",
 ) -> None:
-    items = filter_items(list(current_path.iterdir()), paths, exclude_patterns, base_path)
+    items = filter_items(
+        list(current_path.iterdir()), config.paths, config.exclude_patterns, config.base_path
+    )
     sorted_items = sorted(items, key=lambda x: x.name)
     for index, item in enumerate(sorted_items):
         is_last = index == len(sorted_items) - 1
-        callback(item, prefix, is_last)
+        callback(item, prefix, is_last=is_last)
         if item.is_dir():
             new_prefix = f"{prefix}    " if is_last else f"{prefix}|   "
-            traverse_directory_tree(item, paths, exclude_patterns, base_path, callback, new_prefix)
+            traverse_directory_tree(
+                item,
+                config,
+                callback,
+                new_prefix,
+            )
 
 
 # Reading file contents and line counts
@@ -156,7 +165,7 @@ def read_file_contents(file_path: Path) -> str:
         with file_path.open("r", encoding="utf-8", errors="ignore") as file:
             return file.read()
     except Exception:
-        logging.exception("Error reading file %s", file_path)
+        logger.exception("Error reading file %s", file_path)
     return ""
 
 
@@ -166,7 +175,7 @@ def count_lines(file_path: Path) -> tuple[int, int]:
         content = read_file_contents(file_path)
         return len(content.splitlines()), len(content)
     except Exception:
-        logging.exception("Error reading file for line count %s", file_path)
+        logger.exception("Error reading file for line count %s", file_path)
     return 0, 0
 
 
@@ -181,16 +190,18 @@ def process_paths(paths: list[Path], exclude_patterns: list[str], clipboard: Cli
     builder = DirectoryTreeBuilder(base_path=common_ancestor, exclude_patterns=exclude_patterns)
 
     # Traverse the directory tree
-    def collect_data(item: Path, prefix: str, is_last: bool) -> None:
+    def collect_data(item: Path, prefix: str, *, is_last: bool) -> None:
         if item.is_dir():
-            builder.add_directory(item, prefix, is_last)
+            builder.add_directory(item, prefix, is_last=is_last)
         elif item.is_file() and is_text_file(item):
-            builder.add_file_to_tree(item, prefix, is_last)  # Include files in the tree
+            builder.add_file_to_tree(item, prefix, is_last=is_last)  # Include files in the tree
             lines, characters = count_lines(item)
             content = read_file_contents(item)
             builder.add_file(item, lines, characters, content)
 
-    traverse_directory_tree(common_ancestor, resolved_paths, exclude_patterns, common_ancestor, collect_data)
+    traverse_directory_tree(
+        common_ancestor, TraversalConfig(resolved_paths, exclude_patterns, common_ancestor), collect_data
+    )
 
     # Generate outputs
     tree_output = builder.build_tree()
@@ -245,7 +256,6 @@ def print_summary(metadata: str, total_lines: int, total_characters: int) -> Non
 
 # Main entry point
 def main() -> None:
-    setup_logging()
     paths = [Path(p) for p in ["./"]]
     ignore_patterns = read_groblignore(Path(".groblignore"))
     clipboard = PyperclipClipboard()
