@@ -1,18 +1,17 @@
 import logging
+import re
 from collections.abc import Callable, Generator
 from pathlib import Path
 
 import pyperclip
-import re
+
 
 def escape_markdown(text):
     # Define the Markdown characters to escape
     markdown_chars = r"([*_#\[\]{}()>+-.!])"
 
     # Use regex to escape each Markdown character
-    escaped_text = re.sub(markdown_chars, r"\\\1", text)
-
-    return escaped_text
+    return re.sub(markdown_chars, r"\\\1", text)
 
 
 class PathNotFoundError(Exception):
@@ -59,7 +58,7 @@ def traverse_directory_tree(
     paths: list[Path],
     exclude_patterns: list[str],
     base_path: Path,
-    callback: Callable[[Path], None]
+    callback: Callable[[Path], None],
 ) -> None:
     items = _get_filtered_items(current_path, paths, exclude_patterns, base_path)  # Removed 'self'
     for item in sorted(items, key=lambda x: x.name):
@@ -68,9 +67,12 @@ def traverse_directory_tree(
             traverse_directory_tree(item, paths, exclude_patterns, base_path, callback)
 
 
-def _get_filtered_items(current_path: Path, paths: list[Path], exclude_patterns: list[str], base_path: Path) -> list[Path]:
+def _get_filtered_items(
+    current_path: Path, paths: list[Path], exclude_patterns: list[str], base_path: Path
+) -> list[Path]:
     return [
-        item for item in current_path.iterdir()
+        item
+        for item in current_path.iterdir()
         if (
             any(item.is_relative_to(p) for p in paths)
             and not item.name.startswith(".")
@@ -114,11 +116,12 @@ def tree_structure_to_string(paths: list[Path], exclude_patterns: list[str] | No
 
 def is_text_file(file_path: Path) -> bool:
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with file_path.open("r", encoding="utf-8") as f:
             f.read()
-        return True
-    except (UnicodeDecodeError, FileNotFoundError, OSError) as e:
+    except (UnicodeDecodeError, FileNotFoundError, OSError):
         return False
+    else:
+        return True
 
 
 def read_file_contents(file_path: Path) -> str:
@@ -147,7 +150,14 @@ def count_lines(file_path: Path) -> int:
     return 0, 0
 
 
-def collect_file_data(item: Path, common_ancestor: Path, clipboard_output: list[str], terminal_output: list[str], total_lines: int, total_characters: int) -> int:
+def collect_file_data(
+    item: Path,
+    common_ancestor: Path,
+    clipboard_output: list[str],
+    terminal_output: list[str],
+    total_lines: int,
+    total_characters: int,
+) -> int:
     if item.is_file() and is_text_file(item):
         relative_path = item.relative_to(common_ancestor.parent)
         line_count, character_count = count_lines(item)  # Count lines
@@ -159,9 +169,7 @@ def collect_file_data(item: Path, common_ancestor: Path, clipboard_output: list[
 
 
 def traverse_and_collect(
-        paths: list[Path],
-        exclude_patterns: list[str],
-        callback: Callable[[Path], None]
+    paths: list[Path], exclude_patterns: list[str], callback: Callable[[Path], None]
 ) -> None:
     common_ancestor = find_common_ancestor(paths)
     traverse_directory_tree(common_ancestor, paths, exclude_patterns, common_ancestor, callback)
@@ -183,7 +191,14 @@ def traverse_and_print_files(
 
     def collect_file_data_wrapper(item: Path) -> None:
         nonlocal total_lines, total_characters, clipboard_output, terminal_output
-        total_lines, total_characters = collect_file_data(item, common_ancestor, clipboard_output, terminal_output, total_lines, total_characters)
+        total_lines, total_characters = collect_file_data(
+            item=item,
+            common_ancestor=common_ancestor,
+            clipboard_output=clipboard_output,
+            terminal_output=terminal_output,
+            total_lines=total_lines,
+            total_characters=total_characters,
+        )
 
     # Shorten line length
     traverse_directory_tree(
@@ -195,11 +210,30 @@ def traverse_and_print_files(
 
 def read_groblignore(path: Path) -> list[str]:
     """Read the .groblignore file and return a list of patterns to ignore."""
-    ignore_patterns = []
+    ignore_patterns = [
+        ".groblignore",
+        ".gitignore",
+        ".git/",
+        ".gitmodules/",
+        ".venv/",
+        ".python-version",
+        "package-lock.json",
+        "uv.lock",
+        "build/",
+        "dist/",
+        "node_modules/",
+        "__pycache__/",
+        ".mypy_cache/",
+        ".pytest_cache/",
+        "cov.xml",
+        "ruff.toml",
+    ]
     if path.exists():
         with path.open("r", encoding="utf-8") as file:
-            ignore_patterns = [line.strip() for line in file if line.strip() and not line.startswith("#")]
-    return ignore_patterns
+            ignore_patterns.extend([
+                line.strip() for line in file if line.strip() and not line.startswith("#")
+            ])
+    return list(set(ignore_patterns))
 
 
 def print_summary(file_tree: str, total_lines: int, total_characters: int) -> None:
@@ -223,7 +257,9 @@ def main():
     ignore_patterns = read_groblignore(Path(".groblignore"))
 
     tree_output = tree_structure_to_string(paths, ignore_patterns)
-    files_output, terminal_output, total_lines, total_characters = traverse_and_print_files(paths, ignore_patterns)
+    files_output, terminal_output, total_lines, total_characters = traverse_and_print_files(
+        paths, ignore_patterns
+    )
 
     final_output = f"{tree_output}\n\n{files_output}"
 

@@ -1,11 +1,8 @@
-from pathlib import Path
-
 import pytest
 
 from grobl.main import (
     enumerate_file_tree,
     find_common_ancestor,
-    is_text_file,
     match_exclude_patterns,
     read_file_contents,
     read_groblignore,
@@ -164,22 +161,28 @@ def test_match_exclude_patterns(generate_sample_paths):
     assert match_exclude_patterns(base_path / "file2.txt", ignore_patterns, base_path) is False
 
     # Test folder exclusion
-    assert match_exclude_patterns(
-        base_path / "folder_2/folder_3/file_in_folder3.txt",
-        ignore_patterns,
-        base_path,
-    ) is True
+    assert (
+        match_exclude_patterns(
+            base_path / "folder_2/folder_3/file_in_folder3.txt",
+            ignore_patterns,
+            base_path,
+        )
+        is True
+    )
 
     # Test exclusion of Python files in any subdirectory
     assert match_exclude_patterns(base_path / "subfolder/script.py", ignore_patterns, base_path) is True
     assert match_exclude_patterns(base_path / "subfolder/readme.md", ignore_patterns, base_path) is False
 
     # Ensure Python file inside nested subfolder is excluded
-    assert match_exclude_patterns(
-        base_path / "folder_2/subfolder_in_folder2/module.py",
-        ignore_patterns,
-        base_path,
-    ) is True
+    assert (
+        match_exclude_patterns(
+            base_path / "folder_2/subfolder_in_folder2/module.py",
+            ignore_patterns,
+            base_path,
+        )
+        is True
+    )
 
     # Ensure Python file in base path is not excluded
     assert match_exclude_patterns(base_path / "main.py", ignore_patterns, base_path) is False
