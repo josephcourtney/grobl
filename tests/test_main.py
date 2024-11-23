@@ -1,219 +1,234 @@
+from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 
 from grobl.main import (
-    enumerate_file_tree,
+    ERROR_MSG_EMPTY_PATHS,
+    ERROR_MSG_NO_COMMON_ANCESTOR,
+    ClipboardInterface,
+    DirectoryTreeBuilder,
+    PathNotFoundError,
+    count_lines,
+    escape_markdown,
+    filter_items,
     find_common_ancestor,
+    is_text_file,
     match_exclude_patterns,
+    process_paths,
     read_file_contents,
     read_groblignore,
-    traverse_and_print_files,
-    tree_structure_to_string,
 )
 
 
+# Test Fixtures
 @pytest.fixture
-def generate_sample_paths(tmp_path):
-    """
-    Generate a complex directory structure based on predefined patterns.
-    The structure will include cases to test overlapping exclusions.
-    """
-    base = tmp_path / "folder_1"
-    base.mkdir()
+def mock_clipboard():
+    class MockClipboard(ClipboardInterface):
+        def __init__(self):
+            self.copied_content = None
 
-    # Patterns:
-    # *.abc -> Reject all .abc files
-    # folder_1/folder_2/folder_3 -> Reject everything in this subfolder
-    # folder_1/*/*.py -> Reject python files in subdirectories of folder_1
+        def copy(self, content: str) -> None:
+            self.copied_content = content
 
-    # Create files that match the "*.abc" pattern
-    (base / "file1.abc").touch()
-    (base / "file2.txt").touch()  # Not to be excluded
-
-    # Create nested folder structure
-    folder_2 = base / "folder_2"
-    folder_2.mkdir()
-
-    folder_3 = folder_2 / "folder_3"
-    folder_3.mkdir()
-
-    # Create files in folder_3 (should be excluded by folder_1/folder_2/folder_3)
-    (folder_3 / "file_in_folder3.txt").touch()
-
-    # Create subfolder inside folder_1 (for folder_1/*/*.py exclusion pattern)
-    subfolder = base / "subfolder"
-    subfolder.mkdir()
-
-    (subfolder / "script.py").touch()  # Should be excluded
-    (subfolder / "readme.md").touch()  # Should NOT be excluded
-
-    # Create python file at top level of folder_1 (should NOT be excluded)
-    (base / "main.py").touch()
-
-    # Add a second-level folder inside folder_2 to test overlapping patterns
-    subfolder_in_folder2 = folder_2 / "subfolder_in_folder2"
-    subfolder_in_folder2.mkdir()
-
-    (subfolder_in_folder2 / "module.py").touch()  # Should be excluded by folder_1/*/*.py
-
-    # Return the base path and pattern list
-    return base
+    return MockClipboard()
 
 
 @pytest.fixture
-def sample_paths(tmp_path):
-    python_project = tmp_path / "python_project"
-    python_project.mkdir()
-    (python_project / "requirements.txt").touch()
-    (python_project / "main.py").write_text("print('Hello, World!')\n")
+def temp_directory(tmp_path):
+    # Create a temporary directory structure for testing
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
 
-    js_project = tmp_path / "js_project"
-    js_project.mkdir()
-    (js_project / "package.json").touch()
-    (js_project / "index.js").write_text("console.log('Hello, World!');\n")
+    # Create some test files and directories
+    (project_dir / "src").mkdir()
+    (project_dir / "src" / "main.py").write_text("def main():\n    pass\n")
+    (project_dir / "src" / "utils.py").write_text("def util():\n    return True")
+    (project_dir / "tests").mkdir()
+    (project_dir / "tests" / "test_main.py").write_text("def test_main():\n    assert True")
+    (project_dir / ".groblignore").write_text("*.pyc\n__pycache__/")
 
-    ts_project = tmp_path / "ts_project"
-    ts_project.mkdir()
-    (ts_project / "tsconfig.json").touch()
-    (ts_project / "index.ts").write_text("console.log('Hello, World!');\n")
-
-    rust_project = tmp_path / "rust_project"
-    rust_project.mkdir()
-    (rust_project / "Cargo.toml").touch()
-    (rust_project / "main.rs").write_text('fn main() { println!("Hello, World!"); }\n')
-
-    wasm_project = tmp_path / "wasm_project"
-    wasm_project.mkdir()
-    (wasm_project / "wasm").mkdir()
-    (wasm_project / "index.wasm").touch()
-
-    return [python_project, js_project, ts_project, rust_project, wasm_project]
+    return project_dir
 
 
-def test_find_common_ancestor(sample_paths):
-    common_ancestor = find_common_ancestor(sample_paths)
-    assert common_ancestor.name == sample_paths[0].parent.name
+# Test Markdown Escaping
+def test_escape_markdown():
+    test_cases = [
+        ("Hello *world*", r"Hello \*world\*"),
+        ("_underscore_", r"\_underscore\_"),
+        ("#header", r"\#header"),
+        ("(parentheses)", r"\(parentheses\)"),
+        ("normal text", "normal text"),
+        ("multiple * _ # []", r"multiple \* \_ \# \[\]"),
+    ]
+
+    for input_text, expected in test_cases:
+        assert escape_markdown(input_text) == expected
 
 
-def test_enumerate_file_tree(sample_paths):
-    exclude_patterns = ["*.log", "node_modules/*"]
-    file_tree = list(enumerate_file_tree([sample_paths[0]], exclude_patterns))
-    assert "python_project" in file_tree[0]
-    assert "main.py" in file_tree[1]
+# Test Path Operations
+def test_find_common_ancestor():
+    paths = [
+        Path("/home/user/project/src"),
+        Path("/home/user/project/tests"),
+        Path("/home/user/project/docs"),
+    ]
+
+    def mock_resolve(path):
+        # Strip '/System/Volumes/Data' prefix if present and return the path
+        return Path(str(path))
+
+    with patch.object(Path, "resolve", side_effect=mock_resolve):
+        result = find_common_ancestor(paths)
+        assert result == Path("/home/user/project")
+
+def test_find_common_ancestor_empty_list():
+    with pytest.raises(ValueError, match=ERROR_MSG_EMPTY_PATHS):
+        find_common_ancestor([])
 
 
-def test_tree_structure_to_string(sample_paths):
-    exclude_patterns = ["*.log", "node_modules/*"]
-    tree_string = tree_structure_to_string([sample_paths[0]], exclude_patterns)
-    assert "python_project" in tree_string
-    assert "main.py" in tree_string
+def test_find_common_ancestor_no_common():
+    paths = [Path("/home/user1"), Path("/home/user2"), Path("/var/log")]
+    with pytest.raises(PathNotFoundError, match=ERROR_MSG_NO_COMMON_ANCESTOR):
+        find_common_ancestor(paths)
 
 
-def test_read_file_contents(tmp_path):
-    file_path = tmp_path / "test.txt"
-    file_path.write_text("Hello, World!\n")
-    contents = read_file_contents(file_path)
-    assert contents == "Hello, World!\n"
+# Test DirectoryTreeBuilder
+def test_directory_tree_builder():
+    builder = DirectoryTreeBuilder(Path("/test"), [])
 
-    # Test with a non-existent file
-    non_existent_file = tmp_path / "non_existent.txt"
-    contents = read_file_contents(non_existent_file)
-    assert not contents  # Updated to use `not contents`
+    # Test directory addition
+    builder.add_directory(Path("/test/dir"), "", True)
+    assert builder.tree_output == ["└── dir"]
 
-
-def test_traverse_and_print_files(sample_paths):
-    exclude_patterns = ["*.log", "node_modules/*"]
-    clipboard_output, terminal_output, total_lines = traverse_and_print_files(
-        [sample_paths[0]], exclude_patterns
-    )
-
-    # Validate clipboard output
-    assert "main.py" in clipboard_output
-    assert "```" in clipboard_output  # Check for code block
-
-    # Validate terminal output
-    assert "main.py: (1 lines)" in terminal_output  # Check for line count
-    assert total_lines == 1  # Check total lines
+    # Test file addition
+    builder.add_file(Path("/test/file.txt"), 10, 100, "content")
+    assert "file.txt: (10 lines | 100 characters)" in builder.file_metadata
+    assert builder.total_lines == 10
+    assert builder.total_characters == 100
 
 
-def test_read_groblignore(tmp_path):
-    groblignore_path = tmp_path / ".groblignore"
-    groblignore_content = """
-    *.log
-    *.tmp
-    node_modules/
-    """
-    groblignore_path.write_text(groblignore_content.strip())
-    ignore_patterns = read_groblignore(groblignore_path)
-    assert "*.log" in ignore_patterns
-    assert "*.tmp" in ignore_patterns
-    assert "node_modules/" in ignore_patterns
+# Test File Operations
+def test_is_text_file(temp_directory):
+    text_file = temp_directory / "src" / "main.py"
+    assert is_text_file(text_file) is True
 
-    # Test empty or nonexistent .groblignore file
-    empty_ignore = read_groblignore(tmp_path / "empty.groblignore")
-    assert empty_ignore == []
+    # Test non-existent file
+    assert is_text_file(temp_directory / "nonexistent.txt") is False
 
 
-def test_match_exclude_patterns(generate_sample_paths):
-    base_path = generate_sample_paths
-    ignore_patterns = ["*.abc", "folder_2/folder_3/**", "**/*.py"]
-
-    assert match_exclude_patterns(base_path / "file1.abc", ignore_patterns, base_path) is True
-    assert match_exclude_patterns(base_path / "file2.txt", ignore_patterns, base_path) is False
-
-    # Test folder exclusion
-    assert (
-        match_exclude_patterns(
-            base_path / "folder_2/folder_3/file_in_folder3.txt",
-            ignore_patterns,
-            base_path,
-        )
-        is True
-    )
-
-    # Test exclusion of Python files in any subdirectory
-    assert match_exclude_patterns(base_path / "subfolder/script.py", ignore_patterns, base_path) is True
-    assert match_exclude_patterns(base_path / "subfolder/readme.md", ignore_patterns, base_path) is False
-
-    # Ensure Python file inside nested subfolder is excluded
-    assert (
-        match_exclude_patterns(
-            base_path / "folder_2/subfolder_in_folder2/module.py",
-            ignore_patterns,
-            base_path,
-        )
-        is True
-    )
-
-    # Ensure Python file in base path is not excluded
-    assert match_exclude_patterns(base_path / "main.py", ignore_patterns, base_path) is False
+def test_read_file_contents(temp_directory):
+    file_path = temp_directory / "src" / "main.py"
+    content = read_file_contents(file_path)
+    assert "def main():" in content
+    assert "pass" in content
 
 
-def test_enumerate_file_tree_with_groblignore(generate_sample_paths, tmp_path):
-    base_path = generate_sample_paths
-    groblignore_path = tmp_path / ".groblignore"
-    groblignore_content = """
-    *.abc
-    folder_2/folder_3
-    **/*.py
-    """
-    groblignore_path.write_text(groblignore_content.strip())
-    ignore_patterns = read_groblignore(groblignore_path)
+def test_count_lines(temp_directory):
+    file_path = temp_directory / "src" / "main.py"
+    lines, chars = count_lines(file_path)
+    assert lines == 2
+    assert chars > 0
 
-    file_tree = list(enumerate_file_tree([base_path], ignore_patterns))
-    file_tree_string = "\n".join(file_tree)
 
-    # Files excluded by *.abc
-    assert "file1.abc" not in file_tree_string
+# Test File Filtering
+def test_filter_items(temp_directory):
+    base_path = temp_directory
+    paths = [base_path / "src"]
+    exclude_patterns = ["*.pyc", "__pycache__"]
 
-    # Exclude everything in folder_2/folder_3
-    assert "folder_3" not in file_tree_string
-    assert "file_in_folder3.txt" not in file_tree_string
+    items = [
+        base_path / "src" / "main.py",
+        base_path / "src" / "test.pyc",
+        base_path / "src" / "__pycache__",
+    ]
 
-    # Exclude Python files in any subdirectories
-    assert "script.py" not in file_tree_string
-    assert "module.py" not in file_tree_string
+    filtered = filter_items(items, paths, exclude_patterns, base_path)
+    assert len(filtered) == 1
+    assert filtered[0].name == "main.py"
 
-    # Ensure files not matching the patterns are present
-    assert "file2.txt" in file_tree_string
-    assert "readme.md" in file_tree_string
-    assert "main.py" in file_tree_string  # Since main.py is at the base level
+
+def test_match_exclude_patterns(temp_directory):
+    patterns = ["*.pyc", "__pycache__"]
+
+    # Should match
+    assert match_exclude_patterns(temp_directory / "test.pyc", patterns, temp_directory) is True
+
+    # Should not match
+    assert match_exclude_patterns(temp_directory / "test.py", patterns, temp_directory) is False
+
+
+# Test Groblignore Reading
+def test_read_groblignore(temp_directory):
+    patterns = read_groblignore(temp_directory / ".groblignore")
+    assert "*.pyc" in patterns
+    assert "__pycache__/" in patterns
+    assert ".git/" in patterns  # Default pattern
+
+
+# Test Main Processing
+def test_process_paths(temp_directory, mock_clipboard):
+    paths = [temp_directory / "src"]
+    exclude_patterns = ["*.pyc", "__pycache__"]
+
+    with patch("grobl.main.print"):  # Suppress print output during test
+        process_paths(paths, exclude_patterns, mock_clipboard)
+
+    # Verify clipboard content
+    assert mock_clipboard.copied_content is not None
+    assert "main.py" in mock_clipboard.copied_content
+    assert "utils.py" in mock_clipboard.copied_content
+    assert "def main():" in mock_clipboard.copied_content
+
+
+# Test Error Handling
+def test_process_paths_nonexistent(mock_clipboard):
+    with pytest.raises(FileNotFoundError):
+        process_paths([Path("/nonexistent")], [], mock_clipboard)
+
+
+# Integration Tests
+def test_full_directory_scan(temp_directory, mock_clipboard):
+    with patch("grobl.main.print"):  # Suppress print output during test
+        process_paths([temp_directory], [], mock_clipboard)
+
+    output = mock_clipboard.copied_content
+    assert output is not None
+    # Check for directory structure
+    assert "├── src" in output
+    assert "└── tests" in output
+    # Check for file contents
+    assert "main.py:" in output
+    assert "test_main.py:" in output
+    assert "def main():" in output
+    assert "def test_main():" in output
+
+
+def test_exclude_patterns_integration(temp_directory, mock_clipboard):
+    # Create some files that should be excluded
+    (temp_directory / "src" / "test.pyc").write_text("should be excluded")
+    (temp_directory / "src" / "__pycache__").mkdir(exist_ok=True)
+
+    with patch("grobl.main.print"):  # Suppress print output during test
+        process_paths([temp_directory], ["*.pyc", "__pycache__"], mock_clipboard)
+
+    output = mock_clipboard.copied_content
+    assert output is not None
+    assert "test.pyc" not in output
+    assert "__pycache__" not in output
+
+
+def test_unicode_handling(temp_directory, mock_clipboard):
+    # Test handling of unicode characters in filenames and content
+    unicode_content = "Hello 世界\nこんにちは"
+    unicode_file = temp_directory / "src" / "unicode_test.py"
+    unicode_file.write_text(unicode_content, encoding="utf-8")
+
+    with patch("grobl.main.print"):  # Suppress print output during test
+        process_paths([temp_directory], [], mock_clipboard)
+
+    output = mock_clipboard.copied_content
+    assert output is not None
+    assert "unicode_test.py" in output
+    assert "Hello 世界" in output
+    assert "こんにちは" in output

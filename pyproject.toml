@@ -4,17 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "grobl"
-version = "0.2.7"
+version = "0.2.12"
 description = "A script to display directory structure and Python file contents"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
     { name = "Joseph M Courtney", email = "joseph.m.courtney@gmail.com" },
 ]
-dependencies = [
-    "pyperclip",
-    "pytest>=8.3.3",
-]
+dependencies = ["pyperclip"]
+[dependency-groups]
+dev = ["ruff>=0.8.0", "pytest>=8.3.3"]
 
 [project.scripts]
 grobl = "grobl.main:main"
