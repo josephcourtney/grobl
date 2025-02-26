@@ -22,6 +22,7 @@ classifiers = [
 dependencies = ["pyperclip"]
 [dependency-groups]
 dev = [
+  "basedpyright>=1.28.0",
   "coverage>=7.6.10",
   "mypy>=1.15.0",
   "pytest>=8.3.4",
