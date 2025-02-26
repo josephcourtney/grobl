@@ -5,4 +5,4 @@
 .python-version
 .venv/
 uv.lock
-ruff.toml
+ruff.default.toml
