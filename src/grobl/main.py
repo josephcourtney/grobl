@@ -65,6 +65,9 @@ class DirectoryTreeBuilder:
 
     def add_file(self, file_path: Path, lines: int, characters: int, content: str) -> None:
         """Add file metadata and contents to the builder."""
+        if file_path.suffix == "md":
+            content = content.replace("```", r"\`\`\`")
+
         relative_path = file_path.relative_to(self.base_path)
         self.file_metadata.append(f"{relative_path}: ({lines} lines | {characters} characters)")
         self.file_contents.extend([f"\n{relative_path}:", "```", content, "```"])
