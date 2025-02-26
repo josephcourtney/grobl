@@ -59,9 +59,10 @@ class DirectoryTreeBuilder:
     exclude_patterns: list[str]
     tree_output: list[str] = field(default_factory=list)
     file_contents: list[str] = field(default_factory=list)
-    file_metadata: list[str] = field(default_factory=list)
     total_lines: int = 0
     total_characters: int = 0
+    file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
+    file_metadata: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def add_file(self, file_path: Path, lines: int, characters: int, content: str) -> None:
         """Add file metadata and contents to the builder."""
@@ -69,32 +70,47 @@ class DirectoryTreeBuilder:
             content = content.replace("```", r"\`\`\`")
 
         relative_path = file_path.relative_to(self.base_path)
-        self.file_metadata.append(f"{relative_path}: ({lines} lines | {characters} characters)")
+        self.file_metadata[str(relative_path)] = (lines, characters)
         self.file_contents.extend([f"\n{relative_path}:", "```", content, "```"])
         self.total_lines += lines
         self.total_characters += characters
 
     def add_file_to_tree(self, file_path: Path, prefix: str, *, is_last: bool) -> None:
-        """Add a file entry to the tree output."""
+        """Add a file entry to the tree output and record its position."""
         connector = "└── " if is_last else "├── "
-        self.tree_output.append(f"{prefix}{connector}{escape_markdown(file_path.name)}")
+        relative_path = file_path.relative_to(self.base_path)
+        line = f"{prefix}{connector}{relative_path.as_posix()}"
+        self.tree_output.append(line)
+        # Record the index of this file entry along with its relative path.
+        self.file_tree_entries.append((len(self.tree_output) - 1, relative_path))
 
     def add_directory(self, directory_path: Path, prefix: str, *, is_last: bool) -> None:
         """Add a directory entry to the tree output."""
         connector = "└── " if is_last else "├── "
-        self.tree_output.append(f"{prefix}{connector}{escape_markdown(directory_path.name)}")
+        self.tree_output.append(f"{prefix}{connector}{directory_path.name}")
 
-    def build_tree(self) -> str:
-        """Build the full directory tree as a string."""
-        return "\n".join([self.base_path.name, *self.tree_output])
+    def build_tree(self, include_metadata: bool = False) -> str:
+        """Build the full directory tree as a string.
+
+        If include_metadata is True, file metadata is appended to file entries.
+        """
+        output = self.tree_output.copy()
+        max_len = max(len(ln) for ln in output)
+        max_line_len = max(5, max(len(str(ln)) for ln, _ in self.file_metadata.values()))
+        max_char_len = max(10, max(len(str(ch)) for _, ch in self.file_metadata.values()))
+        for index, rel_path in self.file_tree_entries:
+            if include_metadata and str(rel_path) in self.file_metadata:
+                lines, characters = self.file_metadata[str(rel_path)]
+                output[index] = f"{output[index]:{max_len}s} {lines:>{max_line_len}d}  {characters:>{max_char_len}d}"
+        return [
+            f"{'':{max_len}s} {'lines':<{max_line_len}s}  {'characters':<{max_char_len}s}",
+            self.base_path.name,
+            *output,
+        ]
 
     def build_file_contents(self) -> str:
         """Build the collected file contents as a string."""
         return "\n".join(self.file_contents)
-
-    def build_metadata(self) -> str:
-        """Build the collected file metadata as a string."""
-        return "\n".join(self.file_metadata)
 
     def get_totals(self) -> tuple[int, int]:
         """Get the total lines and characters."""
@@ -207,17 +223,19 @@ def process_paths(paths: list[Path], exclude_patterns: list[str], clipboard: Cli
     )
 
     # Generate outputs
-    tree_output = builder.build_tree()
+    tree_output = escape_markdown("\n".join(builder.build_tree()))
     file_contents = builder.build_file_contents()
-    metadata_output = builder.build_metadata()
     total_lines, total_characters = builder.get_totals()
 
     final_output = f"{tree_output}\n\n{file_contents}"
 
     # Copy to clipboard and print
     clipboard.copy(final_output)
-    print("Output copied to clipboard")
-    print_summary(metadata_output, total_lines, total_characters)
+    print_summary(
+        builder.build_tree(include_metadata=True),
+        total_lines,
+        total_characters,
+    )
 
 
 def read_groblignore(path: Path) -> list[str]:
@@ -248,13 +266,20 @@ def read_groblignore(path: Path) -> list[str]:
     return list(set(ignore_patterns))
 
 
-def print_summary(metadata: str, total_lines: int, total_characters: int) -> None:
+def print_summary(tree_output: str, total_lines: int, total_characters: int) -> None:
     """Print a summary of the processed content."""
-    print("\n--- Summary of Copied Content ---")
-    print(metadata)
-    print(f"\nTotal Lines: {total_lines}")
-    print(f"Total Characters: {total_characters}")
-    print("---------------------------------")
+    max_line_len = 2*round(max(len(ln) for ln in tree_output)/2)
+    title = " Output copied to clipboard "
+    print(
+        '-'*((max_line_len-len(title))//2) +
+        title +
+        '-'*(max_line_len - (len(title) + (max_line_len-len(title))//2))
+    )
+    print("\n".join(tree_output))
+    print()
+    print(f"Total Lines:{total_lines:>{max_line_len-12}d}")
+    print(f"Total Characters:{total_characters:>{max_line_len-17}d}")
+    print("-"*max_line_len)
 
 
 # Main entry point
