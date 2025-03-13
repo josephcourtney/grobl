@@ -101,9 +101,13 @@ class DirectoryTreeBuilder:
         for index, rel_path in self.file_tree_entries:
             if include_metadata and str(rel_path) in self.file_metadata:
                 lines, characters = self.file_metadata[str(rel_path)]
-                output[index] = f"{output[index]:{max_len}s} {lines:>{max_line_len}d}  {characters:>{max_char_len}d}"
+                output[index] = (
+                    f"{output[index]:{max_len}s} {lines:>{max_line_len}d}  {characters:>{max_char_len}d}"
+                )
         return [
-            f"{'':{max_len}s} {'lines':<{max_line_len}s}  {'characters':<{max_char_len}s}",
+            f"{'':{max_len}s} {'lines':<{max_line_len}s}  {'characters':<{max_char_len}s}"
+            if include_metadata
+            else "",
             self.base_path.name,
             *output,
         ]
@@ -268,18 +272,18 @@ def read_groblignore(path: Path) -> list[str]:
 
 def print_summary(tree_output: str, total_lines: int, total_characters: int) -> None:
     """Print a summary of the processed content."""
-    max_line_len = 2*round(max(len(ln) for ln in tree_output)/2)
+    max_line_len = 2 * round(max(len(ln) for ln in tree_output) / 2)
     title = " Output copied to clipboard "
     print(
-        '-'*((max_line_len-len(title))//2) +
-        title +
-        '-'*(max_line_len - (len(title) + (max_line_len-len(title))//2))
+        "-" * ((max_line_len - len(title)) // 2)
+        + title
+        + "-" * (max_line_len - (len(title) + (max_line_len - len(title)) // 2))
     )
     print("\n".join(tree_output))
     print()
-    print(f"Total Lines:{total_lines:>{max_line_len-12}d}")
-    print(f"Total Characters:{total_characters:>{max_line_len-17}d}")
-    print("-"*max_line_len)
+    print(f"Total Lines:{total_lines:>{max_line_len - 12}d}")
+    print(f"Total Characters:{total_characters:>{max_line_len - 17}d}")
+    print("-" * max_line_len)
 
 
 # Main entry point
