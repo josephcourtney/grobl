@@ -272,7 +272,7 @@ def read_groblignore(path: Path) -> list[str]:
 
 def print_summary(tree_output: str, total_lines: int, total_characters: int) -> None:
     """Print a summary of the processed content."""
-    max_line_len = 2 * round(max(len(ln) for ln in tree_output) / 2)
+    max_line_len = max(len(ln) for ln in tree_output)
     title = " Output copied to clipboard "
     print("-" * ((max_line_len - len(title)) // 2) + title + "-" * ((max_line_len - len(title) + 1) // 2))
     print("\n".join(tree_output))
