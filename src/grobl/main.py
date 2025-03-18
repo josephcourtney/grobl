@@ -274,11 +274,7 @@ def print_summary(tree_output: str, total_lines: int, total_characters: int) -> 
     """Print a summary of the processed content."""
     max_line_len = 2 * round(max(len(ln) for ln in tree_output) / 2)
     title = " Output copied to clipboard "
-    print(
-        "-" * ((max_line_len - len(title)) // 2)
-        + title
-        + "-" * (max_line_len - (len(title) + (max_line_len - len(title)) // 2))
-    )
+    print("-" * ((max_line_len - len(title)) // 2) + title + "-" * ((max_line_len - len(title) + 1) // 2))
     print("\n".join(tree_output))
     print()
     print(f"Total Lines:{total_lines:>{max_line_len - 12}d}")
