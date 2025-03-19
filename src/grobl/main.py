@@ -162,7 +162,7 @@ def traverse_directory_tree(
         is_last = index == len(sorted_items) - 1
         callback(item, prefix, is_last=is_last)
         if item.is_dir():
-            new_prefix = f"{prefix}    " if is_last else f"{prefix}|   "
+            new_prefix = f"{prefix}    " if is_last else f"{prefix}│   "
             traverse_directory_tree(
                 item,
                 config,
@@ -274,12 +274,11 @@ def print_summary(tree_output: str, total_lines: int, total_characters: int) -> 
     """Print a summary of the processed content."""
     max_line_len = max(len(ln) for ln in tree_output)
     title = " Output copied to clipboard "
-    print("-" * ((max_line_len - len(title)) // 2) + title + "-" * ((max_line_len - len(title) + 1) // 2))
+    print("═" * ((max_line_len - len(title)) // 2) + title + "═" * ((max_line_len - len(title) + 1) // 2))
     print("\n".join(tree_output))
-    print()
-    print(f"Total Lines:{total_lines:>{max_line_len - 12}d}")
-    print(f"Total Characters:{total_characters:>{max_line_len - 17}d}")
     print("-" * max_line_len)
+    print(f"Total:{total_lines:>{max_line_len - 18}d}{total_characters:>12d}")
+    print("═" * max_line_len)
 
 
 # Main entry point
