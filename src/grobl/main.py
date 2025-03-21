@@ -79,7 +79,7 @@ class DirectoryTreeBuilder:
         """Add a file entry to the tree output and record its position."""
         connector = "└── " if is_last else "├── "
         relative_path = file_path.relative_to(self.base_path)
-        line = f"{prefix}{connector}{relative_path.as_posix()}"
+        line = f"{prefix}{connector}{file_path.name}"
         self.tree_output.append(line)
         # Record the index of this file entry along with its relative path.
         self.file_tree_entries.append((len(self.tree_output) - 1, relative_path))
