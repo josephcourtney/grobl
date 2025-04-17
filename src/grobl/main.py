@@ -1,58 +1,69 @@
+import argparse
+import json
 import logging
 import re
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pyperclip
 
-# Centralized error messages
+# Configuration
+CONFIG_FILENAME = ".grobl.config.json"
+DEFAULT_CONFIG = {
+    "exclude_tree": ["*.jsonl", "*.jsonl.*", "tests/*", "cov.xml", "*.log", "*.tmp"],
+    "exclude_print": ["*.json", "*.html"],
+    # XML-style tag names for wrapping outputs
+    "include_tree_tags": "tree",
+    "include_file_tags": "file",
+}
+
+# Error messages
 ERROR_MSG_NO_COMMON_ANCESTOR = "No common ancestor found"
 ERROR_MSG_EMPTY_PATHS = "The list of paths is empty"
 
+# Logging setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
-# Utility function for escaping Markdown characters
+# Utility: escape markdown characters
 def escape_markdown(text: str) -> str:
-    """Escape Markdown special characters in a string."""
-    markdown_chars = r"([*_#\[\]{}()>+-.!])"
+    markdown_chars = r"([*_#\[\]{}()>+\-.!])"
     return re.sub(markdown_chars, r"\\\1", text)
 
 
-# Custom exceptions for specific errors
+# Custom exception
 class PathNotFoundError(Exception):
     pass
 
 
-# Clipboard abstraction for flexibility in testing
+# Clipboard interface
 class ClipboardInterface:
     def copy(self, content: str) -> None:
         raise NotImplementedError
 
 
 class PyperclipClipboard(ClipboardInterface):
-    def copy(self, content: str) -> None:  # noqa: PLR6301
+    def copy(self, content: str) -> None:
         pyperclip.copy(content)
 
 
-# Core utility for finding a common ancestor path
+# Find common ancestor path
 def find_common_ancestor(paths: list[Path]) -> Path:
-    """Find the common ancestor directory for a list of paths."""
     if not paths:
         raise ValueError(ERROR_MSG_EMPTY_PATHS)
-
-    common_ancestor = paths[0].resolve()
-    for path in map(Path.resolve, paths[1:]):
-        while not path.is_relative_to(common_ancestor):
-            common_ancestor = common_ancestor.parent
-            if common_ancestor == Path("/"):
+    common = paths[0].resolve()
+    for p in map(Path.resolve, paths[1:]):
+        while not p.is_relative_to(common):
+            common = common.parent
+            if common == Path("/"):
                 raise PathNotFoundError(ERROR_MSG_NO_COMMON_ANCESTOR)
-    return common_ancestor
+    return common
 
 
-# Directory tree builder class
+# Directory tree builder
 @dataclass
 class DirectoryTreeBuilder:
     base_path: Path
@@ -64,229 +75,226 @@ class DirectoryTreeBuilder:
     file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
     file_metadata: dict[str, tuple[int, int]] = field(default_factory=dict)
 
-    def add_file(self, file_path: Path, lines: int, characters: int, content: str) -> None:
-        """Add file metadata and contents to the builder."""
-        if file_path.suffix == "md":
-            content = content.replace("```", r"\`\`\`")
-
-        relative_path = file_path.relative_to(self.base_path)
-        self.file_metadata[str(relative_path)] = (lines, characters)
-        self.file_contents.extend([f"\n{relative_path}:", "```", content, "```"])
-        self.total_lines += lines
-        self.total_characters += characters
-
-    def add_file_to_tree(self, file_path: Path, prefix: str, *, is_last: bool) -> None:
-        """Add a file entry to the tree output and record its position."""
-        connector = "└── " if is_last else "├── "
-        relative_path = file_path.relative_to(self.base_path)
-        line = f"{prefix}{connector}{file_path.name}"
-        self.tree_output.append(line)
-        # Record the index of this file entry along with its relative path.
-        self.file_tree_entries.append((len(self.tree_output) - 1, relative_path))
-
     def add_directory(self, directory_path: Path, prefix: str, *, is_last: bool) -> None:
-        """Add a directory entry to the tree output."""
         connector = "└── " if is_last else "├── "
         self.tree_output.append(f"{prefix}{connector}{directory_path.name}")
 
-    def build_tree(self, include_metadata: bool = False) -> str:
-        """Build the full directory tree as a string.
+    def add_file_to_tree(self, file_path: Path, prefix: str, *, is_last: bool) -> None:
+        connector = "└── " if is_last else "├── "
+        rel = file_path.relative_to(self.base_path)
+        line = f"{prefix}{connector}{file_path.name}"
+        self.tree_output.append(line)
+        self.file_tree_entries.append((len(self.tree_output) - 1, rel))
 
-        If include_metadata is True, file metadata is appended to file entries.
-        """
-        output = self.tree_output.copy()
-        max_len = max(len(ln) for ln in output)
-        max_line_len = max(5, max(len(str(ln)) for ln, _ in self.file_metadata.values()))
-        max_char_len = max(10, max(len(str(ch)) for _, ch in self.file_metadata.values()))
-        for index, rel_path in self.file_tree_entries:
-            if include_metadata and str(rel_path) in self.file_metadata:
-                lines, characters = self.file_metadata[str(rel_path)]
-                output[index] = (
-                    f"{output[index]:{max_len}s} {lines:>{max_line_len}d}  {characters:>{max_char_len}d}"
-                )
-        return [
-            f"{'':{max_len}s} {'lines':<{max_line_len}s}  {'characters':<{max_char_len}s}"
-            if include_metadata
-            else "",
-            self.base_path.name,
-            *output,
-        ]
+    def add_file(self, file_path: Path, lines: int, characters: int, content: str) -> None:
+        if file_path.suffix == ".md":
+            content = content.replace("```", r"\`\`\`")
+        rel = file_path.relative_to(self.base_path)
+        self.file_metadata[str(rel)] = (lines, characters)
+        self.file_contents.extend([
+            f'<file:content name="{rel}" lines="{lines}" chars="{characters}">',
+            content,
+            "</file:content>",
+        ])
+        self.total_lines += lines
+        self.total_characters += characters
+
+    def build_tree(self, include_metadata: bool = False) -> list[str]:
+        output = []
+        if include_metadata:
+            # compute widths
+            name_width = max(len(line) for line in self.tree_output)
+            max_line = max((len(str(v[0])) for v in self.file_metadata.values()), default=1)
+            max_char = max((len(str(v[1])) for v in self.file_metadata.values()), default=1)
+            entry_map = dict(self.file_tree_entries)
+            for idx, text in enumerate(self.tree_output):
+                if idx in entry_map:
+                    rel = entry_map[idx]
+                    if str(rel) in self.file_metadata:
+                        ln, ch = self.file_metadata[str(rel)]
+                        marker = " "
+                    else:
+                        ln, ch = 0, 0
+                        marker = "*"
+                    padded = f"{text:<{name_width}} {ln:>{max_line}} {ch:>{max_char}} {marker}"
+                    output.append(padded)
+                else:
+                    output.append(text)
+        else:
+            output = self.tree_output.copy()
+        return [self.base_path.name, *output]
 
     def build_file_contents(self) -> str:
-        """Build the collected file contents as a string."""
         return "\n".join(self.file_contents)
 
-    def get_totals(self) -> tuple[int, int]:
-        """Get the total lines and characters."""
-        return self.total_lines, self.total_characters
 
-
-# Filter files and directories based on exclude patterns
-def filter_items(
-    items: list[Path], paths: list[Path], exclude_patterns: list[str], base_path: Path
-) -> list[Path]:
-    """Filter directory items based on inclusion paths and exclude patterns."""
-    filtered = []
+# Filter directory items
+def filter_items(items: list[Path], paths: list[Path], patterns: list[str], base: Path) -> list[Path]:
+    res = []
     for item in items:
-        is_included = any(item.is_relative_to(p) for p in paths)
-        is_excluded = match_exclude_patterns(item, exclude_patterns, base_path)
-        if is_included and not is_excluded and not item.name.startswith("."):
-            filtered.append(item)
-    return filtered
+        if not any(item.is_relative_to(p) for p in paths):
+            continue
+        if any(item.relative_to(base).match(pat) for pat in patterns):
+            continue
+        res.append(item)
+    return sorted(res, key=lambda x: x.name)
 
 
-def match_exclude_patterns(path: Path, patterns: list[str], base_path: Path) -> bool:
-    """Check if a path matches any exclude patterns."""
-    relative_path = path.relative_to(base_path)
-    return any(relative_path.match(pattern) for pattern in patterns)
-
-
-@dataclass
-class TraversalConfig:
-    paths: list[Path]
-    exclude_patterns: list[str]
-    base_path: Path
-
-
-def traverse_directory_tree(
-    current_path: Path,
-    config: TraversalConfig,
-    callback: Callable[[Path, str, bool], None],
-    prefix: str = "",
+# Traverse directory tree
+def traverse_dir(
+    path: Path, config: tuple[list[Path], list[str], Path], callback: Callable, prefix: str = ""
 ) -> None:
-    items = filter_items(
-        list(current_path.iterdir()), config.paths, config.exclude_patterns, config.base_path
-    )
-    sorted_items = sorted(items, key=lambda x: x.name)
-    for index, item in enumerate(sorted_items):
-        is_last = index == len(sorted_items) - 1
-        callback(item, prefix, is_last=is_last)
+    paths, patterns, base = config
+    for idx, item in enumerate(filter_items(list(path.iterdir()), paths, patterns, base)):
+        last = idx == len(list(path.iterdir())) - 1
+        callback(item, prefix, is_last=last)
         if item.is_dir():
-            new_prefix = f"{prefix}    " if is_last else f"{prefix}│   "
-            traverse_directory_tree(
-                item,
-                config,
-                callback,
-                new_prefix,
-            )
+            next_prefix = "    " if last else "│   "
+            traverse_dir(item, config, callback, prefix + next_prefix)
 
 
-# Reading file contents and line counts
-def is_text_file(file_path: Path) -> bool:
-    """Determine if a file is a readable text file."""
+# File helpers
+def is_text(file_path: Path) -> bool:
     try:
-        with file_path.open("r", encoding="utf-8") as f:
-            f.read()
-    except (UnicodeDecodeError, FileNotFoundError, OSError):
+        file_path.read_text(encoding="utf-8")
+        return True
+    except Exception:
         return False
-    return True
 
 
-def read_file_contents(file_path: Path) -> str:
-    """Read the contents of a file."""
+def read_text(file_path: Path) -> str:
     try:
-        with file_path.open("r", encoding="utf-8", errors="ignore") as file:
-            return file.read()
+        return file_path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
-        logger.exception("Error reading file %s", file_path)
-    return ""
+        logger.exception("Reading %s failed", file_path)
+        return ""
 
 
-def count_lines(file_path: Path) -> tuple[int, int]:
-    """Count the number of lines and characters in a file."""
-    try:
-        content = read_file_contents(file_path)
-        return len(content.splitlines()), len(content)
-    except Exception:
-        logger.exception("Error reading file for line count %s", file_path)
-    return 0, 0
-
-
-# Main processing logic
-def process_paths(paths: list[Path], exclude_patterns: list[str], clipboard: ClipboardInterface) -> None:
-    """Process the given paths to generate and copy outputs."""
-    # Resolve paths and find common ancestor
-    resolved_paths = [p.resolve() for p in paths]
-    common_ancestor = find_common_ancestor(resolved_paths)
-
-    # Initialize the builder
-    builder = DirectoryTreeBuilder(base_path=common_ancestor, exclude_patterns=exclude_patterns)
-
-    # Traverse the directory tree
-    def collect_data(item: Path, prefix: str, *, is_last: bool) -> None:
-        if item.is_dir():
-            builder.add_directory(item, prefix, is_last=is_last)
-        elif item.is_file() and is_text_file(item):
-            builder.add_file_to_tree(item, prefix, is_last=is_last)  # Include files in the tree
-            lines, characters = count_lines(item)
-            content = read_file_contents(item)
-            builder.add_file(item, lines, characters, content)
-
-    traverse_directory_tree(
-        common_ancestor, TraversalConfig(resolved_paths, exclude_patterns, common_ancestor), collect_data
-    )
-
-    # Generate outputs
-    tree_output = escape_markdown("\n".join(builder.build_tree()))
-    file_contents = builder.build_file_contents()
-    total_lines, total_characters = builder.get_totals()
-
-    final_output = f"{tree_output}\n\n{file_contents}"
-
-    # Copy to clipboard and print
-    clipboard.copy(final_output)
-    print_summary(
-        builder.build_tree(include_metadata=True),
-        total_lines,
-        total_characters,
-    )
+# Read old .groblignore
 
 
 def read_groblignore(path: Path) -> list[str]:
-    """Read the .groblignore file and return patterns to ignore."""
-    ignore_patterns = [
-        ".groblignore",
-        ".gitignore",
-        ".git/",
-        ".gitmodules/",
-        ".venv/",
-        ".python-version",
-        "package-lock.json",
-        "uv.lock",
-        "build/",
-        "dist/",
-        "node_modules/",
-        "__pycache__/",
-        ".mypy_cache/",
-        ".pytest_cache/",
-        "cov.xml",
-        "ruff.toml",
+    file = path / ".groblignore"
+    if not file.exists():
+        return []
+    return [
+        line.strip()
+        for line in file.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
     ]
-    if path.exists():
-        with path.open("r", encoding="utf-8") as file:
-            ignore_patterns.extend([
-                line.strip() for line in file if line.strip() and not line.startswith("#")
-            ])
-    return list(set(ignore_patterns))
 
 
-def print_summary(tree_output: str, total_lines: int, total_characters: int) -> None:
-    """Print a summary of the processed content."""
-    max_line_len = max(len(ln) for ln in tree_output)
-    title = " Output copied to clipboard "
-    print("═" * ((max_line_len - len(title)) // 2) + title + "═" * ((max_line_len - len(title) + 1) // 2))
-    print("\n".join(tree_output))
-    print("-" * max_line_len)
-    print(f"Total:{total_lines:>{max_line_len - 18}d}{total_characters:>12d}")
-    print("═" * max_line_len)
+# Read JSON config, with fallback to .groblignore
 
 
-# Main entry point
+def read_config(path: Path) -> dict:
+    cfg = DEFAULT_CONFIG.copy()
+    config_file = path / CONFIG_FILENAME
+    if config_file.exists():
+        try:
+            user_conf = json.loads(config_file.read_text(encoding="utf-8"))
+            cfg.update(user_conf)
+        except json.JSONDecodeError as e:
+            logger.exception("Error parsing %s: %s", CONFIG_FILENAME, e)
+    else:
+        old = read_groblignore(path)
+        if old:
+            logger.warning("Detected .groblignore; use 'grobl migrate-config' to convert.")
+            cfg["exclude_tree"] = old
+    return cfg
+
+
+# Migrate .groblignore to JSON config
+
+
+def migrate_config(path: Path) -> None:
+    config_file = path / CONFIG_FILENAME
+    old = path / ".groblignore"
+    if config_file.exists():
+        print(f"{CONFIG_FILENAME} already exists.")
+        return
+    if not old.exists():
+        print("No .groblignore found.")
+        return
+    patterns = read_groblignore(path)
+    new_cfg = DEFAULT_CONFIG.copy()
+    new_cfg["exclude_tree"] = patterns
+    with config_file.open("w", encoding="utf-8") as f:
+        json.dump(new_cfg, f, indent=2)
+    print(f"Migrated .groblignore → {CONFIG_FILENAME}")
+
+
+# Human-friendly summary
+def human_summary(tree_lines: list[str], total_lines: int, total_chars: int) -> None:
+    max_len = max(len(l) for l in tree_lines)
+    title = " Project Summary "
+    bar = "═" * ((max_len - len(title)) // 2)
+    print(f"{bar}{title}{bar}")
+    for l in tree_lines:
+        print(l)
+    print("─" * max_len)
+    print(f"Total lines: {total_lines}")
+    print(f"Total characters: {total_chars}")
+    print("═" * max_len)
+
+
+# Main processing: build tree, copy LLM output, print summary
+
+
+def process_paths(paths: list[Path], cfg: dict, clipboard: ClipboardInterface) -> None:
+    resolved = [p.resolve() for p in paths]
+    common = find_common_ancestor(resolved)
+    tree_patterns = cfg.get("exclude_tree", [])
+    print_patterns = cfg.get("exclude_print", [])
+    builder = DirectoryTreeBuilder(base_path=common, exclude_patterns=tree_patterns)
+
+    def collect(item: Path, prefix: str, *, is_last: bool) -> None:
+        if item.is_dir():
+            builder.add_directory(item, prefix, is_last=is_last)
+        elif item.is_file() and is_text(item):
+            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            rel = item.relative_to(common)
+            if not any(rel.match(p) for p in print_patterns):
+                content = read_text(item)
+                lines = len(content.splitlines())
+                chars = len(content)
+                builder.add_file(item, lines, chars, content)
+
+    config_tuple = (resolved, tree_patterns, common)
+    traverse_dir(common, config_tuple, collect)
+
+    # Generate LLM-friendly XML
+    tree_str = "\n".join(builder.build_tree())
+    file_str = builder.build_file_contents()
+    tree_tag = cfg.get("include_tree_tags")
+    file_tag = cfg.get("include_file_tags")
+    llm_output = (
+        f"<{tree_tag}>\n{tree_str}\n</{tree_tag}>\n"
+        f'<{file_tag} name="{common.name}">\n{file_str}\n</{file_tag}>'
+    )
+    clipboard.copy(llm_output)
+
+    # Print human summary
+    tree_with_meta = builder.build_tree(include_metadata=True)
+    # Totals already computed only for included files
+    human_summary(tree_with_meta, builder.total_lines, builder.total_characters)
+
+
+# CLI entry point
 def main() -> None:
-    paths = [Path(p) for p in ["./"]]
-    ignore_patterns = read_groblignore(Path(".groblignore"))
+    parser = argparse.ArgumentParser(
+        prog="grobl", description="Directory-to-Markdown utility with JSON config support"
+    )
+    subs = parser.add_subparsers(dest="command")
+    subs.add_parser("migrate-config", help="Convert .groblignore to JSON config")
+    args = parser.parse_args()
+    base = Path()
+    if args.command == "migrate-config":
+        migrate_config(base)
+        sys.exit(0)
+    cfg = read_config(base)
     clipboard = PyperclipClipboard()
-    process_paths(paths, ignore_patterns, clipboard)
+    process_paths([base], cfg, clipboard)
 
 
 if __name__ == "__main__":

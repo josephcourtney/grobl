@@ -1,0 +1,14 @@
+{
+  "exclude_tree": [
+    ".git/",
+    ".venv/",
+    "uv.lock",
+    "__pycache__"
+  ],
+  "exclude_print": [
+    ".gitignore",
+    "ruff.default.toml"
+  ],
+  "include_tree_tags": "tree",
+  "include_file_tags": "file"
+}
