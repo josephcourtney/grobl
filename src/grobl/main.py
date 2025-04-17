@@ -69,11 +69,12 @@ class DirectoryTreeBuilder:
     base_path: Path
     exclude_patterns: list[str]
     tree_output: list[str] = field(default_factory=list)
+    all_metadata: dict[str, tuple[int, int]] = field(default_factory=dict)  # all files
+    included_metadata: dict[str, tuple[int, int]] = field(default_factory=dict)  # included files only
     file_contents: list[str] = field(default_factory=list)
     total_lines: int = 0
     total_characters: int = 0
     file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
-    file_metadata: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def add_directory(self, directory_path: Path, prefix: str, *, is_last: bool) -> None:
         connector = "└── " if is_last else "├── "
@@ -86,43 +87,45 @@ class DirectoryTreeBuilder:
         self.tree_output.append(line)
         self.file_tree_entries.append((len(self.tree_output) - 1, rel))
 
-    def add_file(self, file_path: Path, lines: int, characters: int, content: str) -> None:
+    def record_metadata(self, rel: Path, lines: int, chars: int) -> None:
+        self.all_metadata[str(rel)] = (lines, chars)
+
+    def add_file(self, file_path: Path, rel: Path, lines: int, chars: int, content: str) -> None:
+        # Only called for included files
+        self.included_metadata[str(rel)] = (lines, chars)
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
-        rel = file_path.relative_to(self.base_path)
-        self.file_metadata[str(rel)] = (lines, characters)
         self.file_contents.extend([
-            f'<file:content name="{rel}" lines="{lines}" chars="{characters}">',
+            f'<file:content name="{rel}" lines="{lines}" chars="{chars}">',
             content,
             "</file:content>",
         ])
         self.total_lines += lines
-        self.total_characters += characters
+        self.total_characters += chars
 
     def build_tree(self, include_metadata: bool = False) -> list[str]:
         output = []
         if include_metadata:
-            # compute widths
             name_width = max(len(line) for line in self.tree_output)
-            max_line = max((len(str(v[0])) for v in self.file_metadata.values()), default=1)
-            max_char = max((len(str(v[1])) for v in self.file_metadata.values()), default=1)
+            max_line = max((len(str(v[0])) for v in self.all_metadata.values()), default=1)
+            max_char = max((len(str(v[1])) for v in self.all_metadata.values()), default=1)
+            # header row
+            header = f"{'':{name_width - 1}}{'lines':>{max_line}} {'chars':>{max_char}}"
+            output.append(header)
+            output.append(self.base_path.name)
             entry_map = dict(self.file_tree_entries)
             for idx, text in enumerate(self.tree_output):
                 if idx in entry_map:
                     rel = entry_map[idx]
-                    if str(rel) in self.file_metadata:
-                        ln, ch = self.file_metadata[str(rel)]
-                        marker = " "
-                    else:
-                        ln, ch = 0, 0
-                        marker = "*"
-                    padded = f"{text:<{name_width}} {ln:>{max_line}} {ch:>{max_char}} {marker}"
-                    output.append(padded)
+                    ln, ch = self.all_metadata.get(str(rel), (0, 0))
+                    marker = " " if str(rel) in self.included_metadata else "*"
+                    line = f"{text:<{name_width}} {ln:>{max_line}} {ch:>{max_char}} {marker:>2}"
+                    output.append(line)
                 else:
                     output.append(text)
         else:
-            output = self.tree_output.copy()
-        return [self.base_path.name, *output]
+            output = [self.base_path.name] + self.tree_output.copy()
+        return output
 
     def build_file_contents(self) -> str:
         return "\n".join(self.file_contents)
@@ -145,8 +148,9 @@ def traverse_dir(
     path: Path, config: tuple[list[Path], list[str], Path], callback: Callable, prefix: str = ""
 ) -> None:
     paths, patterns, base = config
-    for idx, item in enumerate(filter_items(list(path.iterdir()), paths, patterns, base)):
-        last = idx == len(list(path.iterdir())) - 1
+    items = filter_items(list(path.iterdir()), paths, patterns, base)
+    for idx, item in enumerate(items):
+        last = idx == len(items) - 1
         callback(item, prefix, is_last=last)
         if item.is_dir():
             next_prefix = "    " if last else "│   "
@@ -171,8 +175,6 @@ def read_text(file_path: Path) -> str:
 
 
 # Read old .groblignore
-
-
 def read_groblignore(path: Path) -> list[str]:
     file = path / ".groblignore"
     if not file.exists():
@@ -185,8 +187,6 @@ def read_groblignore(path: Path) -> list[str]:
 
 
 # Read JSON config, with fallback to .groblignore
-
-
 def read_config(path: Path) -> dict:
     cfg = DEFAULT_CONFIG.copy()
     config_file = path / CONFIG_FILENAME
@@ -195,7 +195,7 @@ def read_config(path: Path) -> dict:
             user_conf = json.loads(config_file.read_text(encoding="utf-8"))
             cfg.update(user_conf)
         except json.JSONDecodeError as e:
-            logger.exception("Error parsing %s: %s", CONFIG_FILENAME, e)
+            logger.error("Error parsing %s: %s", CONFIG_FILENAME, e)
     else:
         old = read_groblignore(path)
         if old:
@@ -205,8 +205,6 @@ def read_config(path: Path) -> dict:
 
 
 # Migrate .groblignore to JSON config
-
-
 def migrate_config(path: Path) -> None:
     config_file = path / CONFIG_FILENAME
     old = path / ".groblignore"
@@ -239,8 +237,6 @@ def human_summary(tree_lines: list[str], total_lines: int, total_chars: int) -> 
 
 
 # Main processing: build tree, copy LLM output, print summary
-
-
 def process_paths(paths: list[Path], cfg: dict, clipboard: ClipboardInterface) -> None:
     resolved = [p.resolve() for p in paths]
     common = find_common_ancestor(resolved)
@@ -252,15 +248,16 @@ def process_paths(paths: list[Path], cfg: dict, clipboard: ClipboardInterface) -
         if item.is_dir():
             builder.add_directory(item, prefix, is_last=is_last)
         elif item.is_file() and is_text(item):
-            builder.add_file_to_tree(item, prefix, is_last=is_last)
             rel = item.relative_to(common)
+            content = read_text(item)
+            lines = len(content.splitlines())
+            chars = len(content)
+            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            builder.record_metadata(rel, lines, chars)
             if not any(rel.match(p) for p in print_patterns):
-                content = read_text(item)
-                lines = len(content.splitlines())
-                chars = len(content)
-                builder.add_file(item, lines, chars, content)
+                builder.add_file(item, rel, lines, chars, content)
 
-    config_tuple = (resolved, tree_patterns, common)
+    config_tuple = ([p.resolve() for p in paths], cfg.get("exclude_tree", []), common)
     traverse_dir(common, config_tuple, collect)
 
     # Generate LLM-friendly XML
@@ -276,7 +273,6 @@ def process_paths(paths: list[Path], cfg: dict, clipboard: ClipboardInterface) -
 
     # Print human summary
     tree_with_meta = builder.build_tree(include_metadata=True)
-    # Totals already computed only for included files
     human_summary(tree_with_meta, builder.total_lines, builder.total_characters)
 
 
