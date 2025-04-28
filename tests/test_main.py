@@ -103,3 +103,19 @@ def test_main_migrate_config(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as e:
         main()
     assert e.value.code == 0
+
+
+def test_binary_file_in_tree_without_content(tmp_path, mock_clipboard):
+    # Write a little “binary” blob with a null byte
+    binf = tmp_path / "foo.bin"
+    binf.write_bytes(b"THIS\x00IS\x01BINARY")
+
+    # Run
+    with patch("grobl.main.print"):
+        process_paths([tmp_path], {}, mock_clipboard)
+    out = mock_clipboard.copied_content
+
+    # It should appear in the <tree>…</tree> section…
+    assert "foo.bin" in out.split("</tree>")[0]
+    # …but we should never open it as a <file:content>
+    assert '<file:content name="foo.bin"' not in out

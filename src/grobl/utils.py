@@ -17,12 +17,20 @@ def find_common_ancestor(paths: list[Path]) -> Path:
 
 
 def is_text(file_path: Path) -> bool:
+    # Preliminary binary check: if there's a NULL byte, treat as binary
+    try:
+        with file_path.open("rb") as f:
+            if b"\x00" in f.read(1024):
+                return False
+    except OSError:
+        return False
+
+    # Fallback to UTF-8 decode test
     try:
         file_path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return False
-    else:
-        return True
+    return True
 
 
 def read_text(file_path: Path) -> str:
