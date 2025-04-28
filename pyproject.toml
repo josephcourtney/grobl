@@ -19,7 +19,10 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent",
 ]
-dependencies = ["pyperclip"]
+dependencies = [
+    "pyperclip",
+    "tomlkit>=0.13.2",
+]
 [dependency-groups]
 dev = [
   "basedpyright>=1.28.0",
