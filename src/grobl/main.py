@@ -19,17 +19,19 @@ def process_paths(paths: list[Path], cfg: dict, clipboard: ClipboardInterface) -
     builder = DirectoryTreeBuilder(common, excl_tree)
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
-        if item.is_file():
-            builder.add_file_to_tree(item, prefix, is_last=is_last)
         if item.is_dir():
             builder.add_directory(item, prefix, is_last=is_last)
-        elif item.is_file() and is_text(item):
-            rel = item.relative_to(common)
-            content = read_text(item)
-            ln, ch = len(content.splitlines()), len(content)
-            builder.record_metadata(rel, ln, ch)
-            if not any(rel.match(p) for p in excl_print):
-                builder.add_file(item, rel, ln, ch, content)
+        elif item.is_file():
+            # always show every file in the tree…
+            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            # …but only read & embed if it's a text file
+            if is_text(item):
+                rel = item.relative_to(common)
+                content = read_text(item)
+                ln, ch = len(content.splitlines()), len(content)
+                builder.record_metadata(rel, ln, ch)
+                if not any(rel.match(p) for p in excl_print):
+                    builder.add_file(item, rel, ln, ch, content)
 
     config_tuple = ([p.resolve() for p in paths], excl_tree, common)
     traverse_dir(common, config_tuple, collect)
