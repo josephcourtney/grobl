@@ -52,9 +52,6 @@ def process_paths(
     summary = builder.build_tree(include_metadata=True)
     human_summary(summary, builder.total_lines, builder.total_characters)
 
-    # Return useful state for debug
-    return current_item["path"], common
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -95,21 +92,27 @@ def main() -> None:
 
     clipboard = PyperclipClipboard()
     builder = DirectoryTreeBuilder(base_path=cwd, exclude_patterns=cfg.get("exclude_tree", []))
-    last_item = None
-    common = None
 
     try:
-        last_item, common = process_paths([cwd], cfg, clipboard, builder)
+        process_paths([cwd], cfg, clipboard, builder)
     except KeyboardInterrupt:
         print("\nInterrupted by user. Dumping debug info:")
         print(f"cwd: {cwd}")
-        print(f"common ancestor: {common}")
-        print(f"last item: {last_item}")
         print(f"exclude_tree: {cfg.get('exclude_tree')}")
         print(f"exclude_print: {cfg.get('exclude_print')}")
-        print(f"files seen: {len(builder.file_tree_entries)}")
-        print(f"total lines: {builder.total_lines}")
-        print(f"total characters: {builder.total_characters}")
+
+        print("DirectoryTreeBuilder(")
+        print(f"    base_path         = {builder.base_path}")
+        print(f"    total_lines       = {builder.total_lines}")
+        print(f"    total_characters  = {builder.total_characters}")
+        # print(f"    exclude_patterns  = {builder.exclude_patterns}")
+        # print(f"    tree_output       = {builder.tree_output}")
+        # print(f"    all_metadata      = {builder.all_metadata}")
+        # print(f"    included_metadata = {builder.included_metadata}")
+        # print(f"    file_contents     = {builder.file_contents}")
+        print(f"    file_tree_entries = {builder.file_tree_entries}")
+        print(")")
+
         raise
 
 
