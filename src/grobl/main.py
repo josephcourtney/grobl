@@ -55,6 +55,7 @@ def process_paths(
     # Return useful state for debug
     return current_item["path"], common
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="grobl",
@@ -84,7 +85,9 @@ def main() -> None:
 
     try:
         cfg = read_config(
-            base_path=cwd, ignore_default=args.ignore_defaults, use_gitignore=args.use_gitignore
+            base_path=cwd,
+            ignore_default=args.ignore_defaults,
+            use_gitignore=args.use_gitignore,
         )
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
@@ -92,6 +95,8 @@ def main() -> None:
 
     clipboard = PyperclipClipboard()
     builder = DirectoryTreeBuilder(base_path=cwd, exclude_patterns=cfg.get("exclude_tree", []))
+    last_item = None
+    common = None
 
     try:
         last_item, common = process_paths([cwd], cfg, clipboard, builder)
@@ -106,6 +111,7 @@ def main() -> None:
         print(f"total lines: {builder.total_lines}")
         print(f"total characters: {builder.total_characters}")
         sys.exit(130)
+
 
 if __name__ == "__main__":
     main()
