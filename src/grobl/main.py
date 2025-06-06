@@ -110,7 +110,7 @@ def main() -> None:
         print(f"files seen: {len(builder.file_tree_entries)}")
         print(f"total lines: {builder.total_lines}")
         print(f"total characters: {builder.total_characters}")
-        sys.exit(130)
+        raise
 
 
 if __name__ == "__main__":
