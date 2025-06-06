@@ -10,21 +10,27 @@ from .formatter import human_summary
 from .utils import find_common_ancestor, is_text, read_text
 
 
-def process_paths(paths: list[Path], cfg: dict, clipboard: ClipboardInterface) -> None:
+def process_paths(
+    paths: list[Path],
+    cfg: dict,
+    clipboard: ClipboardInterface,
+    builder: DirectoryTreeBuilder,
+) -> None:
     resolved = [p.resolve() for p in paths]
     common = find_common_ancestor(resolved)
 
+    builder.base_path = common  # ensure base_path is set correctly
+
     excl_tree = cfg.get("exclude_tree", [])
     excl_print = cfg.get("exclude_print", [])
-    builder = DirectoryTreeBuilder(common, excl_tree)
+    current_item = {"path": None}  # Mutable container to track current file/dir
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
+        current_item["path"] = item
         if item.is_dir():
             builder.add_directory(item, prefix, is_last=is_last)
         elif item.is_file():
-            # always show every file in the tree…
             builder.add_file_to_tree(item, prefix, is_last=is_last)
-            # …but only read & embed if it's a text file
             if is_text(item):
                 rel = item.relative_to(common)
                 content = read_text(item)
@@ -46,6 +52,8 @@ def process_paths(paths: list[Path], cfg: dict, clipboard: ClipboardInterface) -
     summary = builder.build_tree(include_metadata=True)
     human_summary(summary, builder.total_lines, builder.total_characters)
 
+    # Return useful state for debug
+    return current_item["path"], common
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -81,9 +89,23 @@ def main() -> None:
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
         sys.exit(1)
-    clipboard = PyperclipClipboard()
-    process_paths([cwd], cfg, clipboard)
 
+    clipboard = PyperclipClipboard()
+    builder = DirectoryTreeBuilder(base_path=cwd, exclude_patterns=cfg.get("exclude_tree", []))
+
+    try:
+        last_item, common = process_paths([cwd], cfg, clipboard, builder)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user. Dumping debug info:")
+        print(f"cwd: {cwd}")
+        print(f"common ancestor: {common}")
+        print(f"last item: {last_item}")
+        print(f"exclude_tree: {cfg.get('exclude_tree')}")
+        print(f"exclude_print: {cfg.get('exclude_print')}")
+        print(f"files seen: {len(builder.file_tree_entries)}")
+        print(f"total lines: {builder.total_lines}")
+        print(f"total characters: {builder.total_characters}")
+        sys.exit(130)
 
 if __name__ == "__main__":
     main()

@@ -1,95 +1,102 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+  requires      = ["hatchling"]
+  build-backend = "hatchling.build"
 
 [project]
-name = "grobl"
-dynamic = ["version"]
-description = "A script to display directory structure and Python file contents"
-readme = "README.md"
-requires-python = ">=3.12"
-license = { text = "MIT License" }
-authors = [
-  { name = "Joseph M Courtney", email = "5942706+josephcourtney@users.noreply.github.com" },
-]
-urls = { "Homepage" = "https://github.com/josephcourtney/grobl", "Bug Tracker" = "https://github.com/josephcourtney/grobl/issues" }
-classifiers = [
-  "Development Status :: 3 - Alpha",
-  "License :: OSI Approved :: MIT License",
-  "Programming Language :: Python :: 3",
-  "Operating System :: OS Independent",
-]
-dependencies = [
+  name = "grobl"
+  dynamic = ["version"]
+  description = "A script to display directory structure and Python file contents"
+  readme = "README.md"
+  requires-python = ">=3.12"
+  license = { text = "MIT License" }
+  authors = [
+    { name = "Joseph M Courtney", email = "5942706+josephcourtney@users.noreply.github.com" },
+  ]
+  urls = { "Homepage" = "https://github.com/josephcourtney/grobl", "Bug Tracker" = "https://github.com/josephcourtney/grobl/issues" }
+  classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+  ]
+  dependencies = [
     "pyperclip",
     "tomlkit>=0.13.2",
-]
+  ]
 [dependency-groups]
-dev = [
-  "basedpyright>=1.28.0",
-  "coverage>=7.6.10",
-  "mypy>=1.15.0",
-  "pytest>=8.3.4",
-  "pytest-cov>=6.0.0",
-  "ruff>=0.9.4",
-]
+  dev = [
+    "basedpyright>=1.28.0",
+    "coverage>=7.6.10",
+    "mypy>=1.15.0",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.4",
+  ]
 
-[project.scripts]
-grobl = "grobl.main:main"
+  [project.scripts]
+    grobl = "grobl.main:main"
 
 [tool.grobl]
-exclude_tree = ["*.jsonl", "*.jsonl.*", "tests/*", "cov.xml", "*.log", "*.tmp"]
-exclude_print = ["*.json", "*.html"]
+  exclude_tree = [
+    "*.jsonl",
+    "*.jsonl.*",
+    "tests/*",
+    "cov.xml",
+    "*.log",
+    "*.tmp",
+  ]
+  exclude_print = ["*.json", "*.html"]
 
 [tool.hatch.build]
-includes = ["src/grobl/**"]
+  includes = ["src/grobl/**"]
 
 [tool.hatch.version]
-path = "src/grobl/__version__.py"
+  path = "src/grobl/__version__.py"
 
 [tool.ruff]
-extend = "./ruff.default.toml"
+  extend = "./ruff.default.toml"
 
-[tool.ruff.lint]
-ignore = []
+  [tool.ruff.lint]
+    ignore = []
 
 [tool.mypy]
-python_version = "3.12"
-check_untyped_defs = true
-disallow_untyped_defs = true
-disallow_untyped_calls = true
-disallow_untyped_decorators = true
-exclude = "^tests/"
-plugins = []
+  python_version              = "3.12"
+  check_untyped_defs          = true
+  disallow_untyped_defs       = true
+  disallow_untyped_calls      = true
+  disallow_untyped_decorators = true
+  exclude                     = "^tests/"
+  plugins                     = []
 
 [tool.pytest.ini_options]
-addopts = "--cov=grobl --cov-report=xml --cov-report=term-missing"
-testpaths = ["tests"]
+  addopts   = "--cov=grobl --cov-report=xml --cov-report=term-missing"
+  testpaths = ["tests"]
 
 [tool.coverage.run]
-branch = true
-source = ["."]
+  branch = true
+  source = ["."]
 
 [tool.coverage.report]
-show_missing = true
-skip_covered = true
-# Regexes for lines to exclude from consideration
-exclude_also = [
-  # Don't complain about missing debug-only code:
-  "def __repr__",
-  "if self\\.debug",
+  show_missing = true
+  skip_covered = true
+  # Regexes for lines to exclude from consideration
+  exclude_also = [
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+    "if self\\.debug",
 
-  # Don't complain if tests don't hit defensive assertion code:
-  "raise AssertionError",
-  "raise NotImplementedError",
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
 
-  # Don't complain if non-runnable code isn't run:
-  "if 0:",
-  "if __name__ == .__main__.:",
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
 
-  # Don't complain about abstract methods, they aren't run:
-  "@(abc\\.)?abstractmethod",
-]
-ignore_errors = true
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+  ]
+  ignore_errors = true
 
 [tool.coverage.xml]
-output = "cov.xml"
+  output = "cov.xml"
