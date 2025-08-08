@@ -3,13 +3,6 @@
 This document summarizes hands-on testing of the `grobl` CLI utility. It captures successful
 workflows, rough edges, and missing capabilities along with suggestions for improvement.
 
-## Installation
-
-- Installing with `pip install -e .` placed the `grobl` entrypoint outside of `$PATH`, producing
-  `command not found` until `pyenv rehash` was run.
-  - **Suggestion:** Document the need to `pyenv rehash` when using pyenv, or prefer `pipx install grobl`
-    in development docs to guarantee an executable on the PATH.
-
 ## Basic Execution
 
 - Running `grobl` in a headless environment fails because `pyperclip` cannot access a clipboard
