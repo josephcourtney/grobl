@@ -1,0 +1,17 @@
+- [ ] implement an interactive editor for the configuration
+  - tree-view of files
+  - ability to check and uncheck files and directories for inclusion in tree and for inclusion of full text
+- [ ] implement mode to make modifications to the config, but temporarily, only for one execution. When the command is run, the interactive file selector should pop up, the user can select and deselect files, and then when they are done, it should run with those modified settings, but not modify the config file
+- [ ] switch to toml format for config file
+- [ ] allow configuration inside pyproject.toml (`[tool.grobl]`)
+- [ ] improve the formatting/presentation of information in the clipboard copied content
+  - improve the XML-ish tags for clarity and context
+- [ ] Add `--no-clipboard` and `--output <file>` flags so headless runs can print or write the markdown instead of failing when no clipboard exists.
+- [ ] Detect clipboard errors automatically and fall back to stdout when `pyperclip` raises an exception.
+- [ ] Rename `--no-gitignore` to `--no-groblignore` for clarity and update help text and internals accordingly.
+- [ ] Accept one or more directory paths as positional arguments; default to `.` only when none are given.
+- [ ] Warn once and request confirmation when `--ignore-defaults` would traverse common virtual-env or dependency folders.
+- [ ] Emit a terse progress bar or log lines for directories with many files to reassure users during long scans.
+- [ ] Show byte counts (or an explicit “binary” label) for non-text files instead of reporting “0 0”.
+- [ ] Provide `--add-ignore <pattern>` and `--remove-ignore <pattern>` CLI switches that adjust the in-memory pattern list for a single run.
+- [ ] Offer `migrate-config --yes` and `migrate-config --stdout` modes to allow non-interactive migrations in CI scripts.
