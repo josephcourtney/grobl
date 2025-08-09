@@ -70,3 +70,59 @@ def test_skip_large_file_tokenization(monkeypatch, tmp_path, mock_clipboard):
             [tmp_path], {}, mock_clipboard, tokens=True, force_tokens=True
         )
     assert builder.total_tokens == 20
+
+
+def test_list_token_models(monkeypatch, capsys):
+    fake = type("T", (), {"list_encoding_names": staticmethod(lambda: ["a", "b"])})
+    monkeypatch.setitem(sys.modules, "tiktoken", fake)
+    monkeypatch.setattr(sys, "argv", ["grobl", "--list-token-models"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert isinstance(exc.value, SystemExit)
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "a" in out and "b" in out
+
+
+def test_invalid_tokenizer_model(monkeypatch, tmp_path, capsys):
+    (tmp_path / "file.txt").write_text("hi", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    class Fake:
+        @staticmethod
+        def get_encoding(name):  # noqa: ARG002
+            raise KeyError("bad")
+
+        @staticmethod
+        def list_encoding_names():
+            return ["foo"]
+
+    monkeypatch.setitem(sys.modules, "tiktoken", Fake)
+    monkeypatch.setattr(
+        "grobl.cli.PyperclipClipboard",
+        lambda fallback=None: type("MC", (), {"copy": lambda self, c: None})(),
+    )
+    monkeypatch.setattr("grobl.cli.human_summary", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["grobl", "--tokens", "--tokenizer", "bad"],
+    )
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert isinstance(exc.value, SystemExit)
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "Available models: foo" in err
+
+
+def test_verbose_tokens_prints_info(monkeypatch, tmp_path, mock_clipboard):
+    (tmp_path / "file.txt").write_text("hi", encoding="utf-8")
+    monkeypatch.setattr(
+        "grobl.cli.load_tokenizer", lambda name: (lambda text: len(text.split()))
+    )
+    fake_tok = type("T", (), {"__version__": "1.0"})
+    monkeypatch.setitem(sys.modules, "tiktoken", fake_tok)
+    with patch("grobl.cli.print") as mock_print:
+        process_paths([tmp_path], {}, mock_clipboard, tokens=True, verbose=True)
+    mock_print.assert_any_call("Tokenizer: cl100k_base (tiktoken 1.0)")
