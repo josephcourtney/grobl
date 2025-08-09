@@ -16,7 +16,9 @@ TOML_CONFIG = ".grobl.config.toml"
 
 def load_default_config() -> dict:
     try:
-        cfg_path = importlib.resources.files("grobl.resources").joinpath("default_config.toml")
+        cfg_path = importlib.resources.files("grobl.resources").joinpath(
+            "default_config.toml"
+        )
         with cfg_path.open("r", encoding="utf-8") as f:
             text = f.read()
 
@@ -139,7 +141,9 @@ def prompt_delete(files: list[Path], *, assume_yes: bool = False) -> None:
             print(f"Kept {f.name}")
 
 
-def migrate_config(path: Path, *, assume_yes: bool = False, to_stdout: bool = False) -> None:
+def migrate_config(
+    path: Path, *, assume_yes: bool = False, to_stdout: bool = False
+) -> None:
     toml_path = path / TOML_CONFIG
     if toml_path.exists():
         print(f"{TOML_CONFIG} already exists.")

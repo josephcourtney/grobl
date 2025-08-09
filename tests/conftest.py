@@ -40,9 +40,13 @@ def temp_directory(tmp_path):
     # Create tests folder
     tests_dir = project_dir / "tests"
     tests_dir.mkdir()
-    (tests_dir / "test_main.py").write_text("def test_main():\n    assert True\n", encoding="utf-8")
+    (tests_dir / "test_main.py").write_text(
+        "def test_main():\n    assert True\n", encoding="utf-8"
+    )
 
     # Add a .groblignore
-    (project_dir / DOTIGNORE_CONFIG).write_text("*.pyc\n__pycache__/\n", encoding="utf-8")
+    (project_dir / DOTIGNORE_CONFIG).write_text(
+        "*.pyc\n__pycache__/\n", encoding="utf-8"
+    )
 
     return project_dir

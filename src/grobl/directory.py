@@ -15,7 +15,9 @@ class DirectoryTreeBuilder:
     total_characters: int = 0
     file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
 
-    def add_directory(self, directory_path: Path, prefix: str, *, is_last: bool) -> None:
+    def add_directory(
+        self, directory_path: Path, prefix: str, *, is_last: bool
+    ) -> None:
         connector = "└── " if is_last else "├── "
         self.tree_output.append(f"{prefix}{connector}{directory_path.name}")
 
@@ -28,15 +30,19 @@ class DirectoryTreeBuilder:
     def record_metadata(self, rel: Path, lines: int, chars: int) -> None:
         self.all_metadata[str(rel)] = (lines, chars)
 
-    def add_file(self, file_path: Path, rel: Path, lines: int, chars: int, content: str) -> None:
+    def add_file(
+        self, file_path: Path, rel: Path, lines: int, chars: int, content: str
+    ) -> None:
         self.included_metadata[str(rel)] = (lines, chars)
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
-        self.file_contents.extend([
-            f'<file:content name="{rel}" lines="{lines}" chars="{chars}">',
-            content,
-            "</file:content>",
-        ])
+        self.file_contents.extend(
+            [
+                f'<file:content name="{rel}" lines="{lines}" chars="{chars}">',
+                content,
+                "</file:content>",
+            ]
+        )
         self.total_lines += lines
         self.total_characters += chars
 
@@ -45,8 +51,12 @@ class DirectoryTreeBuilder:
             return [self.base_path.name, *self.tree_output]
 
         name_width = max(len(line) for line in self.tree_output)
-        max_line_digits = max((len(str(v[0])) for v in self.all_metadata.values()), default=1)
-        max_char_digits = max((len(str(v[1])) for v in self.all_metadata.values()), default=1)
+        max_line_digits = max(
+            (len(str(v[0])) for v in self.all_metadata.values()), default=1
+        )
+        max_char_digits = max(
+            (len(str(v[1])) for v in self.all_metadata.values()), default=1
+        )
 
         header = f"{'':{name_width - 1}}{'lines':>{max_line_digits}} {'chars':>{max_char_digits}}"
         output = [header, self.base_path.name]
@@ -68,7 +78,9 @@ class DirectoryTreeBuilder:
         return "\n".join(self.file_contents)
 
 
-def filter_items(items: list[Path], paths: list[Path], patterns: list[str], base: Path) -> list[Path]:
+def filter_items(
+    items: list[Path], paths: list[Path], patterns: list[str], base: Path
+) -> list[Path]:
     results: list[Path] = []
     for item in items:
         if not any(item.is_relative_to(p) for p in paths):
@@ -80,7 +92,10 @@ def filter_items(items: list[Path], paths: list[Path], patterns: list[str], base
 
 
 def traverse_dir(
-    path: Path, config: tuple[list[Path], list[str], Path], callback: Callable, prefix: str = ""
+    path: Path,
+    config: tuple[list[Path], list[str], Path],
+    callback: Callable,
+    prefix: str = "",
 ) -> None:
     paths, patterns, base = config
     items = filter_items(list(path.iterdir()), paths, patterns, base)
