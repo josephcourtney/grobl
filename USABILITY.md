@@ -11,13 +11,11 @@ This report summarizes hands-on testing of grobl's command-line interface. All o
 
 ## Pain points and issues
 
-- **Paths are misinterpreted as subcommands** – supplying a directory argument like `grobl tests` fails because `tests` is treated as an invalid command【4ce4a1†L1-L5】. Users must change directories instead of passing paths.
 - **Default clipboard behaviour is noisy** – when no system clipboard is available the entire output is printed to the terminal, even without `--no-clipboard`, producing thousands of lines of content【f48008†L1-L95】.
 - **`--no-clipboard` still emits massive output** – without `--output` the command dumps the entire tree and file bodies to stdout, which can overwhelm terminals【a2c4d6†L1-L58】.
 - **Interactive editor lacks numbering and filtering** – `grobl edit-config` prints every file including `.venv` and shows no indices, making it impossible to know which number corresponds to a file and leading to excessive, slow output【18923a†L1-L140】.
 - **`migrate-config --stdout` prompts for deletion** – the supposed preview mode still asks whether to delete the old JSON file, interrupting non-interactive use【054415†L1-L8】【231346†L1-L3】.
 - **`--output` to a missing directory raises a stack trace** – pointing `--output` at a non-existent path crashes with a Python traceback instead of a helpful message【0a7072†L1-L17】.
-- **Unfriendly config‑syntax errors** – malformed `.grobl.config.toml` files report low-level parsing errors that may confuse users【7cccea†L1-L4】.
 
 ## Suggestions
 

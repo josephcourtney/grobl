@@ -1,6 +1,12 @@
-- [x] allow the definition of "groups" of paths in the config file so that they can be included or excluded as a group
-- [x] add a column header for the "contents included" indicator in the stdout summary output
-- [x] change the xml tag for directories to "directory", add appropriate attributes like the full path
-- [x] make verbose output include tiktoken information when tokenization is enabled
-- [x] make it possible to list the allowed token models for tiktoken
-- [x] improve the error output if an invalid model is given for tokenizer
+- [ ] make the listed tokenizer output more helpful. For each tokenizer, list models that it applies to.
+- [ ] set the default tokenizer model to `o200k_base`
+- [ ] improve the stdout summery header
+  - the column indicating inclusion of full text content is labeled with "in" which is not clear
+  - the tokens number column is right-aligned but the tokens column label extends two characters to the right of the 1s place. they should be aligned
+- [ ] include the size of the budget: `Total tokens: 24956 (78% of 32,000 token budget)`
+- [ ] allow selection of `model` instead of tokenizer which will act as if:
+  - `--tokens` was included
+  - `--tokenizer TOKENIZER` was included where TOKENIZER is the correct choice for the given model
+  - `--budget BUDGET` was included where BUDGET is the input token limit for the given model
+    - since the this limit varies by subscription tier, the model can be given bare or suffixed with the tier name, e.g. `gpt-5:plus`
+
