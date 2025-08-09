@@ -1,7 +1,7 @@
-- [ ] implement an interactive editor for the configuration
+- [x] implement an interactive editor for the configuration
   - tree-view of files
   - ability to check and uncheck files and directories for inclusion in tree and for inclusion of full text
-- [ ] implement mode to make modifications to the config, but temporarily, only for one execution. When the command is run, the interactive file selector should pop up, the user can select and deselect files, and then when they are done, it should run with those modified settings, but not modify the config file
+- [x] implement mode to make modifications to the config, but temporarily, only for one execution. When the command is run, the interactive file selector should pop up, the user can select and deselect files, and then when they are done, it should run with those modified settings, but not modify the config file
  - [x] switch to toml format for config file
  - [x] allow configuration inside pyproject.toml (`[tool.grobl]`)
  - [x] improve the formatting/presentation of information in the clipboard copied content
