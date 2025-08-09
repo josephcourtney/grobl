@@ -107,7 +107,9 @@ def test_cli_migrate_config(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit) as e:
         main()
-    assert e.value.code == 0
+    exc = e.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == 0
 
 
 def test_binary_file_in_tree_without_content(tmp_path, mock_clipboard):

@@ -5,6 +5,7 @@ from pathlib import Path
 from .clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
 from .config import migrate_config, read_config
 from .directory import DirectoryTreeBuilder, traverse_dir
+from .editor import interactive_edit_config
 from .errors import ConfigLoadError
 from .formatter import human_summary
 from .utils import find_common_ancestor, is_text, read_text
@@ -27,6 +28,8 @@ def process_paths(
     else:
         builder.base_path = common  # ensure base_path is set correctly
         # keep existing exclude patterns - ``traverse_dir`` handles filtering
+    assert builder is not None
+    builder_local = builder
 
     current_item: dict[str, Path | None] = {
         "path": None
@@ -35,24 +38,24 @@ def process_paths(
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
         current_item["path"] = item
         if item.is_dir():
-            builder.add_directory(item, prefix, is_last=is_last)
+            builder_local.add_directory(item, prefix, is_last=is_last)
         elif item.is_file():
-            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            builder_local.add_file_to_tree(item, prefix, is_last=is_last)
             rel = item.relative_to(common)
             if is_text(item):
                 content = read_text(item)
                 ln, ch = len(content.splitlines()), len(content)
-                builder.record_metadata(rel, ln, ch)
+                builder_local.record_metadata(rel, ln, ch)
                 if not any(rel.match(p) for p in excl_print):
-                    builder.add_file(item, rel, ln, ch, content)
+                    builder_local.add_file(item, rel, ln, ch, content)
             else:
-                builder.record_metadata(rel, 0, item.stat().st_size)
+                builder_local.record_metadata(rel, 0, item.stat().st_size)
 
     config_tuple = ([p.resolve() for p in paths], excl_tree, common)
     traverse_dir(common, config_tuple, collect)
 
-    tree_xml = "\n".join(builder.build_tree())
-    files_xml = builder.build_file_contents()
+    tree_xml = "\n".join(builder_local.build_tree())
+    files_xml = builder_local.build_file_contents()
     ttag = cfg.get("include_tree_tags")
     ftag = cfg.get("include_file_tags")
     llm_out = (
@@ -61,9 +64,9 @@ def process_paths(
     )
     clipboard.copy(llm_out)
 
-    summary = builder.build_tree(include_metadata=True)
-    human_summary(summary, builder.total_lines, builder.total_characters)
-    return builder
+    summary = builder_local.build_tree(include_metadata=True)
+    human_summary(summary, builder_local.total_lines, builder_local.total_characters)
+    return builder_local
 
 
 def main() -> None:
@@ -102,6 +105,11 @@ def main() -> None:
         default=[],
         help="Ignore pattern to remove for this run",
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Interactively adjust ignore settings for this run",
+    )
     subs = parser.add_subparsers(dest="command")
     mig = subs.add_parser(
         "migrate-config", help="Migrate existing JSON or .groblignore → new TOML config"
@@ -110,12 +118,21 @@ def main() -> None:
         "--yes", action="store_true", help="Delete old files without prompting"
     )
     mig.add_argument("--stdout", action="store_true", help="Print new config to stdout")
+    subs.add_parser("edit-config", help="Interactively edit and save configuration")
 
     args = parser.parse_args()
     cwd = Path()
 
     if args.command == "migrate-config":
         migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
+        sys.exit(0)
+    if args.command == "edit-config":
+        cfg = read_config(
+            base_path=cwd,
+            ignore_default=args.ignore_defaults,
+            use_groblignore=args.use_groblignore,
+        )
+        interactive_edit_config([cwd], cfg, save=True)
         sys.exit(0)
 
     paths = args.paths or [cwd]
@@ -147,6 +164,9 @@ def main() -> None:
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
         sys.exit(1)
+
+    if args.interactive:
+        interactive_edit_config(paths, cfg, save=False)
 
     for pat in args.add_ignore:
         cfg.setdefault("exclude_tree", [])
