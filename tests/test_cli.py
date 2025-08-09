@@ -122,8 +122,8 @@ def test_binary_file_in_tree_without_content(tmp_path, mock_clipboard):
         process_paths([tmp_path], {}, mock_clipboard)
     out = mock_clipboard.copied_content
 
-    # It should appear in the <tree>…</tree> section…
-    assert "foo.bin" in out.split("</tree>")[0]
+    # It should appear in the <directory>…</directory> section…
+    assert "foo.bin" in out.split("</directory>")[0]
     # …but we should never open it as a <file:content>
     assert '<file:content name="foo.bin"' not in out
 

@@ -78,6 +78,7 @@ class DirectoryTreeBuilder:
         header = f"{'':{name_width - 1}}{'lines':>{max_line_digits}} {'chars':>{max_char_digits}}"
         if has_tokens:
             header += f" {'tokens':>{max_tok_digits}}"
+        header += f" {'in':>2}"
         output = [header, self.base_path.name]
         entry_map = dict(self.file_tree_entries)
 
