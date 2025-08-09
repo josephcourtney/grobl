@@ -1,10 +1,10 @@
-- [ ] make the listed tokenizer output more helpful. For each tokenizer, list models that it applies to.
-- [ ] set the default tokenizer model to `o200k_base`
-- [ ] improve the stdout summery header
+- [x] make the listed tokenizer output more helpful. For each tokenizer, list models that it applies to.
+- [x] set the default tokenizer model to `o200k_base`
+- [x] improve the stdout summery header
   - the column indicating inclusion of full text content is labeled with "in" which is not clear
   - the tokens number column is right-aligned but the tokens column label extends two characters to the right of the 1s place. they should be aligned
-- [ ] include the size of the budget: `Total tokens: 24956 (78% of 32,000 token budget)`
-- [ ] allow selection of `model` instead of tokenizer which will act as if:
+- [x] include the size of the budget: `Total tokens: 24956 (78% of 32,000 token budget)`
+- [x] allow selection of `model` instead of tokenizer which will act as if:
   - `--tokens` was included
   - `--tokenizer TOKENIZER` was included where TOKENIZER is the correct choice for the given model
   - `--budget BUDGET` was included where BUDGET is the input token limit for the given model

@@ -3,6 +3,7 @@ from pathlib import Path
 from grobl.directory import DirectoryTreeBuilder
 from grobl.formatter import (
     escape_markdown,
+    human_summary,
 )
 
 
@@ -27,3 +28,18 @@ def test_add_md_file_escapes_backticks(tmp_path):
     )
     out = builder.build_file_contents()
     assert r"\`\`\`" in out
+
+
+def test_human_summary_budget(capsys):
+    human_summary(
+        [
+            "project",
+        ],
+        10,
+        20,
+        total_tokens=24956,
+        tokenizer="o200k_base",
+        budget=32_000,
+    )
+    out = capsys.readouterr().out
+    assert "Total tokens: 24956 (78% of 32,000 token budget)" in out

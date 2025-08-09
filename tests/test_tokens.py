@@ -22,14 +22,19 @@ def test_cli_tokens_summary(monkeypatch, tmp_path):
         captured["lines"] = lines
         captured["total_tokens"] = total_tokens
         captured["tokenizer"] = tokenizer
+        captured["budget"] = budget
 
     monkeypatch.setattr("grobl.cli.human_summary", fake_summary)
-    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--tokens"])
+    monkeypatch.setattr(
+        sys, "argv", ["grobl", "--no-clipboard", "--tokens", "--budget", "100"]
+    )
     main()
     header = captured["lines"][0]
-    assert "tokens" in header
+    assert "tokens" in header and "incl" in header
+    assert header.split() == ["lines", "chars", "tokens", "incl"]
+    assert captured["budget"] == 100
     assert captured["total_tokens"] == 2
-    assert captured["tokenizer"] == "cl100k_base"
+    assert captured["tokenizer"] == "o200k_base"
 
 
 def test_cli_tokens_error(monkeypatch, tmp_path, capsys):
@@ -73,15 +78,23 @@ def test_skip_large_file_tokenization(monkeypatch, tmp_path, mock_clipboard):
 
 
 def test_list_token_models(monkeypatch, capsys):
-    fake = type("T", (), {"list_encoding_names": staticmethod(lambda: ["a", "b"])})
-    monkeypatch.setitem(sys.modules, "tiktoken", fake)
+    class Fake:
+        @staticmethod
+        def list_encoding_names():
+            return ["a", "b"]
+
+        class model:  # noqa: D401 - simple container
+            MODEL_TO_ENCODING = {"m1": "a", "m2": "a", "m3": "b"}
+
+    monkeypatch.setitem(sys.modules, "tiktoken", Fake)
     monkeypatch.setattr(sys, "argv", ["grobl", "--list-token-models"])
     with pytest.raises(SystemExit) as exc:
         main()
     assert isinstance(exc.value, SystemExit)
     assert exc.value.code == 0
     out = capsys.readouterr().out
-    assert "a" in out and "b" in out
+    assert "a: m1, m2" in out
+    assert "b: m3" in out
 
 
 def test_invalid_tokenizer_model(monkeypatch, tmp_path, capsys):
@@ -125,4 +138,40 @@ def test_verbose_tokens_prints_info(monkeypatch, tmp_path, mock_clipboard):
     monkeypatch.setitem(sys.modules, "tiktoken", fake_tok)
     with patch("grobl.cli.print") as mock_print:
         process_paths([tmp_path], {}, mock_clipboard, tokens=True, verbose=True)
-    mock_print.assert_any_call("Tokenizer: cl100k_base (tiktoken 1.0)")
+    mock_print.assert_any_call("Tokenizer: o200k_base (tiktoken 1.0)")
+
+
+def test_model_option_sets_tokenizer_and_budget(monkeypatch, tmp_path):
+    (tmp_path / "file.txt").write_text("hello world", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    class FakeEnc:
+        name = "fake-enc"
+
+    class FakeTok:
+        @staticmethod
+        def encoding_for_model(model):  # noqa: ARG003
+            return FakeEnc
+
+    monkeypatch.setitem(sys.modules, "tiktoken", FakeTok)
+    monkeypatch.setattr(
+        "grobl.cli.load_tokenizer", lambda name: (lambda text: len(text.split()))
+    )
+    monkeypatch.setattr(
+        "grobl.cli.MODEL_TOKEN_LIMITS", {"gpt-test": {"default": 32000}}
+    )
+    captured: dict[str, object] = {}
+
+    def fake_summary(
+        lines, total_lines, total_chars, *, total_tokens, tokenizer, budget
+    ):
+        captured["tokenizer"] = tokenizer
+        captured["budget"] = budget
+        captured["total_tokens"] = total_tokens
+
+    monkeypatch.setattr("grobl.cli.human_summary", fake_summary)
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--model", "gpt-test"])
+    main()
+    assert captured["tokenizer"] == "fake-enc"
+    assert captured["budget"] == 32000
+    assert captured["total_tokens"] == 2
