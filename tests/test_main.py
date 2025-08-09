@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import pyperclip
 
 from grobl.directory import (
     DirectoryTreeBuilder,
@@ -84,7 +85,7 @@ def test_main_basic_run(monkeypatch, tmp_path):
     # Mock clipboard + process paths
     monkeypatch.setattr(
         "grobl.main.PyperclipClipboard",
-        type("MockClipboard", (), {"copy": lambda _self, _content: None}),
+        lambda fallback=None: type("MockClipboard", (), {"copy": lambda _self, _content: None})(),
     )
     monkeypatch.setattr("grobl.main.human_summary", lambda *_a, **_k: None)
 
@@ -98,7 +99,7 @@ def test_main_basic_run(monkeypatch, tmp_path):
 def test_main_migrate_config(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["grobl", "migrate-config"])
-    monkeypatch.setattr("grobl.main.migrate_config", lambda _: None)
+    monkeypatch.setattr("grobl.main.migrate_config", lambda *_a, **_k: None)
 
     with pytest.raises(SystemExit) as e:
         main()
@@ -119,3 +120,52 @@ def test_binary_file_in_tree_without_content(tmp_path, mock_clipboard):
     assert "foo.bin" in out.split("</tree>")[0]
     # …but we should never open it as a <file:content>
     assert '<file:content name="foo.bin"' not in out
+
+
+def test_no_clipboard_prints_output(monkeypatch, tmp_path, capsys):
+    (tmp_path / "file.txt").write_text("hello", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("grobl.main.human_summary", lambda *_a, **_k: None)
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard"])
+    main()
+    out = capsys.readouterr().out
+    assert "file.txt" in out
+
+
+def test_output_flag_writes_file(monkeypatch, tmp_path):
+    (tmp_path / "file.txt").write_text("hello", encoding="utf-8")
+    out_file = tmp_path / "out.md"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("grobl.main.human_summary", lambda *_a, **_k: None)
+    monkeypatch.setattr(sys, "argv", ["grobl", "--output", str(out_file)])
+    main()
+    assert out_file.exists()
+    assert "file.txt" in out_file.read_text(encoding="utf-8")
+
+
+def test_add_and_remove_ignore(monkeypatch, tmp_path, capsys):
+    (tmp_path / "keep.txt").write_text("k", encoding="utf-8")
+    (tmp_path / "skip.log").write_text("s", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("grobl.main.human_summary", lambda *_a, **_k: None)
+    # Add ignore for *.log
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--add-ignore", "*.log"])
+    main()
+    out = capsys.readouterr().out
+    assert "skip.log" not in out
+    # Remove ignore for *.log
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--remove-ignore", "*.log"])
+    main()
+    out = capsys.readouterr().out
+    assert "skip.log" in out
+
+
+def test_clipboard_fallback(monkeypatch, tmp_path, capsys):
+    (tmp_path / "file.txt").write_text("hi", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("grobl.main.human_summary", lambda *_a, **_k: None)
+    monkeypatch.setattr(pyperclip, "copy", lambda _c: (_ for _ in ()).throw(pyperclip.PyperclipException("fail")))
+    monkeypatch.setattr(sys, "argv", ["grobl"])
+    main()
+    out = capsys.readouterr().out
+    assert "file.txt" in out

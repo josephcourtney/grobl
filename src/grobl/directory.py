@@ -84,6 +84,8 @@ def traverse_dir(
 ) -> None:
     paths, patterns, base = config
     items = filter_items(list(path.iterdir()), paths, patterns, base)
+    if len(items) > 100:
+        print(f"Scanning {path} ({len(items)} entries)")
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1
         callback(item, prefix, is_last=is_last)
