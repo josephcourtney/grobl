@@ -55,7 +55,7 @@ def read_groblignore(path: Path) -> list[str]:
     ]
 
 
-def merge_gitignore(cfg: dict, base_path: Path) -> None:
+def merge_groblignore(cfg: dict, base_path: Path) -> None:
     patterns = read_groblignore(base_path)
     if not patterns:
         return
@@ -70,10 +70,11 @@ def read_config(
     base_path: Path,
     *,
     ignore_default: bool = False,
-    use_gitignore: bool = True,
+    use_groblignore: bool = True,
 ) -> dict:
     toml_path = base_path / TOML_CONFIG
     json_path = base_path / JSON_CONFIG
+    pyproject_path = base_path / "pyproject.toml"
 
     cfg: dict = {} if ignore_default else load_default_config()
 
@@ -81,9 +82,20 @@ def read_config(
         cfg.update(load_toml_config(toml_path))
     elif json_path.exists():
         cfg.update(load_json_config(json_path))
+    if pyproject_path.exists():
+        try:
+            data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))
+        except TOMLKitError as e:
+            msg = f"Error parsing pyproject.toml: {e}"
+            raise ConfigLoadError(msg) from e
+        tool = data.get("tool", {})
+        if isinstance(tool, dict):
+            grobl_cfg = tool.get("grobl")
+            if isinstance(grobl_cfg, dict):
+                cfg.update(grobl_cfg)
 
-    if use_gitignore:
-        merge_gitignore(cfg, base_path)
+    if use_groblignore:
+        merge_groblignore(cfg, base_path)
 
     return cfg
 
@@ -113,8 +125,12 @@ def build_merged_config(path: Path) -> dict:
     return cfg
 
 
-def prompt_delete(files: list[Path]) -> None:
+def prompt_delete(files: list[Path], *, assume_yes: bool = False) -> None:
     for f in files:
+        if assume_yes:
+            f.unlink()
+            print(f"Deleted {f.name}")
+            continue
         resp = input(f"Delete old file {f.name}? (y/N): ").strip().lower()
         if resp == "y":
             f.unlink()
@@ -123,7 +139,7 @@ def prompt_delete(files: list[Path]) -> None:
             print(f"Kept {f.name}")
 
 
-def migrate_config(path: Path) -> None:
+def migrate_config(path: Path, *, assume_yes: bool = False, to_stdout: bool = False) -> None:
     toml_path = path / TOML_CONFIG
     if toml_path.exists():
         print(f"{TOML_CONFIG} already exists.")
@@ -139,7 +155,9 @@ def migrate_config(path: Path) -> None:
 
     print(f"\n=== New TOML ({TOML_CONFIG}): ===")
     print(new_toml)
-    toml_path.write_text(new_toml, encoding="utf-8")
-
-    prompt_delete(old_files)
-    print(f"\nMigration complete → {TOML_CONFIG}")
+    if not to_stdout:
+        toml_path.write_text(new_toml, encoding="utf-8")
+        prompt_delete(old_files, assume_yes=assume_yes)
+        print(f"\nMigration complete → {TOML_CONFIG}")
+    else:
+        prompt_delete(old_files, assume_yes=assume_yes)
