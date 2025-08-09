@@ -19,7 +19,15 @@ def load_tokenizer(name: str) -> Callable[[str], int]:
         raise TokenizerNotAvailableError(
             "Token counting requires 'tiktoken'. Install with 'pip install grobl[tokens]'"
         ) from exc
-    enc = tiktoken.get_encoding(name)
+    try:
+        enc = tiktoken.get_encoding(name)
+    except Exception as exc:
+        available = ", ".join(sorted(tiktoken.list_encoding_names()))
+        msg = (
+            f"Unknown tokenizer '{name}'. Available models: {available}. "
+            "Use --list-token-models to see options."
+        )
+        raise ValueError(msg) from exc
     return lambda text: len(enc.encode(text))
 
 

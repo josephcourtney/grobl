@@ -30,6 +30,7 @@ def process_paths(
     tokens_for: str = "printed",
     budget: int | None = None,
     force_tokens: bool = False,
+    verbose: bool = False,
 ) -> DirectoryTreeBuilder:
     resolved = [p.resolve() for p in paths]
     common = find_common_ancestor(resolved)
@@ -57,7 +58,19 @@ def process_paths(
         except TokenizerNotAvailableError as err:
             print(err, file=sys.stderr)
             sys.exit(1)
+        except ValueError as err:
+            print(err, file=sys.stderr)
+            sys.exit(1)
         token_cache = load_cache(cache_path)
+        if verbose:
+            try:
+                import tiktoken  # type: ignore
+
+                ver = getattr(tiktoken, "__version__", "unknown")
+            except ModuleNotFoundError:
+                ver = "unknown"
+            print(f"Tokenizer: {tokenizer_name} (tiktoken {ver})")
+            print(f"Token cache: {cache_path}")
 
     current_item: dict[str, Path | None] = {
         "path": None
@@ -103,7 +116,7 @@ def process_paths(
     ttag = cfg.get("include_tree_tags")
     ftag = cfg.get("include_file_tags")
     llm_out = (
-        f'<{ttag} root="{common.name}">\n{tree_xml}\n</{ttag}>\n'
+        f'<{ttag} name="{common.name}" path="{common}">\n{tree_xml}\n</{ttag}>\n'
         f'<{ftag} root="{common.name}">\n{files_xml}\n</{ftag}>'
     )
     clipboard.copy(llm_out)
@@ -181,6 +194,17 @@ def main() -> None:
         action="store_true",
         help="Force tokenization of very large files",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+    parser.add_argument(
+        "--list-token-models",
+        action="store_true",
+        help="List available tiktoken models and exit",
+    )
     subs = parser.add_subparsers(dest="command")
     mig = subs.add_parser(
         "migrate-config", help="Migrate existing JSON or .groblignore → new TOML config"
@@ -193,6 +217,18 @@ def main() -> None:
 
     args = parser.parse_args()
     cwd = Path()
+
+    if args.list_token_models:
+        try:
+            import tiktoken  # type: ignore
+
+            names = sorted(tiktoken.list_encoding_names())
+        except ModuleNotFoundError:
+            print("tiktoken is not installed", file=sys.stderr)
+            sys.exit(1)
+        for name in names:
+            print(name)
+        sys.exit(0)
 
     if args.command == "migrate-config":
         migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
@@ -270,6 +306,7 @@ def main() -> None:
             tokens_for=args.tokens_for,
             budget=args.budget,
             force_tokens=args.force_tokens,
+            verbose=args.verbose,
         )
     except KeyboardInterrupt:
         print("\nInterrupted by user. Dumping debug info:")

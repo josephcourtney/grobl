@@ -1,6 +1,6 @@
-- [ ] allow the definition of "groups" of paths in the config file so that they can be included or excluded as a group
-- [ ] add a column header for the "contents included" indicator in the stdout summary output 
-- [ ] change the xml tag for directories to "directory", add appropriate attributes like the full path
-- [ ] make verbose output include tiktoken information when tokenization is enabled
-- [ ] make it possible to list the allowed token models for tiktoken
-- [ ] improve the error output if an invalid model is given for tokenizer
+- [x] allow the definition of "groups" of paths in the config file so that they can be included or excluded as a group
+- [x] add a column header for the "contents included" indicator in the stdout summary output
+- [x] change the xml tag for directories to "directory", add appropriate attributes like the full path
+- [x] make verbose output include tiktoken information when tokenization is enabled
+- [x] make it possible to list the allowed token models for tiktoken
+- [x] improve the error output if an invalid model is given for tokenizer

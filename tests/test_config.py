@@ -91,6 +91,22 @@ def test_merge_groblignore_adds_patterns(tmp_path):
     assert "*.tmp" in base_cfg["exclude_tree"]
 
 
+def test_path_groups_expand(tmp_path):
+    cfg_text = """
+exclude_tree_groups = ["docs"]
+exclude_print_groups = ["docs"]
+
+[groups]
+docs = ["docs", "README.md"]
+"""
+    (tmp_path / ".grobl.config.toml").write_text(cfg_text, encoding="utf-8")
+    cfg = read_config(tmp_path)
+    assert "docs" in cfg["exclude_tree"]
+    assert "README.md" in cfg["exclude_tree"]
+    assert "docs" in cfg["exclude_print"]
+    assert "README.md" in cfg["exclude_print"]
+
+
 def test_load_toml_config_error(tmp_path):
     bad_toml = tmp_path / "bad.toml"
     bad_toml.write_text("not: toml:", encoding="utf-8")
