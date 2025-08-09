@@ -1,7 +1,7 @@
 # =================================== project ====================================
 [project]
   name = "grobl"
-  version = "0.4.8"
+  version = "0.4.9"
   description = "A script to display directory structure and Python file contents"
   readme = "README.md"
   authors = [

@@ -10,5 +10,5 @@ def test_build_tree_header_includes_marker(tmp_path):
     builder.record_metadata(rel, 1, 2, 0)
     builder.add_file(file_path, rel, 1, 2, 0, file_path.read_text(encoding="utf-8"))
     lines = builder.build_tree(include_metadata=True)
-    assert lines[0].rstrip().endswith("in")
-    assert lines[-1].endswith("  ")
+    assert lines[0].rstrip().endswith("incl")
+    assert lines[-1].endswith("    ")
