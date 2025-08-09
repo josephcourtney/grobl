@@ -58,7 +58,9 @@ def test_cli_migrate_config(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit) as e:
         cli.main()
-    assert e.value.code == 0
+    exc = e.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == 0
 
 
 def test_load_json_config(tmp_path):
@@ -193,7 +195,9 @@ def test_cli_configloaderror(monkeypatch):
     # Now run it, expecting SystemExit
     with pytest.raises(SystemExit) as e:
         cli.main()
-    assert e.value.code == 1
+    exc = e.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == 1
 
 
 def test_read_config_handles_invalid_toml(monkeypatch, tmp_path):
@@ -207,4 +211,6 @@ def test_read_config_handles_invalid_toml(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as exc_info:
         cli.main()
 
-    assert exc_info.value.code == 1
+    exc = exc_info.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == 1
