@@ -12,6 +12,11 @@ from grobl.directory import (
 from grobl.cli import main, process_paths
 
 
+def _silence_summary(monkeypatch):
+    # Avoid noisy tree/summary printing; we only care about the LLM-tagged output.
+    monkeypatch.setattr("grobl.cli.human_summary", lambda *_a, **_k: None)
+
+
 def test_directory_tree_builder_adds_entries_and_files():
     builder = DirectoryTreeBuilder(Path("/test"), [])
     builder.add_directory(Path("/test/dir"), "", is_last=True)
@@ -183,3 +188,73 @@ def test_clipboard_fallback(monkeypatch, tmp_path, capsys):
     main()
     out = capsys.readouterr().out
     assert "file.txt" in out
+
+
+def test_cli_accepts_single_positional_path(monkeypatch, tmp_path, capsys):
+    """
+    Running `grobl tests` should treat 'tests' as a directory path (not a subcommand)
+    and include only files from that directory in the emitted <directory> block.
+    """
+    _silence_summary(monkeypatch)
+    # Arrange: cwd with a 'tests' dir and an unrelated file next to it
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "inside.py").write_text("print('hi')", encoding="utf-8")
+    (tmp_path / "outside.txt").write_text("nope", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    # Act
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "tests"])
+    main()
+    out = capsys.readouterr().out
+
+    # Assert: output contains only the target path contents
+    assert '<directory name="tests"' in out
+    assert "inside.py" in out
+    assert "outside.txt" not in out  # should not scan siblings
+
+
+def test_cli_accepts_multiple_positional_paths_and_sets_common_ancestor(
+    monkeypatch, tmp_path, capsys
+):
+    """
+    When given multiple paths, the directory tag should reflect their deepest common
+    ancestor, and files from each path should be included.
+    """
+    _silence_summary(monkeypatch)
+    (tmp_path / "pkg_a").mkdir()
+    (tmp_path / "pkg_b").mkdir()
+    (tmp_path / "pkg_a" / "a.py").write_text("a=1", encoding="utf-8")
+    (tmp_path / "pkg_b" / "b.py").write_text("b=2", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["grobl", "--no-clipboard", "pkg_a", "pkg_b"],
+    )
+    main()
+    out = capsys.readouterr().out
+
+    # The <directory> tag should name the common ancestor (tmp_path's basename)
+    assert f'<directory name="{tmp_path.name}" path="{tmp_path}"' in out
+    assert "a.py" in out and "b.py" in out
+
+
+def test_cli_path_named_tests_is_not_misparsed_as_command(
+    monkeypatch, tmp_path, capsys
+):
+    """
+    Historical bug: passing 'tests' was treated like a bad subcommand.
+    This asserts it's correctly handled as a directory.
+    """
+    _silence_summary(monkeypatch)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "t.py").write_text("x=1", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "tests"])
+    main()
+    out = capsys.readouterr().out
+
+    assert '<directory name="tests"' in out
+    assert "t.py" in out
