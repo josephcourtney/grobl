@@ -38,7 +38,6 @@ Add optional token counting to `grobl` using `tiktoken` (or `cntkn` wrapper).
   - [x] If `--tokens` used but no tokenizer found, print friendly error and exit non-zero.
 
 ## Testing
-
 - [x] Unit tests:
   - [x] Mock token counter → assert correct column, per-file counts, and totals.
 - [x] CLI tests:
@@ -46,3 +45,8 @@ Add optional token counting to `grobl` using `tiktoken` (or `cntkn` wrapper).
   - [x] Run with `--tokens` without tokenizer installed → expect clear error.
 - [x] Performance tests:
   - [x] Ensure large directories don’t become unusably slow with token counting.
+
+# Enhancements
+- [ ] allow the definition of "groups" of paths in the config file so that they can be included or excluded as a group
+- [ ] add a column header for the "contents included" indicator in the stdout summary output 
+- [ ] change the xml tag for directories to "directory", add appropriate attributes like the full path
