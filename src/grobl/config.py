@@ -67,6 +67,19 @@ def merge_groblignore(cfg: dict, base_path: Path) -> None:
             cfg["exclude_tree"].append(pat)
 
 
+def expand_groups(cfg: dict) -> None:
+    groups = cfg.get("groups", {})
+    for target, key in (
+        ("exclude_tree", "exclude_tree_groups"),
+        ("exclude_print", "exclude_print_groups"),
+    ):
+        for group_name in cfg.get(key, []):
+            for pat in groups.get(group_name, []):
+                cfg.setdefault(target, [])
+                if pat not in cfg[target]:
+                    cfg[target].append(pat)
+
+
 # Boolean flags are keyword-only to avoid FBT001/FBT002
 def read_config(
     base_path: Path,
@@ -98,6 +111,8 @@ def read_config(
 
     if use_groblignore:
         merge_groblignore(cfg, base_path)
+
+    expand_groups(cfg)
 
     return cfg
 

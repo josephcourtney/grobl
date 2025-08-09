@@ -30,7 +30,7 @@ def test_cli_interactive_run_excludes(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--interactive"])
     main()
     out = capsys.readouterr().out
-    tree_section = out.split("<tree root=")[-1]
+    tree_section = out.split("<directory name=")[-1]
     assert "keep.txt" in tree_section
     assert "skip.txt" not in tree_section
     assert not (tmp_path / ".grobl.config.toml").exists()
