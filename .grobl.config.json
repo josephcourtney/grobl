@@ -1,13 +1,27 @@
 {
   "exclude_tree": [
+    "__pycache__/",
+    ".coverage",
+    ".grobl.config.json",
+    ".pre-commit-config.yaml",
+    ".coverage",
+    "AGENTS.md",
+    "*.pyc",
+    "*.egg-info",
+    "*.ipynb",
     ".git/",
+    ".gitmodules",
+    ".groblignore",
+    ".pytest_cache/",
     ".venv/",
+    ".coverage.xml",
+    "ruff.default.toml",
     "uv.lock",
-    "__pycache__"
+    "yarn.lock"
   ],
   "exclude_print": [
     ".gitignore",
-    "ruff.default.toml"
+    "LICENSE.md"
   ],
   "include_tree_tags": "tree",
   "include_file_tags": "file"
