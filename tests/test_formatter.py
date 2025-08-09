@@ -23,7 +23,7 @@ def test_add_md_file_escapes_backticks(tmp_path):
     builder = DirectoryTreeBuilder(tmp_path, [])
     rel = Path("example.md")
     builder.add_file(
-        tmp_path / "example.md", rel, 1, 10, "Some content with ``` backticks."
+        tmp_path / "example.md", rel, 1, 10, 0, "Some content with ``` backticks."
     )
     out = builder.build_file_contents()
     assert r"\`\`\`" in out

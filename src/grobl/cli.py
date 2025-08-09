@@ -1,5 +1,6 @@
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from .clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
@@ -8,6 +9,13 @@ from .directory import DirectoryTreeBuilder, traverse_dir
 from .editor import interactive_edit_config
 from .errors import ConfigLoadError
 from .formatter import human_summary
+from .tokens import (
+    TokenizerNotAvailableError,
+    count_tokens,
+    load_cache,
+    load_tokenizer,
+    save_cache,
+)
 from .utils import find_common_ancestor, is_text, read_text
 
 
@@ -16,6 +24,12 @@ def process_paths(
     cfg: dict,
     clipboard: ClipboardInterface,
     builder: DirectoryTreeBuilder | None = None,
+    *,
+    tokens: bool = False,
+    tokenizer_name: str = "cl100k_base",
+    tokens_for: str = "printed",
+    budget: int | None = None,
+    force_tokens: bool = False,
 ) -> DirectoryTreeBuilder:
     resolved = [p.resolve() for p in paths]
     common = find_common_ancestor(resolved)
@@ -31,6 +45,20 @@ def process_paths(
     assert builder is not None
     builder_local = builder
 
+    def _zero(_text: str) -> int:
+        return 0
+
+    tokenizer_fn: Callable[[str], int] = _zero
+    token_cache: dict[str, dict[str, int]] = {}
+    cache_path = common / ".grobl.tokens.json"
+    if tokens:
+        try:
+            tokenizer_fn = load_tokenizer(tokenizer_name)
+        except TokenizerNotAvailableError as err:
+            print(err, file=sys.stderr)
+            sys.exit(1)
+        token_cache = load_cache(cache_path)
+
     current_item: dict[str, Path | None] = {
         "path": None
     }  # Mutable container to track current file/dir
@@ -45,14 +73,30 @@ def process_paths(
             if is_text(item):
                 content = read_text(item)
                 ln, ch = len(content.splitlines()), len(content)
-                builder_local.record_metadata(rel, ln, ch)
+                tk = 0
+                should_count = tokens and (
+                    tokens_for == "all" or not any(rel.match(p) for p in excl_print)
+                )
+                if should_count:
+                    tk = count_tokens(
+                        content,
+                        item,
+                        tokenizer_fn,
+                        token_cache,
+                        force=force_tokens,
+                        warn=lambda m: print(m),
+                    )
+                builder_local.record_metadata(rel, ln, ch, tk)
                 if not any(rel.match(p) for p in excl_print):
-                    builder_local.add_file(item, rel, ln, ch, content)
+                    builder_local.add_file(item, rel, ln, ch, tk, content)
             else:
-                builder_local.record_metadata(rel, 0, item.stat().st_size)
+                builder_local.record_metadata(rel, 0, item.stat().st_size, 0)
 
     config_tuple = ([p.resolve() for p in paths], excl_tree, common)
     traverse_dir(common, config_tuple, collect)
+
+    if tokens:
+        save_cache(token_cache, cache_path)
 
     tree_xml = "\n".join(builder_local.build_tree())
     files_xml = builder_local.build_file_contents()
@@ -65,7 +109,14 @@ def process_paths(
     clipboard.copy(llm_out)
 
     summary = builder_local.build_tree(include_metadata=True)
-    human_summary(summary, builder_local.total_lines, builder_local.total_characters)
+    human_summary(
+        summary,
+        builder_local.total_lines,
+        builder_local.total_characters,
+        total_tokens=builder_local.total_tokens if tokens else None,
+        tokenizer=tokenizer_name if tokens else None,
+        budget=budget,
+    )
     return builder_local
 
 
@@ -109,6 +160,26 @@ def main() -> None:
         "--interactive",
         action="store_true",
         help="Interactively adjust ignore settings for this run",
+    )
+    parser.add_argument("--tokens", action="store_true", help="Enable token counting")
+    parser.add_argument(
+        "--tokenizer", default="cl100k_base", help="Tokenizer name to use"
+    )
+    parser.add_argument(
+        "--tokens-for",
+        choices=["printed", "all"],
+        default="printed",
+        help="Which files to count tokens for",
+    )
+    parser.add_argument(
+        "--budget",
+        type=int,
+        help="Total token budget to display usage percentage",
+    )
+    parser.add_argument(
+        "--force-tokens",
+        action="store_true",
+        help="Force tokenization of very large files",
     )
     subs = parser.add_subparsers(dest="command")
     mig = subs.add_parser(
@@ -189,7 +260,17 @@ def main() -> None:
     )
 
     try:
-        process_paths(paths, cfg, clipboard, builder)
+        process_paths(
+            paths,
+            cfg,
+            clipboard,
+            builder,
+            tokens=args.tokens,
+            tokenizer_name=args.tokenizer,
+            tokens_for=args.tokens_for,
+            budget=args.budget,
+            force_tokens=args.force_tokens,
+        )
     except KeyboardInterrupt:
         print("\nInterrupted by user. Dumping debug info:")
         print(f"cwd: {cwd}")
