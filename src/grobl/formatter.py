@@ -31,6 +31,6 @@ def human_summary(
         line = f"Total tokens: {total_tokens}"
         if budget:
             pct = total_tokens / budget if budget else 0
-            line += f" ({pct:.0%} of budget)"
+            line += f" ({pct:.0%} of {budget:,} token budget)"
         print(line)
     print("═" * max_width)

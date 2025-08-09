@@ -75,10 +75,14 @@ class DirectoryTreeBuilder:
             (len(str(v[2])) for v in self.all_metadata.values()), default=1
         )
 
-        header = f"{'':{name_width - 1}}{'lines':>{max_line_digits}} {'chars':>{max_char_digits}}"
+        line_width = max(max_line_digits, len("lines"))
+        char_width = max(max_char_digits, len("chars"))
+        tok_width = max(max_tok_digits, len("tokens")) if has_tokens else 0
+
+        header = f"{'':{name_width - 1}}{'lines':>{line_width}} {'chars':>{char_width}}"
         if has_tokens:
-            header += f" {'tokens':>{max_tok_digits}}"
-        header += f" {'in':>2}"
+            header += f" {'tokens':>{tok_width}}"
+        header += f" {'incl':>4}"
         output = [header, self.base_path.name]
         entry_map = dict(self.file_tree_entries)
 
@@ -87,10 +91,10 @@ class DirectoryTreeBuilder:
                 rel = entry_map[idx]
                 ln, ch, tk = self.all_metadata.get(str(rel), (0, 0, 0))
                 marker = " " if str(rel) in self.included_metadata else "*"
-                line = f"{text:<{name_width}} {ln:>{max_line_digits}} {ch:>{max_char_digits}}"
+                line = f"{text:<{name_width}} {ln:>{line_width}} {ch:>{char_width}}"
                 if has_tokens:
-                    line += f" {tk:>{max_tok_digits}}"
-                line += f" {marker:>2}"
+                    line += f" {tk:>{tok_width}}"
+                line += f" {marker:>4}"
                 output.append(line)
             else:
                 output.append(text)

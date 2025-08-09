@@ -18,6 +18,19 @@ from .tokens import (
 )
 from .utils import find_common_ancestor, is_text, read_text
 
+# Mapping of known model names to their input token limits. These values are
+# based on published OpenAI model specifications. The ``default`` tier is used
+# when no explicit subscription tier is supplied (e.g. ``gpt-4o``). Additional
+# tiers can be specified using ``model:tier`` syntax, such as ``gpt-4o:plus``.
+MODEL_TOKEN_LIMITS: dict[str, dict[str, int]] = {
+    "gpt-4o": {"default": 128_000},
+    "gpt-4o-mini": {"default": 64_000},
+    "gpt-4.1": {"default": 128_000},
+    "gpt-4.1-mini": {"default": 128_000},
+    # Future models can be added here as they become available. Tests may
+    # monkeypatch this mapping for custom scenarios.
+}
+
 
 def process_paths(
     paths: list[Path],
@@ -26,7 +39,7 @@ def process_paths(
     builder: DirectoryTreeBuilder | None = None,
     *,
     tokens: bool = False,
-    tokenizer_name: str = "cl100k_base",
+    tokenizer_name: str = "o200k_base",
     tokens_for: str = "printed",
     budget: int | None = None,
     force_tokens: bool = False,
@@ -176,7 +189,10 @@ def main() -> None:
     )
     parser.add_argument("--tokens", action="store_true", help="Enable token counting")
     parser.add_argument(
-        "--tokenizer", default="cl100k_base", help="Tokenizer name to use"
+        "--tokenizer", default="o200k_base", help="Tokenizer name to use"
+    )
+    parser.add_argument(
+        "--model", help="Model name to infer tokenizer and token budget"
     )
     parser.add_argument(
         "--tokens-for",
@@ -205,35 +221,49 @@ def main() -> None:
         action="store_true",
         help="List available tiktoken models and exit",
     )
-    subs = parser.add_subparsers(dest="command")
-    mig = subs.add_parser(
-        "migrate-config", help="Migrate existing JSON or .groblignore → new TOML config"
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Delete old files without prompting (migrate-config)",
     )
-    mig.add_argument(
-        "--yes", action="store_true", help="Delete old files without prompting"
+    parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Print new config to stdout (migrate-config)",
     )
-    mig.add_argument("--stdout", action="store_true", help="Print new config to stdout")
-    subs.add_parser("edit-config", help="Interactively edit and save configuration")
 
     args = parser.parse_args()
     cwd = Path()
+
+    command = None
+    if args.paths and str(args.paths[0]) in {"migrate-config", "edit-config"}:
+        command = str(args.paths.pop(0))
 
     if args.list_token_models:
         try:
             import tiktoken  # type: ignore
 
             names = sorted(tiktoken.list_encoding_names())
+            from collections import defaultdict
+
+            mapping: dict[str, list[str]] = defaultdict(list)
+            for model, enc in tiktoken.model.MODEL_TO_ENCODING.items():
+                mapping[enc].append(model)
         except ModuleNotFoundError:
             print("tiktoken is not installed", file=sys.stderr)
             sys.exit(1)
         for name in names:
-            print(name)
+            models = ", ".join(sorted(mapping.get(name, [])))
+            if models:
+                print(f"{name}: {models}")
+            else:
+                print(name)
         sys.exit(0)
 
-    if args.command == "migrate-config":
+    if command == "migrate-config":
         migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
         sys.exit(0)
-    if args.command == "edit-config":
+    if command == "edit-config":
         cfg = read_config(
             base_path=cwd,
             ignore_default=args.ignore_defaults,
@@ -282,6 +312,26 @@ def main() -> None:
     for pat in args.remove_ignore:
         if pat in cfg.get("exclude_tree", []):
             cfg["exclude_tree"].remove(pat)
+    tokens_flag = args.tokens
+    tokenizer_name = args.tokenizer
+    budget = args.budget
+    if args.model:
+        try:
+            import tiktoken  # type: ignore
+
+            base, tier = (args.model.split(":", 1) + ["default"])[:2]
+            enc = tiktoken.encoding_for_model(base)
+            tokenizer_name = enc.name
+            tokens_flag = True
+            if budget is None:
+                limits = MODEL_TOKEN_LIMITS.get(base, {})
+                budget = limits.get(tier) or limits.get("default")
+        except ModuleNotFoundError:
+            print("tiktoken is not installed", file=sys.stderr)
+            sys.exit(1)
+        except Exception as exc:
+            print(f"Unknown model '{args.model}': {exc}", file=sys.stderr)
+            sys.exit(1)
 
     clipboard: ClipboardInterface
     if args.output:
@@ -301,10 +351,10 @@ def main() -> None:
             cfg,
             clipboard,
             builder,
-            tokens=args.tokens,
-            tokenizer_name=args.tokenizer,
+            tokens=tokens_flag,
+            tokenizer_name=tokenizer_name,
             tokens_for=args.tokens_for,
-            budget=args.budget,
+            budget=budget,
             force_tokens=args.force_tokens,
             verbose=args.verbose,
         )
