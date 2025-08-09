@@ -14,7 +14,7 @@ from grobl.config import (
     load_default_config,
     load_json_config,
     load_toml_config,
-    merge_gitignore,
+    merge_groblignore,
     migrate_config,
     prompt_delete,
     read_config,
@@ -82,10 +82,10 @@ def test_read_groblignore_lines(tmp_path):
     assert patterns == ["*.pyc", "__pycache__/"]
 
 
-def test_merge_gitignore_adds_patterns(tmp_path):
+def test_merge_groblignore_adds_patterns(tmp_path):
     base_cfg = {}
     (tmp_path / ".groblignore").write_text("*.tmp\n", encoding="utf-8")
-    merge_gitignore(base_cfg, tmp_path)
+    merge_groblignore(base_cfg, tmp_path)
     assert "*.tmp" in base_cfg["exclude_tree"]
 
 

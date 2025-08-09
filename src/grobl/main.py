@@ -2,7 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .clipboard import ClipboardInterface, PyperclipClipboard
+from .clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
 from .config import migrate_config, read_config
 from .directory import DirectoryTreeBuilder, traverse_dir
 from .errors import ConfigLoadError
@@ -28,7 +28,7 @@ def process_paths(
         builder.base_path = common  # ensure base_path is set correctly
         # keep existing exclude patterns - ``traverse_dir`` handles filtering
 
-    current_item = {"path": None}  # Mutable container to track current file/dir
+    current_item: dict[str, Path | None] = {"path": None}  # Mutable container to track current file/dir
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
         current_item["path"] = item
@@ -36,13 +36,15 @@ def process_paths(
             builder.add_directory(item, prefix, is_last=is_last)
         elif item.is_file():
             builder.add_file_to_tree(item, prefix, is_last=is_last)
+            rel = item.relative_to(common)
             if is_text(item):
-                rel = item.relative_to(common)
                 content = read_text(item)
                 ln, ch = len(content.splitlines()), len(content)
                 builder.record_metadata(rel, ln, ch)
                 if not any(rel.match(p) for p in excl_print):
                     builder.add_file(item, rel, ln, ch, content)
+            else:
+                builder.record_metadata(rel, 0, item.stat().st_size)
 
     config_tuple = ([p.resolve() for p in paths], excl_tree, common)
     traverse_dir(common, config_tuple, collect)
@@ -51,7 +53,10 @@ def process_paths(
     files_xml = builder.build_file_contents()
     ttag = cfg.get("include_tree_tags")
     ftag = cfg.get("include_file_tags")
-    llm_out = f'<{ttag}>\n{tree_xml}\n</{ttag}>\n<{ftag} name="{common.name}">\n{files_xml}\n</{ftag}>'
+    llm_out = (
+        f'<{ttag} root="{common.name}">\n{tree_xml}\n</{ttag}>\n'
+        f'<{ftag} root="{common.name}">\n{files_xml}\n</{ftag}>'
+    )
     clipboard.copy(llm_out)
 
     summary = builder.build_tree(include_metadata=True)
@@ -71,36 +76,88 @@ def main() -> None:
         help="Ignore bundled default exclude patterns",
     )
     parser.add_argument(
-        "--no-gitignore",
+        "--no-groblignore",
         action="store_false",
-        dest="use_gitignore",
-        help="Do not merge patterns from .gitignore",
+        dest="use_groblignore",
+        help="Do not merge patterns from .groblignore",
+    )
+    parser.add_argument("paths", nargs="*", type=Path, help="Directories to scan")
+    parser.add_argument(
+        "--no-clipboard",
+        action="store_true",
+        help="Print output to stdout instead of copying to clipboard",
+    )
+    parser.add_argument("--output", type=Path, help="Write output to a file")
+    parser.add_argument(
+        "--add-ignore",
+        action="append",
+        default=[],
+        help="Additional ignore pattern for this run",
+    )
+    parser.add_argument(
+        "--remove-ignore",
+        action="append",
+        default=[],
+        help="Ignore pattern to remove for this run",
     )
     subs = parser.add_subparsers(dest="command")
-    subs.add_parser("migrate-config", help="Migrate existing JSON or .groblignore → new TOML config")
+    mig = subs.add_parser("migrate-config", help="Migrate existing JSON or .groblignore → new TOML config")
+    mig.add_argument("--yes", action="store_true", help="Delete old files without prompting")
+    mig.add_argument("--stdout", action="store_true", help="Print new config to stdout")
 
     args = parser.parse_args()
     cwd = Path()
 
     if args.command == "migrate-config":
-        migrate_config(cwd)
+        migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
         sys.exit(0)
+
+    paths = args.paths or [cwd]
+    if args.ignore_defaults:
+        common_dirs = {"node_modules", "venv", ".venv", "env", "site-packages"}
+        for p in paths:
+            for d in common_dirs:
+                if (p / d).exists():
+                    resp = input(
+                        f"Warning: scanning may include '{d}', which can be large. Continue? (y/N): "
+                    ).strip().lower()
+                    if resp != "y":
+                        sys.exit(1)
+                    break
+            else:
+                continue
+            break
 
     try:
         cfg = read_config(
             base_path=cwd,
             ignore_default=args.ignore_defaults,
-            use_gitignore=args.use_gitignore,
+            use_groblignore=args.use_groblignore,
         )
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
         sys.exit(1)
 
-    clipboard = PyperclipClipboard()
+    for pat in args.add_ignore:
+        cfg.setdefault("exclude_tree", [])
+        if pat not in cfg["exclude_tree"]:
+            cfg["exclude_tree"].append(pat)
+    for pat in args.remove_ignore:
+        if pat in cfg.get("exclude_tree", []):
+            cfg["exclude_tree"].remove(pat)
+
+    clipboard: ClipboardInterface
+    if args.output:
+        clipboard = StdoutClipboard(args.output)
+    elif args.no_clipboard:
+        clipboard = StdoutClipboard()
+    else:
+        clipboard = PyperclipClipboard(fallback=StdoutClipboard())
+
     builder = DirectoryTreeBuilder(base_path=cwd, exclude_patterns=cfg.get("exclude_tree", []))
 
     try:
-        process_paths([cwd], cfg, clipboard, builder)
+        process_paths(paths, cfg, clipboard, builder)
     except KeyboardInterrupt:
         print("\nInterrupted by user. Dumping debug info:")
         print(f"cwd: {cwd}")
