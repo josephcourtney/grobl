@@ -11,7 +11,7 @@ workflows, rough edges, and missing capabilities along with suggestions for impr
   - Using the library API with a dummy clipboard shows the tool can generate a directory summary:
   ```python
   from pathlib import Path
-  from grobl.main import process_paths
+  from grobl.cli import process_paths
   from grobl.config import read_config
   from grobl.directory import DirectoryTreeBuilder
 

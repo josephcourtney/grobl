@@ -28,7 +28,9 @@ def process_paths(
         builder.base_path = common  # ensure base_path is set correctly
         # keep existing exclude patterns - ``traverse_dir`` handles filtering
 
-    current_item: dict[str, Path | None] = {"path": None}  # Mutable container to track current file/dir
+    current_item: dict[str, Path | None] = {
+        "path": None
+    }  # Mutable container to track current file/dir
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
         current_item["path"] = item
@@ -101,8 +103,12 @@ def main() -> None:
         help="Ignore pattern to remove for this run",
     )
     subs = parser.add_subparsers(dest="command")
-    mig = subs.add_parser("migrate-config", help="Migrate existing JSON or .groblignore → new TOML config")
-    mig.add_argument("--yes", action="store_true", help="Delete old files without prompting")
+    mig = subs.add_parser(
+        "migrate-config", help="Migrate existing JSON or .groblignore → new TOML config"
+    )
+    mig.add_argument(
+        "--yes", action="store_true", help="Delete old files without prompting"
+    )
     mig.add_argument("--stdout", action="store_true", help="Print new config to stdout")
 
     args = parser.parse_args()
@@ -118,9 +124,13 @@ def main() -> None:
         for p in paths:
             for d in common_dirs:
                 if (p / d).exists():
-                    resp = input(
-                        f"Warning: scanning may include '{d}', which can be large. Continue? (y/N): "
-                    ).strip().lower()
+                    resp = (
+                        input(
+                            f"Warning: scanning may include '{d}', which can be large. Continue? (y/N): "
+                        )
+                        .strip()
+                        .lower()
+                    )
                     if resp != "y":
                         sys.exit(1)
                     break
@@ -154,7 +164,9 @@ def main() -> None:
     else:
         clipboard = PyperclipClipboard(fallback=StdoutClipboard())
 
-    builder = DirectoryTreeBuilder(base_path=cwd, exclude_patterns=cfg.get("exclude_tree", []))
+    builder = DirectoryTreeBuilder(
+        base_path=cwd, exclude_patterns=cfg.get("exclude_tree", [])
+    )
 
     try:
         process_paths(paths, cfg, clipboard, builder)

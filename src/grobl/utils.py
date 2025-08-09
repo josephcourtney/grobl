@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from .errors import ERROR_MSG_EMPTY_PATHS, ERROR_MSG_NO_COMMON_ANCESTOR, PathNotFoundError
+from .errors import (
+    ERROR_MSG_EMPTY_PATHS,
+    ERROR_MSG_NO_COMMON_ANCESTOR,
+    PathNotFoundError,
+)
 
 
 def find_common_ancestor(paths: list[Path]) -> Path:

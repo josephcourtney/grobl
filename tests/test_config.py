@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from grobl import main
+from grobl import cli
 from grobl.config import (
     DOTIGNORE_CONFIG,
     JSON_CONFIG,
@@ -52,12 +52,12 @@ def test_migrate_config_no_old_files(tmp_path, capsys):
     assert f"No {JSON_CONFIG} or {DOTIGNORE_CONFIG} to migrate." in out
 
 
-def test_main_migrate_config(monkeypatch, tmp_path):
+def test_cli_migrate_config(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["grobl", "migrate-config"])
 
     with pytest.raises(SystemExit) as e:
-        main.main()
+        cli.main()
     assert e.value.code == 0
 
 
@@ -108,7 +108,9 @@ def test_read_config_toml_error(monkeypatch, tmp_path):
     toml.write_text("invalid = ", encoding="utf-8")
 
     # Patch sys.exit to catch it instead of exiting
-    monkeypatch.setattr(sys, "exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr(
+        sys, "exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code))
+    )
 
     with pytest.raises(ConfigLoadError):
         read_config(tmp_path)
@@ -124,7 +126,9 @@ def test_collect_old_configs(tmp_path):
 
 
 def test_build_merged_config(tmp_path):
-    (tmp_path / ".grobl.config.json").write_text('{"exclude_tree": ["*.bak"]}', encoding="utf-8")
+    (tmp_path / ".grobl.config.json").write_text(
+        '{"exclude_tree": ["*.bak"]}', encoding="utf-8"
+    )
     (tmp_path / ".groblignore").write_text("*.tmp\n", encoding="utf-8")
     cfg = build_merged_config(tmp_path)
     assert "*.bak" in cfg["exclude_tree"]
@@ -152,35 +156,43 @@ def test_prompt_delete_yes_no(tmp_path, monkeypatch, capsys):
 
 
 def test_migrate_config_success(monkeypatch, tmp_path):
-    (tmp_path / ".grobl.config.json").write_text('{"exclude_tree": ["*.bak"]}', encoding="utf-8")
+    (tmp_path / ".grobl.config.json").write_text(
+        '{"exclude_tree": ["*.bak"]}', encoding="utf-8"
+    )
     monkeypatch.setattr("builtins.input", lambda _: "n")  # Always say "keep"
     migrate_config(tmp_path)
     assert (tmp_path / ".grobl.config.toml").exists()
 
 
 def test_read_config_json_fallback(tmp_path):
-    (tmp_path / ".grobl.config.json").write_text('{"exclude_tree": ["*.tmp"]}', encoding="utf-8")
+    (tmp_path / ".grobl.config.json").write_text(
+        '{"exclude_tree": ["*.tmp"]}', encoding="utf-8"
+    )
     cfg = read_config(tmp_path)
     assert "*.tmp" in cfg["exclude_tree"]
 
 
-def test_main_configloaderror(monkeypatch):
-    # Patch inside grobl.main
-    monkeypatch.setattr("grobl.main.sys.argv", ["grobl"])
-    monkeypatch.setattr("grobl.main.sys.exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code)))
+def test_cli_configloaderror(monkeypatch):
+    # Patch inside grobl.cli
+    monkeypatch.setattr("grobl.cli.sys.argv", ["grobl"])
+    monkeypatch.setattr(
+        "grobl.cli.sys.exit", lambda code=0: (_ for _ in ()).throw(SystemExit(code))
+    )
 
-    # Patch main's internal dependencies
+    # Patch clcliinternal dependencies
     monkeypatch.setattr(
-        "grobl.main.read_config", lambda *_args, **_kwargs: (_ for _ in ()).throw(ConfigLoadError("fail"))
+        "grobl.cli.read_config",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ConfigLoadError("fail")),
     )
     monkeypatch.setattr(
-        "grobl.main.PyperclipClipboard", type("MockClipboard", (), {"copy": lambda _self, _content: None})
+        "grobl.cli.PyperclipClipboard",
+        type("MockClipboard", (), {"copy": lambda _self, _content: None}),
     )
-    monkeypatch.setattr("grobl.main.human_summary", lambda *_a, **_k: None)
+    monkeypatch.setattr("grobl.cli.human_summary", lambda *_a, **_k: None)
 
     # Now run it, expecting SystemExit
     with pytest.raises(SystemExit) as e:
-        main.main()
+        cli.main()
     assert e.value.code == 1
 
 
@@ -188,11 +200,11 @@ def test_read_config_handles_invalid_toml(monkeypatch, tmp_path):
     (tmp_path / ".grobl.config.toml").write_text("invalid = ", encoding="utf-8")
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("grobl.main.PyperclipClipboard", lambda: None)
-    monkeypatch.setattr("grobl.main.human_summary", lambda *_: None)
+    monkeypatch.setattr("grobl.cli.PyperclipClipboard", lambda: None)
+    monkeypatch.setattr("grobl.cli.human_summary", lambda *_: None)
 
     monkeypatch.setattr(sys, "argv", ["grobl"])
     with pytest.raises(SystemExit) as exc_info:
-        main.main()
+        cli.main()
 
     assert exc_info.value.code == 1
