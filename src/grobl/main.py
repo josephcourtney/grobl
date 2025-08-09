@@ -14,15 +14,20 @@ def process_paths(
     paths: list[Path],
     cfg: dict,
     clipboard: ClipboardInterface,
-    builder: DirectoryTreeBuilder,
-) -> None:
+    builder: DirectoryTreeBuilder | None = None,
+) -> DirectoryTreeBuilder:
     resolved = [p.resolve() for p in paths]
     common = find_common_ancestor(resolved)
 
-    builder.base_path = common  # ensure base_path is set correctly
-
     excl_tree = cfg.get("exclude_tree", [])
     excl_print = cfg.get("exclude_print", [])
+
+    if builder is None:
+        builder = DirectoryTreeBuilder(base_path=common, exclude_patterns=excl_tree)
+    else:
+        builder.base_path = common  # ensure base_path is set correctly
+        # keep existing exclude patterns - ``traverse_dir`` handles filtering
+
     current_item = {"path": None}  # Mutable container to track current file/dir
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
@@ -51,6 +56,7 @@ def process_paths(
 
     summary = builder.build_tree(include_metadata=True)
     human_summary(summary, builder.total_lines, builder.total_characters)
+    return builder
 
 
 def main() -> None:
