@@ -8,11 +8,12 @@ class DirectoryTreeBuilder:
     base_path: Path
     exclude_patterns: list[str]
     tree_output: list[str] = field(default_factory=list)
-    all_metadata: dict[str, tuple[int, int]] = field(default_factory=dict)
-    included_metadata: dict[str, tuple[int, int]] = field(default_factory=dict)
+    all_metadata: dict[str, tuple[int, int, int]] = field(default_factory=dict)
+    included_metadata: dict[str, tuple[int, int, int]] = field(default_factory=dict)
     file_contents: list[str] = field(default_factory=list)
     total_lines: int = 0
     total_characters: int = 0
+    total_tokens: int = 0
     file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
 
     def add_directory(
@@ -27,24 +28,36 @@ class DirectoryTreeBuilder:
         self.tree_output.append(f"{prefix}{connector}{file_path.name}")
         self.file_tree_entries.append((len(self.tree_output) - 1, rel))
 
-    def record_metadata(self, rel: Path, lines: int, chars: int) -> None:
-        self.all_metadata[str(rel)] = (lines, chars)
+    def record_metadata(self, rel: Path, lines: int, chars: int, tokens: int) -> None:
+        self.all_metadata[str(rel)] = (lines, chars, tokens)
 
     def add_file(
-        self, file_path: Path, rel: Path, lines: int, chars: int, content: str
+        self,
+        file_path: Path,
+        rel: Path,
+        lines: int,
+        chars: int,
+        tokens: int,
+        content: str,
     ) -> None:
-        self.included_metadata[str(rel)] = (lines, chars)
+        self.included_metadata[str(rel)] = (lines, chars, tokens)
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
         self.file_contents.extend(
             [
-                f'<file:content name="{rel}" lines="{lines}" chars="{chars}">',
+                (
+                    f'<file:content name="{rel}" lines="{lines}" chars="{chars}" '
+                    f'tokens="{tokens}">'
+                    if tokens
+                    else f'<file:content name="{rel}" lines="{lines}" chars="{chars}">'
+                ),
                 content,
                 "</file:content>",
             ]
         )
         self.total_lines += lines
         self.total_characters += chars
+        self.total_tokens += tokens
 
     def build_tree(self, *, include_metadata: bool = False) -> list[str]:
         if not include_metadata:
@@ -57,17 +70,26 @@ class DirectoryTreeBuilder:
         max_char_digits = max(
             (len(str(v[1])) for v in self.all_metadata.values()), default=1
         )
+        has_tokens = any(v[2] for v in self.all_metadata.values())
+        max_tok_digits = max(
+            (len(str(v[2])) for v in self.all_metadata.values()), default=1
+        )
 
         header = f"{'':{name_width - 1}}{'lines':>{max_line_digits}} {'chars':>{max_char_digits}}"
+        if has_tokens:
+            header += f" {'tokens':>{max_tok_digits}}"
         output = [header, self.base_path.name]
         entry_map = dict(self.file_tree_entries)
 
         for idx, text in enumerate(self.tree_output):
             if idx in entry_map:
                 rel = entry_map[idx]
-                ln, ch = self.all_metadata.get(str(rel), (0, 0))
+                ln, ch, tk = self.all_metadata.get(str(rel), (0, 0, 0))
                 marker = " " if str(rel) in self.included_metadata else "*"
-                line = f"{text:<{name_width}} {ln:>{max_line_digits}} {ch:>{max_char_digits}} {marker:>2}"
+                line = f"{text:<{name_width}} {ln:>{max_line_digits}} {ch:>{max_char_digits}}"
+                if has_tokens:
+                    line += f" {tk:>{max_tok_digits}}"
+                line += f" {marker:>2}"
                 output.append(line)
             else:
                 output.append(text)
