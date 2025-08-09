@@ -20,8 +20,8 @@ def test_directory_tree_builder_adds_entries_and_files():
     # Test adding a file and metadata
     builder = DirectoryTreeBuilder(Path("/test"), [])
     builder.add_file_to_tree(Path("/test/file.txt"), "", is_last=True)
-    builder.record_metadata(Path("file.txt"), 5, 42)
-    builder.add_file(Path("/test/file.txt"), Path("file.txt"), 5, 42, "content")
+    builder.record_metadata(Path("file.txt"), 5, 42, 0)
+    builder.add_file(Path("/test/file.txt"), Path("file.txt"), 5, 42, 0, "content")
     assert (
         '<file:content name="file.txt" lines="5" chars="42">' in builder.file_contents
     )
