@@ -2,6 +2,8 @@ import argparse
 import sys
 from collections.abc import Callable
 from pathlib import Path
+import importlib.resources
+import tomllib
 
 from .clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
 from .config import migrate_config, read_config
@@ -18,18 +20,15 @@ from .tokens import (
 )
 from .utils import find_common_ancestor, is_text, read_text
 
-# Mapping of known model names to their input token limits. These values are
-# based on published OpenAI model specifications. The ``default`` tier is used
-# when no explicit subscription tier is supplied (e.g. ``gpt-4o``). Additional
-# tiers can be specified using ``model:tier`` syntax, such as ``gpt-4o:plus``.
-MODEL_TOKEN_LIMITS: dict[str, dict[str, int]] = {
-    "gpt-4o": {"default": 128_000},
-    "gpt-4o-mini": {"default": 64_000},
-    "gpt-4.1": {"default": 128_000},
-    "gpt-4.1-mini": {"default": 128_000},
-    # Future models can be added here as they become available. Tests may
-    # monkeypatch this mapping for custom scenarios.
-}
+
+def _load_model_specs() -> dict[str, dict]:
+    """Load bundled model specifications from resources."""
+    cfg_path = importlib.resources.files("grobl.resources").joinpath("models.toml")
+    data = tomllib.loads(cfg_path.read_text(encoding="utf-8"))
+    return data.get("models", {})
+
+
+MODEL_SPECS: dict[str, dict] = _load_model_specs()
 
 
 def process_paths(
@@ -157,12 +156,6 @@ def main() -> None:
         action="store_true",
         help="Ignore bundled default exclude patterns",
     )
-    parser.add_argument(
-        "--no-groblignore",
-        action="store_false",
-        dest="use_groblignore",
-        help="Do not merge patterns from .groblignore",
-    )
     parser.add_argument("paths", nargs="*", type=Path, help="Directories to scan")
     parser.add_argument(
         "--no-clipboard",
@@ -267,7 +260,6 @@ def main() -> None:
         cfg = read_config(
             base_path=cwd,
             ignore_default=args.ignore_defaults,
-            use_groblignore=args.use_groblignore,
         )
         interactive_edit_config([cwd], cfg, save=True)
         sys.exit(0)
@@ -296,7 +288,6 @@ def main() -> None:
         cfg = read_config(
             base_path=cwd,
             ignore_default=args.ignore_defaults,
-            use_groblignore=args.use_groblignore,
         )
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
@@ -312,31 +303,29 @@ def main() -> None:
     for pat in args.remove_ignore:
         if pat in cfg.get("exclude_tree", []):
             cfg["exclude_tree"].remove(pat)
-    tokens_flag = args.tokens
+    no_clipboard = args.no_clipboard or cfg.get("no_clipboard", False)
+    tokens_flag = args.tokens or cfg.get("tokens", False)
+    model_arg = args.model or cfg.get("model")
+    budget = args.budget if args.budget is not None else cfg.get("budget")
+    force_tokens = args.force_tokens or cfg.get("force_tokens", False)
+    verbose = args.verbose or cfg.get("verbose", False)
     tokenizer_name = args.tokenizer
-    budget = args.budget
-    if args.model:
-        try:
-            import tiktoken  # type: ignore
-
-            base, tier = (args.model.split(":", 1) + ["default"])[:2]
-            enc = tiktoken.encoding_for_model(base)
-            tokenizer_name = enc.name
-            tokens_flag = True
-            if budget is None:
-                limits = MODEL_TOKEN_LIMITS.get(base, {})
-                budget = limits.get(tier) or limits.get("default")
-        except ModuleNotFoundError:
-            print("tiktoken is not installed", file=sys.stderr)
-            sys.exit(1)
-        except Exception as exc:
-            print(f"Unknown model '{args.model}': {exc}", file=sys.stderr)
-            sys.exit(1)
+    if model_arg:
+        base, tier = (model_arg.split(":", 1) + ["default"])[:2]
+        spec = MODEL_SPECS.get(base)
+        if spec is None:
+            print(f"Unknown model '{model_arg}'", file=sys.stderr)
+            raise SystemExit(1)
+        tokenizer_name = spec.get("tokenizer", tokenizer_name)
+        tokens_flag = True
+        if budget is None:
+            limits = spec.get("budget", {})
+            budget = limits.get(tier) or limits.get("default")
 
     clipboard: ClipboardInterface
     if args.output:
         clipboard = StdoutClipboard(args.output)
-    elif args.no_clipboard:
+    elif no_clipboard:
         clipboard = StdoutClipboard()
     else:
         clipboard = PyperclipClipboard(fallback=StdoutClipboard())
@@ -355,8 +344,8 @@ def main() -> None:
             tokenizer_name=tokenizer_name,
             tokens_for=args.tokens_for,
             budget=budget,
-            force_tokens=args.force_tokens,
-            verbose=args.verbose,
+            force_tokens=force_tokens,
+            verbose=verbose,
         )
     except KeyboardInterrupt:
         print("\nInterrupted by user. Dumping debug info:")

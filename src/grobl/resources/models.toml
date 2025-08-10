@@ -1,0 +1,35 @@
+[models."gpt-4o"]
+model = "gpt-4o"
+tokenizer = "o200k_base"
+[models."gpt-4o".budget]
+default = 128000
+free = 16000
+plus = 32000
+pro = 128000
+
+[models."gpt-4o-mini"]
+model = "gpt-4o-mini"
+tokenizer = "o200k_base"
+[models."gpt-4o-mini".budget]
+default = 64000
+free = 16000
+plus = 32000
+pro = 128000
+
+[models."gpt-4.1"]
+model = "gpt-4.1"
+tokenizer = "o200k_base"
+[models."gpt-4.1".budget]
+default = 128000
+free = 16000
+plus = 32000
+pro = 128000
+
+[models."gpt-4.1-mini"]
+model = "gpt-4.1-mini"
+tokenizer = "o200k_base"
+[models."gpt-4.1-mini".budget]
+default = 128000
+free = 16000
+plus = 32000
+pro = 128000

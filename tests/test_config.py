@@ -14,7 +14,6 @@ from grobl.config import (
     load_default_config,
     load_json_config,
     load_toml_config,
-    merge_groblignore,
     migrate_config,
     prompt_delete,
     read_config,
@@ -82,13 +81,6 @@ def test_read_groblignore_lines(tmp_path):
     file.write_text("# comment\n\n*.pyc\n__pycache__/\n", encoding="utf-8")
     patterns = read_groblignore(tmp_path)
     assert patterns == ["*.pyc", "__pycache__/"]
-
-
-def test_merge_groblignore_adds_patterns(tmp_path):
-    base_cfg = {}
-    (tmp_path / ".groblignore").write_text("*.tmp\n", encoding="utf-8")
-    merge_groblignore(base_cfg, tmp_path)
-    assert "*.tmp" in base_cfg["exclude_tree"]
 
 
 def test_path_groups_expand(tmp_path):
@@ -182,12 +174,17 @@ def test_migrate_config_success(monkeypatch, tmp_path):
     assert (tmp_path / ".grobl.config.toml").exists()
 
 
-def test_read_config_json_fallback(tmp_path):
+def test_read_config_auto_migrates_legacy_files(tmp_path):
     (tmp_path / ".grobl.config.json").write_text(
         '{"exclude_tree": ["*.tmp"]}', encoding="utf-8"
     )
+    (tmp_path / ".groblignore").write_text("*.bak\n", encoding="utf-8")
     cfg = read_config(tmp_path)
     assert "*.tmp" in cfg["exclude_tree"]
+    assert "*.bak" in cfg["exclude_tree"]
+    assert (tmp_path / ".grobl.config.toml").exists()
+    assert not (tmp_path / ".grobl.config.json").exists()
+    assert not (tmp_path / ".groblignore").exists()
 
 
 def test_cli_configloaderror(monkeypatch):
