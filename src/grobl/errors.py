@@ -1,3 +1,5 @@
+"""Custom exception classes and error messages."""
+
 ERROR_MSG_EMPTY_PATHS = "The list of paths is empty"
 ERROR_MSG_NO_COMMON_ANCESTOR = "No common ancestor found"
 

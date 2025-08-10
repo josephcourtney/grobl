@@ -323,3 +323,53 @@ def test_config_sets_default_cli_options(monkeypatch, tmp_path):
     assert captured["budget"] == 5000
     assert captured["force_tokens"] is True
     assert captured["verbose"] is True
+
+
+def test_init_config_writes_default(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["grobl", "init-config"])
+    with pytest.raises(SystemExit):
+        main()
+    assert (tmp_path / ".grobl.config.toml").exists()
+
+
+def test_init_config_project_root(monkeypatch, tmp_path):
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    sub = tmp_path / "pkg"
+    sub.mkdir()
+    monkeypatch.chdir(sub)
+    monkeypatch.setattr(sys, "argv", ["grobl", "init-config"])
+    monkeypatch.setattr("builtins.input", lambda _=None: "y")
+    with pytest.raises(SystemExit):
+        main()
+    assert (tmp_path / ".grobl.config.toml").exists()
+
+
+def test_model_alias_and_tier_budget(monkeypatch, tmp_path):
+    (tmp_path / "file.txt").write_text("hello world", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "grobl.cli.load_tokenizer", lambda name: (lambda text: len(text.split()))
+    )
+    monkeypatch.setattr(
+        "grobl.cli.MODEL_SPECS",
+        {
+            "gpt-4.1": {"tokenizer": "fake", "budget": {"plus": 64000}},
+            "gpt-5": {"tokenizer": "fake", "budget": {"plus": 64000}},
+        },
+    )
+    captured: dict[str, object] = {}
+
+    def fake_summary(
+        lines, total_lines, total_chars, *, total_tokens, tokenizer, budget
+    ):
+        captured["tokenizer"] = tokenizer
+        captured["budget"] = budget
+
+    monkeypatch.setattr("grobl.cli.human_summary", fake_summary)
+    monkeypatch.setattr(
+        sys, "argv", ["grobl", "--no-clipboard", "--model", "gpt-5:plus"]
+    )
+    main()
+    assert captured["tokenizer"] == "fake"
+    assert captured["budget"] == 64000
