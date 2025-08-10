@@ -8,3 +8,21 @@
   - `--budget`
   - `--force-tokens`
   - `--verbose`
+- [ ] fix summary table header and alignment. It currently looks like this:
+```
+═══════════════════ Project Summary (o200k_base) ═══════════════════
+                                            lines chars tokens incl
+bingbong
+├── .gitignore                                  184  3536      0    *
+├── .grobl.config.toml                           25   448    137
+```
+
+it should look like this:
+```
+═══════════════════ Project Summary (o200k_base) ═══════════════════
+                                              lines chars tokens included
+bingbong
+├── .gitignore                                  184  3536      0        *
+├── .grobl.config.toml                           25   448    137
+```
+
