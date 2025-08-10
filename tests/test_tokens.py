@@ -30,8 +30,8 @@ def test_cli_tokens_summary(monkeypatch, tmp_path):
     )
     main()
     header = captured["lines"][0]
-    assert "tokens" in header and "incl" in header
-    assert header.split() == ["lines", "chars", "tokens", "incl"]
+    assert "tokens" in header and "included" in header
+    assert header.split() == ["lines", "chars", "tokens", "included"]
     assert captured["budget"] == 100
     assert captured["total_tokens"] == 2
     assert captured["tokenizer"] == "o200k_base"
@@ -145,20 +145,12 @@ def test_model_option_sets_tokenizer_and_budget(monkeypatch, tmp_path):
     (tmp_path / "file.txt").write_text("hello world", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
-    class FakeEnc:
-        name = "fake-enc"
-
-    class FakeTok:
-        @staticmethod
-        def encoding_for_model(model):  # noqa: ARG003
-            return FakeEnc
-
-    monkeypatch.setitem(sys.modules, "tiktoken", FakeTok)
     monkeypatch.setattr(
         "grobl.cli.load_tokenizer", lambda name: (lambda text: len(text.split()))
     )
     monkeypatch.setattr(
-        "grobl.cli.MODEL_TOKEN_LIMITS", {"gpt-test": {"default": 32000}}
+        "grobl.cli.MODEL_SPECS",
+        {"gpt-test": {"tokenizer": "fake-enc", "budget": {"default": 32000}}},
     )
     captured: dict[str, object] = {}
 

@@ -57,16 +57,6 @@ def read_groblignore(path: Path) -> list[str]:
     ]
 
 
-def merge_groblignore(cfg: dict, base_path: Path) -> None:
-    patterns = read_groblignore(base_path)
-    if not patterns:
-        return
-    cfg.setdefault("exclude_tree", [])
-    for pat in patterns:
-        if pat not in cfg["exclude_tree"]:
-            cfg["exclude_tree"].append(pat)
-
-
 def expand_groups(cfg: dict) -> None:
     groups = cfg.get("groups", {})
     for target, key in (
@@ -80,23 +70,24 @@ def expand_groups(cfg: dict) -> None:
                     cfg[target].append(pat)
 
 
-# Boolean flags are keyword-only to avoid FBT001/FBT002
 def read_config(
     base_path: Path,
     *,
     ignore_default: bool = False,
-    use_groblignore: bool = True,
 ) -> dict:
     toml_path = base_path / TOML_CONFIG
     json_path = base_path / JSON_CONFIG
+    ignore_path = base_path / DOTIGNORE_CONFIG
     pyproject_path = base_path / "pyproject.toml"
+
+    if not toml_path.exists() and (json_path.exists() or ignore_path.exists()):
+        print("Found legacy configuration files. Migrating to .grobl.config.toml...")
+        migrate_config(base_path, assume_yes=True)
 
     cfg: dict = {} if ignore_default else load_default_config()
 
     if toml_path.exists():
         cfg.update(load_toml_config(toml_path))
-    elif json_path.exists():
-        cfg.update(load_json_config(json_path))
     if pyproject_path.exists():
         try:
             data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))
@@ -108,9 +99,6 @@ def read_config(
             grobl_cfg = tool.get("grobl")
             if isinstance(grobl_cfg, dict):
                 cfg.update(grobl_cfg)
-
-    if use_groblignore:
-        merge_groblignore(cfg, base_path)
 
     expand_groups(cfg)
 
