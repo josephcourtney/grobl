@@ -1,23 +1,24 @@
 from pathlib import Path
 
+import pytest
+
 from grobl.directory import DirectoryTreeBuilder
-from grobl.formatter import (
-    escape_markdown,
-    human_summary,
-)
+from grobl.formatter import escape_markdown, human_summary
 
 
-def test_escape_markdown():
-    cases = [
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
         ("Hello *world*", r"Hello \*world\*"),
         ("_underscore_", r"\_underscore\_"),
         ("#header", r"\#header"),
         ("(parentheses)", r"\(parentheses\)"),
         ("normal text", "normal text"),
         ("multiple * _ # []", r"multiple \* \_ \# \[\]"),
-    ]
-    for inp, expected in cases:
-        assert escape_markdown(inp) == expected
+    ],
+)
+def test_escape_markdown(text, expected):
+    assert escape_markdown(text) == expected
 
 
 def test_add_md_file_escapes_backticks(tmp_path):
@@ -42,4 +43,7 @@ def test_human_summary_budget(capsys):
         budget=32_000,
     )
     out = capsys.readouterr().out
+    first_line = out.splitlines()[0]
+    assert first_line.strip() == "Project Summary"
+    assert "o200k_base" not in first_line
     assert "Total tokens: 24956 (78% of 32,000 token budget)" in out

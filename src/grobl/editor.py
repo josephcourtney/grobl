@@ -1,3 +1,5 @@
+"""Interactive configuration editor."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,7 +17,7 @@ def _build_tree(paths: list[Path], base: Path) -> tuple[list[str], dict[str, Pat
     lines: list[str] = []
     mapping: dict[str, Path] = {}
 
-    def collect(item: Path, prefix: str, *, is_last: bool) -> None:
+    def collect(item: Path, prefix: str, is_last: bool) -> None:
         connector = "└── " if is_last else "├── "
         rel = item.relative_to(base)
         lines.append(f"{prefix}{connector}{item.name}")
