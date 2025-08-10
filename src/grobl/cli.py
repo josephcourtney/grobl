@@ -5,20 +5,20 @@ from pathlib import Path
 import importlib.resources
 import tomllib
 
-from .clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
-from .config import migrate_config, read_config
-from .directory import DirectoryTreeBuilder, traverse_dir
-from .editor import interactive_edit_config
-from .errors import ConfigLoadError
-from .formatter import human_summary
-from .tokens import (
+from grobl.clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
+from grobl.config import migrate_config, read_config
+from grobl.directory import DirectoryTreeBuilder, traverse_dir
+from grobl.editor import interactive_edit_config
+from grobl.errors import ConfigLoadError
+from grobl.formatter import human_summary
+from grobl.tokens import (
     TokenizerNotAvailableError,
     count_tokens,
     load_cache,
     load_tokenizer,
     save_cache,
 )
-from .utils import find_common_ancestor, is_text, read_text
+from grobl.utils import find_common_ancestor, is_text, read_text
 
 
 def _load_model_specs() -> dict[str, dict]:
@@ -246,8 +246,7 @@ def main() -> None:
             print("tiktoken is not installed", file=sys.stderr)
             sys.exit(1)
         for name in names:
-            models = ", ".join(sorted(mapping.get(name, [])))
-            if models:
+            if models := ", ".join(sorted(mapping.get(name, []))):
                 print(f"{name}: {models}")
             else:
                 print(name)
@@ -348,24 +347,28 @@ def main() -> None:
             verbose=verbose,
         )
     except KeyboardInterrupt:
-        print("\nInterrupted by user. Dumping debug info:")
-        print(f"cwd: {cwd}")
-        print(f"exclude_tree: {cfg.get('exclude_tree')}")
-        print(f"exclude_print: {cfg.get('exclude_print')}")
+        print_interrupt_diagnostics(cwd, cfg, builder)
 
-        print("DirectoryTreeBuilder(")
-        print(f"    base_path         = {builder.base_path}")
-        print(f"    total_lines       = {builder.total_lines}")
-        print(f"    total_characters  = {builder.total_characters}")
-        # print(f"    exclude_patterns  = {builder.exclude_patterns}")
-        # print(f"    tree_output       = {builder.tree_output}")
-        # print(f"    all_metadata      = {builder.all_metadata}")
-        # print(f"    included_metadata = {builder.included_metadata}")
-        # print(f"    file_contents     = {builder.file_contents}")
-        print(f"    file_tree_entries = {builder.file_tree_entries}")
-        print(")")
 
-        raise
+def print_interrupt_diagnostics(cwd, cfg, builder):
+    print("\nInterrupted by user. Dumping debug info:")
+    print(f"cwd: {cwd}")
+    print(f"exclude_tree: {cfg.get('exclude_tree')}")
+    print(f"exclude_print: {cfg.get('exclude_print')}")
+
+    print("DirectoryTreeBuilder(")
+    print(f"    base_path         = {builder.base_path}")
+    print(f"    total_lines       = {builder.total_lines}")
+    print(f"    total_characters  = {builder.total_characters}")
+    print(f"    exclude_patterns  = {builder.exclude_patterns}")
+    print(f"    tree_output       = {builder.tree_output}")
+    print(f"    all_metadata      = {builder.all_metadata}")
+    print(f"    included_metadata = {builder.included_metadata}")
+    print(f"    file_contents     = {builder.file_contents}")
+    print(f"    file_tree_entries = {builder.file_tree_entries}")
+    print(")")
+
+    raise
 
 
 if __name__ == "__main__":
