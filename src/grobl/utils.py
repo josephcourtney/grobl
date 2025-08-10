@@ -1,3 +1,5 @@
+"""Generic utility helpers."""
+
 from pathlib import Path
 
 from .errors import (
@@ -21,6 +23,8 @@ def find_common_ancestor(paths: list[Path]) -> Path:
 
 
 def is_text(file_path: Path) -> bool:
+    """Return ``True`` if ``file_path`` looks like a text file."""
+
     # Preliminary binary check: if there's a NULL byte, treat as binary
     try:
         with file_path.open("rb") as f:
@@ -38,4 +42,20 @@ def is_text(file_path: Path) -> bool:
 
 
 def read_text(file_path: Path) -> str:
+    """Read text from ``file_path`` using UTF-8 with ignore errors."""
+
     return file_path.read_text(encoding="utf-8", errors="ignore")
+
+
+def find_project_root(start: Path) -> Path | None:
+    """Return the project root starting from ``start`` if detected.
+
+    The root is determined by looking for ``pyproject.toml`` or ``.git``
+    directories in ``start`` and its parents.
+    """
+
+    start = start.resolve()
+    for path in [start, *start.parents]:
+        if (path / "pyproject.toml").exists() or (path / ".git").exists():
+            return path
+    return None

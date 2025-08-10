@@ -1,8 +1,11 @@
+"""Output formatting helpers."""
+
 import re
 
 
 def escape_markdown(text: str) -> str:
-    """Escape Markdown metacharacters."""
+    """Escape Markdown metacharacters in ``text``."""
+
     markdown_chars = r"([*_#\[\]{}()>+\-.!])"
     return re.sub(markdown_chars, r"\\\1", text)
 
@@ -16,10 +19,14 @@ def human_summary(
     tokenizer: str | None = None,
     budget: int | None = None,
 ) -> None:
+    """Print a human-readable summary table.
+
+    ``tokenizer`` is accepted for backwards compatibility but is no longer
+    displayed in the summary title.
+    """
+
     max_width = max(len(line) for line in tree_lines)
     title = " Project Summary "
-    if tokenizer:
-        title = f" Project Summary ({tokenizer}) "
     bar = "═" * ((max_width - len(title)) // 2)
     print(f"{bar}{title}{bar}")
     for line in tree_lines:

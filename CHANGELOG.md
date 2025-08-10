@@ -14,6 +14,20 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - fix summary table header alignment and wording
 
+## [0.4.11] - 2025-08-10
+
+### Added
+- add `init-config` subcommand to write default configuration
+- add aliases for common model names
+
+### Changed
+- hide tokenizer name from summary title
+- infer token budget when model or tier provides limits
+- improve type annotations and docstrings across modules
+
+### Fixed
+- fix summary table column alignment
+
 ## [0.4.9] - 2025-08-09
 
 ### Added
