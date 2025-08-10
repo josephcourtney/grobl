@@ -1,12 +1,18 @@
+"""Command line interface for grobl."""
+
+from __future__ import annotations
+
 import argparse
 import sys
+
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 import importlib.resources
 import tomllib
 
 from grobl.clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
-from grobl.config import migrate_config, read_config
+from grobl.config import TOML_CONFIG, migrate_config, read_config, write_default_config
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
 from grobl.editor import interactive_edit_config
 from grobl.errors import ConfigLoadError
@@ -18,14 +24,20 @@ from grobl.tokens import (
     load_tokenizer,
     save_cache,
 )
-from grobl.utils import find_common_ancestor, is_text, read_text
+from grobl.utils import find_common_ancestor, find_project_root, is_text, read_text
 
 
 def _load_model_specs() -> dict[str, dict]:
-    """Load bundled model specifications from resources."""
+    """Load bundled model specifications and aliases from resources."""
+
     cfg_path = importlib.resources.files("grobl.resources").joinpath("models.toml")
     data = tomllib.loads(cfg_path.read_text(encoding="utf-8"))
-    return data.get("models", {})
+    models = data.get("models", {})
+    aliases = data.get("aliases", {})
+    for alias, target in aliases.items():
+        if target in models:
+            models[alias] = models[target]
+    return models
 
 
 MODEL_SPECS: dict[str, dict] = _load_model_specs()
@@ -33,7 +45,7 @@ MODEL_SPECS: dict[str, dict] = _load_model_specs()
 
 def process_paths(
     paths: list[Path],
-    cfg: dict,
+    cfg: dict[str, Any],
     clipboard: ClipboardInterface,
     builder: DirectoryTreeBuilder | None = None,
     *,
@@ -44,6 +56,8 @@ def process_paths(
     force_tokens: bool = False,
     verbose: bool = False,
 ) -> DirectoryTreeBuilder:
+    """Traverse ``paths`` and emit formatted output."""
+
     resolved = [p.resolve() for p in paths]
     common = find_common_ancestor(resolved)
 
@@ -88,7 +102,7 @@ def process_paths(
         "path": None
     }  # Mutable container to track current file/dir
 
-    def collect(item: Path, prefix: str, *, is_last: bool) -> None:
+    def collect(item: Path, prefix: str, is_last: bool) -> None:
         current_item["path"] = item
         if item.is_dir():
             builder_local.add_directory(item, prefix, is_last=is_last)
@@ -145,7 +159,30 @@ def process_paths(
     return builder_local
 
 
+def _execute_subcommand(command: str, args: argparse.Namespace, cwd: Path) -> None:
+    """Handle maintenance subcommands and exit."""
+
+    if command == "migrate-config":
+        migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
+        sys.exit(0)
+    if command == "edit-config":
+        cfg = read_config(base_path=cwd, ignore_default=args.ignore_defaults)
+        interactive_edit_config([cwd], cfg, save=True)
+        sys.exit(0)
+    if command == "init-config":
+        target = find_project_root(cwd) or cwd
+        if target != cwd and not args.yes:
+            resp = input(f"Write {TOML_CONFIG} to {target}? (y/N): ").strip().lower()
+            if resp != "y":
+                target = cwd
+        write_default_config(target)
+        print(f"Wrote {TOML_CONFIG} to {target}")
+        sys.exit(0)
+
+
 def main() -> None:
+    """CLI entry point."""
+
     parser = argparse.ArgumentParser(
         prog="grobl",
         description="Directory-to-Markdown utility with TOML config support",
@@ -229,7 +266,11 @@ def main() -> None:
     cwd = Path()
 
     command = None
-    if args.paths and str(args.paths[0]) in {"migrate-config", "edit-config"}:
+    if args.paths and str(args.paths[0]) in {
+        "migrate-config",
+        "edit-config",
+        "init-config",
+    }:
         command = str(args.paths.pop(0))
 
     if args.list_token_models:
@@ -252,16 +293,8 @@ def main() -> None:
                 print(name)
         sys.exit(0)
 
-    if command == "migrate-config":
-        migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
-        sys.exit(0)
-    if command == "edit-config":
-        cfg = read_config(
-            base_path=cwd,
-            ignore_default=args.ignore_defaults,
-        )
-        interactive_edit_config([cwd], cfg, save=True)
-        sys.exit(0)
+    if command:
+        _execute_subcommand(command, args, cwd)
 
     paths = args.paths or [cwd]
     if args.ignore_defaults:
@@ -318,8 +351,11 @@ def main() -> None:
         tokenizer_name = spec.get("tokenizer", tokenizer_name)
         tokens_flag = True
         if budget is None:
-            limits = spec.get("budget", {})
-            budget = limits.get(tier) or limits.get("default")
+            limits = spec.get("budget")
+            if isinstance(limits, int):
+                budget = limits
+            elif isinstance(limits, dict):
+                budget = limits.get(tier) or limits.get("default")
 
     clipboard: ClipboardInterface
     if args.output:
@@ -350,7 +386,11 @@ def main() -> None:
         print_interrupt_diagnostics(cwd, cfg, builder)
 
 
-def print_interrupt_diagnostics(cwd, cfg, builder):
+def print_interrupt_diagnostics(
+    cwd: Path, cfg: dict[str, object], builder: DirectoryTreeBuilder
+) -> None:
+    """Print diagnostics when the user interrupts execution."""
+
     print("\nInterrupted by user. Dumping debug info:")
     print(f"cwd: {cwd}")
     print(f"exclude_tree: {cfg.get('exclude_tree')}")

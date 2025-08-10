@@ -1,8 +1,11 @@
+"""Token counting helpers."""
+
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Callable
+
+import json
 
 TOKEN_LIMIT_BYTES = 1_000_000
 
