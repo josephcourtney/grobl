@@ -1,27 +1,17 @@
-- [x] add an internal listing of models, correct tokenizers, and budgets by subscription tier
-  - example: {'model': 'gpt-5', 'tokenizer': 'o200k_base', 'budget': {'free': 16000, 'plus': 32000, 'pro': 128000}} except stored as a toml file
-- [x] remove implicit support for .groblignore and .grobl.config.json files. If they exist, inform the user and tell them that the files will be migrated to toml, then migrate them
-- [x] add the ability to set default values for these command line options in the config files
-  - `--no-clipboard`
-  - `--tokens`
-  - `--model`
-  - `--budget`
-  - `--force-tokens`
-  - `--verbose`
-- [x] fix summary table header and alignment. It currently looks like this:
+- [ ] add a sub-command to place a default config in the current folder (or project root if a known project structure is recognized. ask for confirmation before placing the file anywhere but the CWD)
+- [ ] make sure that all functions and methods in src/ have accurate, narrow type annotations
+- [ ] replace conditionals and loops in tests with parameterization or other appropriate techniques
+- [ ] identify functions that are too long or complex. if it makes sense, break them apart into smaller, more modular, reusable pieces
+- [ ] make sure all methods, classes, and modules have high quality docstrings
+- [ ] write tests to check for accurate alignment in summary table output. Currently, the output is poorly aligned:
 ```
-═══════════════════ Project Summary (o200k_base) ═══════════════════
-                                            lines chars tokens incl
-bingbong
-├── .gitignore                                  184  3536      0    *
-├── .grobl.config.toml                           25   448    137
+═════════════ Project Summary (o200k_base) ═════════════
+                            lines chars tokens included
+nvim
+├── .gitignore                    8    51     20
+├
+...
 ```
-
-it should look like this:
-```
-═══════════════════ Project Summary (o200k_base) ═══════════════════
-                                              lines chars tokens included
-bingbong
-├── .gitignore                                  184  3536      0        *
-├── .grobl.config.toml                           25   448    137
-```
+- [ ] do not show tokenizer model in summary title
+- [ ] make aliases for common models like "gpt-5"
+- [ ] if a model does not have separate subscription tiers, or the subscription tier is specified (e.g. `gpt-5:plus`), enable the `budget` option with the known token limit
