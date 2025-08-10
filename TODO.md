@@ -1,12 +1,10 @@
-- [x] make the listed tokenizer output more helpful. For each tokenizer, list models that it applies to.
-- [x] set the default tokenizer model to `o200k_base`
-- [x] improve the stdout summery header
-  - the column indicating inclusion of full text content is labeled with "in" which is not clear
-  - the tokens number column is right-aligned but the tokens column label extends two characters to the right of the 1s place. they should be aligned
-- [x] include the size of the budget: `Total tokens: 24956 (78% of 32,000 token budget)`
-- [x] allow selection of `model` instead of tokenizer which will act as if:
-  - `--tokens` was included
-  - `--tokenizer TOKENIZER` was included where TOKENIZER is the correct choice for the given model
-  - `--budget BUDGET` was included where BUDGET is the input token limit for the given model
-    - since the this limit varies by subscription tier, the model can be given bare or suffixed with the tier name, e.g. `gpt-5:plus`
-
+- [ ] add an internal listing of models, correct tokenizers, and budgets by subscription tier
+  - example: {'model': 'gpt-5', 'tokenizer': 'o200k_base', 'budget': {'free': 16000, 'plus': 32000, 'pro': 128000}} except stored as a toml file
+- [ ] remove implicit support for .groblignore and .grobl.config.json files. If they exist, inform the user and tell them that the files will be migrated to toml, then migrate them
+- [ ] add the ability to set default values for these command line options in the config files
+  - `--no-clipboard`
+  - `--tokens`
+  - `--model`
+  - `--budget`
+  - `--force-tokens`
+  - `--verbose`
