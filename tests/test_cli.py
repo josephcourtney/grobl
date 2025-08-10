@@ -258,3 +258,68 @@ def test_cli_path_named_tests_is_not_misparsed_as_command(
 
     assert '<directory name="tests"' in out
     assert "t.py" in out
+
+
+def test_config_sets_default_cli_options(monkeypatch, tmp_path):
+    (tmp_path / "file.txt").write_text("hello world", encoding="utf-8")
+    cfg_text = (
+        "no_clipboard = true\n"
+        "tokens = true\n"
+        'model = "gpt-test"\n'
+        "budget = 5000\n"
+        "force_tokens = true\n"
+        "verbose = true\n"
+    )
+    (tmp_path / ".grobl.config.toml").write_text(cfg_text, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "grobl.cli.load_tokenizer", lambda name: (lambda text: len(text.split()))
+    )
+    monkeypatch.setattr(
+        "grobl.cli.MODEL_SPECS",
+        {"gpt-test": {"tokenizer": "fake-enc", "budget": {"default": 32000}}},
+    )
+    captured: dict[str, object] = {}
+
+    class DummyStdoutClipboard:
+        def __init__(self, output_path: Path | None = None):  # noqa: D401, ARG002
+            captured["clipboard"] = "stdout"
+
+        def copy(self, content: str) -> None:  # noqa: D401, ARG002
+            pass
+
+    monkeypatch.setattr("grobl.cli.StdoutClipboard", DummyStdoutClipboard)
+    monkeypatch.setattr(
+        "grobl.cli.PyperclipClipboard",
+        lambda fallback=None: (_ for _ in ()).throw(RuntimeError("clipboard used")),
+    )
+
+    def fake_process(
+        paths,
+        cfg,
+        clipboard,
+        builder,
+        *,
+        tokens,
+        tokenizer_name,
+        tokens_for,
+        budget,
+        force_tokens,
+        verbose,
+    ):
+        captured["tokens"] = tokens
+        captured["tokenizer_name"] = tokenizer_name
+        captured["budget"] = budget
+        captured["force_tokens"] = force_tokens
+        captured["verbose"] = verbose
+
+    monkeypatch.setattr("grobl.cli.process_paths", fake_process)
+    monkeypatch.setattr("grobl.cli.human_summary", lambda *_a, **_k: None)
+    monkeypatch.setattr(sys, "argv", ["grobl"])
+    main()
+    assert captured["clipboard"] == "stdout"
+    assert captured["tokens"] is True
+    assert captured["tokenizer_name"] == "fake-enc"
+    assert captured["budget"] == 5000
+    assert captured["force_tokens"] is True
+    assert captured["verbose"] is True

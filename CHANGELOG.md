@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.10] - 2025-08-10
+
+### Added
+- add internal model specifications with tokenizers and budget tiers
+- allow configuring default CLI options
+
+### Removed
+- remove implicit support for .groblignore and .grobl.config.json
+
+### Fixed
+- fix summary table header alignment and wording
+
 ## [0.4.9] - 2025-08-09
 
 ### Added
