@@ -82,7 +82,8 @@ class DirectoryTreeBuilder:
         header = f"{'':{name_width - 1}}{'lines':>{line_width}} {'chars':>{char_width}}"
         if has_tokens:
             header += f" {'tokens':>{tok_width}}"
-        header += f" {'incl':>4}"
+        marker_width = max(len("included"), 8)
+        header += f" {'included':>{marker_width}}"
         output = [header, self.base_path.name]
         entry_map = dict(self.file_tree_entries)
 
@@ -94,7 +95,7 @@ class DirectoryTreeBuilder:
                 line = f"{text:<{name_width}} {ln:>{line_width}} {ch:>{char_width}}"
                 if has_tokens:
                     line += f" {tk:>{tok_width}}"
-                line += f" {marker:>4}"
+                line += f" {marker:>{marker_width}}"
                 output.append(line)
             else:
                 output.append(text)
