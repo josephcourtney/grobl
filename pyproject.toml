@@ -1,7 +1,7 @@
 # =================================== project ====================================
 [project]
   name = "grobl"
-  version = "0.4.14"
+  version = "0.5.0"
   description = "A script to display directory structure and Python file contents"
   readme = "README.md"
   authors = [
@@ -20,10 +20,8 @@
     "click>=8.2.1",
     "pyperclip",
     "tomlkit>=0.13.2",
-]
+  ]
 
-  [project.optional-dependencies]
-    tokens = ["tiktoken"] # optional dependency for token counting
 
   [project.scripts]
     grobl = "grobl.cli:main"
@@ -95,32 +93,3 @@
 
 [tool.coverage.xml]
   output = ".coverage.xml"
-
-[tool.commitizen]
-  name                     = "cz_conventional_commits"
-  tag_format               = "v{version}"
-  update_changelog_on_bump = true
-  bump_message             = "chore: bump version to {new_version}"
-  major_version_zero       = true
-  version_provider         = "uv"
-
-  # Define the allowed commit types and their descriptions:
-  [tool.commitizen.types]
-    feat     = "A new feature"
-    fix      = "A bug fix"
-    docs     = "Documentation only changes"
-    style    = "Code style (formatting, missing semi-colons, etc.)"
-    refactor = "Refactoring code without feature changes"
-    perf     = "Performance improvements"
-    test     = "Adding missing tests or correcting existing ones"
-    ci       = "CI configuration changes"
-    chore    = "Other changes that don't modify src or tests"
-
-  # Define your scopes so people choose from a fixed list:
-  [tool.commitizen.scopes]
-    router     = "Changes to routing logic"
-    dispatcher = "Changes to dispatcher/handler plumbing"
-    cache      = "Caching layer updates"
-    api        = "API‐layer changes"
-    docs       = "Documentation"
-    tests      = "Test suite changes"

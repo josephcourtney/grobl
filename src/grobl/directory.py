@@ -1,45 +1,99 @@
 """Directory traversal helpers and tree rendering utilities."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Protocol
 
 
-@dataclass
+class TreeCallback(Protocol):
+    """Directory traversal callback.
+
+    The `is_last` parameter is keyword-only to force call-site clarity.
+    """
+
+    def __call__(
+        self,
+        item: Path,
+        prefix: str,
+        *,
+        is_last: bool,
+    ) -> None: ...
+
+
+@dataclass(slots=True)  # "Use __slots__ to reduce memory if many nodes are created"
 class DirectoryTreeBuilder:
-    """Collect directory information and build formatted summaries."""
+    """Collect directory information (no rendering/formatting here)."""
 
     base_path: Path
     exclude_patterns: list[str]
-    tree_output: list[str] = field(default_factory=list)
-    all_metadata: dict[str, tuple[int, int, int]] = field(default_factory=dict)
-    included_metadata: dict[str, tuple[int, int, int]] = field(default_factory=dict)
-    file_contents: list[str] = field(default_factory=list)
+
+    # -- Internal state (prefixed) --
+    _tree_output: list[str] = field(default_factory=list)
+    _metadata: dict[str, tuple[int, int, bool]] = field(default_factory=dict)
+    _file_contents: list[str] = field(default_factory=list)
+    _file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
+
+    # "Totals for included files (backward compatible fields used by summary)."
     total_lines: int = 0
     total_characters: int = 0
-    total_tokens: int = 0
-    file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
 
+    # "Totals for all files seen (text and binary), derived in record_metadata."
+    all_total_lines: int = 0
+    all_total_characters: int = 0
+
+    # ----- Read-only accessors (encapsulation) -----
+    def tree_output(self) -> list[str]:
+        return list(self._tree_output)
+
+    def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
+        return self._metadata.items()
+
+    def get_metadata(self, key: str) -> tuple[int, int, bool] | None:
+        return self._metadata.get(key)
+
+    def file_contents(self) -> list[str]:
+        return list(self._file_contents)
+
+    def file_tree_entries(self) -> list[tuple[int, Path]]:
+        return list(self._file_tree_entries)
+
+    # ----- Mutators (internal use) -----
     def add_directory(
-        self, directory_path: Path, prefix: str, *, is_last: bool
+        self,
+        directory_path: Path,
+        prefix: str,
+        *,
+        is_last: bool,
     ) -> None:
         """Record a directory in the tree output."""
-
         connector = "└── " if is_last else "├── "
-        self.tree_output.append(f"{prefix}{connector}{directory_path.name}")
+        self._tree_output.append(f"{prefix}{connector}{directory_path.name}")
 
-    def add_file_to_tree(self, file_path: Path, prefix: str, *, is_last: bool) -> None:
+    def add_file_to_tree(
+        self,
+        file_path: Path,
+        prefix: str,
+        *,
+        is_last: bool,
+    ) -> None:
         """Add a file entry to the tree without storing its contents."""
-
         connector = "└── " if is_last else "├── "
         rel = file_path.relative_to(self.base_path)
-        self.tree_output.append(f"{prefix}{connector}{file_path.name}")
-        self.file_tree_entries.append((len(self.tree_output) - 1, rel))
+        self._tree_output.append(f"{prefix}{connector}{file_path.name}")
+        self._file_tree_entries.append((len(self._tree_output) - 1, rel))
 
-    def record_metadata(self, rel: Path, lines: int, chars: int, tokens: int) -> None:
-        """Record line/character/token counts for a file."""
-
-        self.all_metadata[str(rel)] = (lines, chars, tokens)
+    def record_metadata(
+        self,
+        rel: Path,
+        lines: int,
+        chars: int,
+    ) -> None:
+        """Record line/char counts for a file and update ALL-file totals."""
+        key = str(rel)
+        self._metadata[key] = (lines, chars, False)
+        self.all_total_lines += lines
+        self.all_total_characters += chars
 
     def add_file(
         self,
@@ -47,84 +101,23 @@ class DirectoryTreeBuilder:
         rel: Path,
         lines: int,
         chars: int,
-        tokens: int,
         content: str,
     ) -> None:
-        """Store file metadata and content for output."""
-
-        self.included_metadata[str(rel)] = (lines, chars, tokens)
+        """Store file metadata and content for output (collection only)."""
+        self._metadata[str(rel)] = (lines, chars, True)
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
-        self.file_contents.extend(
-            [
-                (
-                    f'<file:content name="{rel}" lines="{lines}" chars="{chars}" '
-                    f'tokens="{tokens}">'
-                    if tokens
-                    else f'<file:content name="{rel}" lines="{lines}" chars="{chars}">'
-                ),
-                content,
-                "</file:content>",
-            ]
-        )
+        self._file_contents.extend([
+            (f'<file:content name="{rel}" lines="{lines}" chars="{chars}">'),
+            content,
+            "</file:content>",
+        ])
         self.total_lines += lines
         self.total_characters += chars
-        self.total_tokens += tokens
-
-    def build_tree(self, *, include_metadata: bool = False) -> list[str]:
-        """Return the tree lines, optionally including metadata columns."""
-
-        if not include_metadata:
-            return [self.base_path.name, *self.tree_output]
-
-        name_width = max(len(line) for line in self.tree_output)
-        max_line_digits = max(
-            (len(str(v[0])) for v in self.all_metadata.values()), default=1
-        )
-        max_char_digits = max(
-            (len(str(v[1])) for v in self.all_metadata.values()), default=1
-        )
-        has_tokens = any(v[2] for v in self.all_metadata.values())
-        max_tok_digits = max(
-            (len(str(v[2])) for v in self.all_metadata.values()), default=1
-        )
-
-        line_width = max(max_line_digits, len("lines"))
-        char_width = max(max_char_digits, len("chars"))
-        tok_width = max(max_tok_digits, len("tokens")) if has_tokens else 0
-
-        header = f"{'':{name_width}} {'lines':>{line_width}} {'chars':>{char_width}}"
-        if has_tokens:
-            header += f" {'tokens':>{tok_width}}"
-        marker_width = max(len("included"), 8)
-        header += f" {'included':>{marker_width}}"
-        output = [header, self.base_path.name]
-        entry_map = dict(self.file_tree_entries)
-
-        for idx, text in enumerate(self.tree_output):
-            if idx in entry_map:
-                rel = entry_map[idx]
-                ln, ch, tk = self.all_metadata.get(str(rel), (0, 0, 0))
-                marker = " " if str(rel) in self.included_metadata else "*"
-                line = f"{text:<{name_width}} {ln:>{line_width}} {ch:>{char_width}}"
-                if has_tokens:
-                    line += f" {tk:>{tok_width}}"
-                line += f" {marker:>{marker_width}}"
-                output.append(line)
-            else:
-                output.append(text)
-
-        return output
-
-    def build_file_contents(self) -> str:
-        return "\n".join(self.file_contents)
 
 
-def filter_items(
-    items: list[Path], paths: list[Path], patterns: list[str], base: Path
-) -> list[Path]:
+def filter_items(items: list[Path], paths: list[Path], patterns: list[str], base: Path) -> list[Path]:
     """Filter ``items`` against ``paths`` and ``patterns``."""
-
     results: list[Path] = []
     for item in items:
         if not any(item.is_relative_to(p) for p in paths):
@@ -138,18 +131,15 @@ def filter_items(
 def traverse_dir(
     path: Path,
     config: tuple[list[Path], list[str], Path],
-    callback: Callable[[Path, str, bool], None],
+    callback: TreeCallback,
     prefix: str = "",
 ) -> None:
     """Depth-first traversal applying ``callback`` to each item."""
-
     paths, patterns, base = config
     items = filter_items(list(path.iterdir()), paths, patterns, base)
-    if len(items) > 100:
-        print(f"Scanning {path} ({len(items)} entries)")
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1
-        callback(item, prefix, is_last)
+        callback(item, prefix, is_last=is_last)
         if item.is_dir():
             next_prefix = "    " if is_last else "│   "
             traverse_dir(item, config, callback, prefix + next_prefix)
