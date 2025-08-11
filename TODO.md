@@ -1,9 +1,9 @@
 # Reimplement CLI – Task Breakdown
-* [ ] Replace single parser with subparsers: `scan` (default), `init`, `config`, `models`, `migrate`, `version`.
+* [x] Replace single parser with subparsers: `scan` (default), `init`, `config`, `models`, `migrate`, `version`.
   * **Done when:** `grobl -h` shows subcommands and `grobl scan` is default when omitted.
-* [ ] Add global `-h/--help` and `-V/--version` available everywhere.
+* [x] Add global `-h/--help` and `-V/--version` available everywhere.
   * **Done when:** `grobl --version` prints version and exits 0.
-* [ ] Implement `-v/--verbose` (stackable) and `--log-level` (advanced).
+* [x] Implement `-v/--verbose` (stackable) and `--log-level` (advanced).
   * **Done when:** `-v` → INFO, `-vv` → DEBUG; `--log-level` overrides.
 * [ ] Implement `--mode [all|tree|summary|files]`.
   * **Done when:** each mode suppresses the others.
