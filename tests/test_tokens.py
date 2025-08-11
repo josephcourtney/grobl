@@ -87,7 +87,7 @@ def test_list_token_models(monkeypatch, capsys):
             MODEL_TO_ENCODING = {"m1": "a", "m2": "a", "m3": "b"}
 
     monkeypatch.setitem(sys.modules, "tiktoken", Fake)
-    monkeypatch.setattr(sys, "argv", ["grobl", "--list-token-models"])
+    monkeypatch.setattr(sys, "argv", ["grobl", "models"])
     with pytest.raises(SystemExit) as exc:
         main()
     assert isinstance(exc.value, SystemExit)

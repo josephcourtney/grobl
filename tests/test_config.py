@@ -53,7 +53,7 @@ def test_migrate_config_no_old_files(tmp_path, capsys):
 
 def test_cli_migrate_config(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["grobl", "migrate-config"])
+    monkeypatch.setattr(sys, "argv", ["grobl", "migrate"])
 
     with pytest.raises(SystemExit) as e:
         cli.main()
