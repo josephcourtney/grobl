@@ -1,17 +1,161 @@
-- [x] add a sub-command to place a default config in the current folder (or project root if a known project structure is recognized. ask for confirmation before placing the file anywhere but the CWD)
-- [x] make sure that all functions and methods in src/ have accurate, narrow type annotations
-- [x] replace conditionals and loops in tests with parameterization or other appropriate techniques
-- [x] identify functions that are too long or complex. if it makes sense, break them apart into smaller, more modular, reusable pieces
-- [x] make sure all methods, classes, and modules have high quality docstrings
-- [x] write tests to check for accurate alignment in summary table output. Currently, the output is poorly aligned:
-```
-═════════════ Project Summary (o200k_base) ═════════════
-                            lines chars tokens included
-nvim
-├── .gitignore                    8    51     20
-├
-...
-```
-- [x] do not show tokenizer model in summary title
-- [x] make aliases for common models like "gpt-5"
-- [x] if a model does not have separate subscription tiers, or the subscription tier is specified (e.g. `gpt-5:plus`), enable the `budget` option with the known token limit
+# Reimplement CLI – Task Breakdown
+## Planning & Branching
+* [ ] Create `feat/cli-redesign` branch.
+  * **Done when:** branch exists and CI runs on PRs from it.
+
+## Argument Parser & Subcommands
+* [ ] Replace single parser with subparsers: `scan` (default), `init`, `config`, `models`, `migrate`, `version`.
+  * **Done when:** `grobl -h` shows subcommands and `grobl scan` is default when omitted.
+* [ ] Add global `-h/--help` and `-V/--version` available everywhere.
+  * **Done when:** `grobl --version` prints version and exits 0.
+* [ ] Implement `-v/--verbose` (stackable) and `--log-level` (advanced).
+  * **Done when:** `-v` → INFO, `-vv` → DEBUG; `--log-level` overrides.
+
+## Output Modes & Flags
+* [ ] Implement `--mode [all|tree|summary|files]`.
+  * **Done when:** each mode suppresses the others.
+* [ ] Implement `--table [full|compact|none]`.
+  * **Done when:** summary header/columns reflect choice.
+* [ ] Preserve clipboard default; add `--no-clipboard` and `--clipboard-too` (when `--output` is used).
+  * **Done when:** combinations behave as specified.
+* [ ] Support `--output FILE` and `--output -` (stdout).
+  * **Done when:** writing to file/stdout works; errors map to exit codes.
+
+## Structured Output
+* [ ] Add `--json` (NDJSON stream) and `--output=json` (single JSON document).
+  * **Done when:** schema with `schema_version: "1"` is emitted; logs go to stderr.
+* [ ] Add `--pretty` and `--indent N` for document JSON.
+  * **Done when:** pretty formatting toggles correctly.
+* [ ] Write and commit a JSON Schema (`resources/json-schema/grobl.v1.json`).
+  * **Done when:** tests validate emitted JSON against schema.
+
+## Tokenization UX
+* [ ] Implement `--tokens`, `--tokenizer NAME`, `--model NAME[:TIER]`, `--tokens-for [printed|all]`, `--budget INT`, `--force-tokens`.
+  * **Done when:** model implies tokens + budget; printed/all respected.
+* [ ] Handle missing `tiktoken` with actionable error.
+  * **Done when:** exit with proper code; message suggests `pip install grobl[tokens]`.
+* [ ] Large-file guard with override.
+  * **Done when:** skip note appears unless `--force-tokens`; totals reflect behavior.
+
+## Ignore System
+* [ ] Honor `.gitignore`/`.ignore` by default (search parents).
+  * **Done when:** files ignored by git are excluded from scan unless overridden.
+* [ ] Add `--no-ignore` and `--ignore-file PATH` (repeatable).
+  * **Done when:** precedence is CLI > explicit ignore files > project ignores > built-ins.
+* [ ] Keep/merge existing `exclude_tree` / `exclude_print` behavior.
+  * **Done when:** combined filtering yields expected results (tests).
+
+## Config & Environment
+* [ ] Implement config precedence:
+  1. `--config PATH` / `--config none`
+  2. `$GROBL_CONFIG_PATH`
+  3. `$XDG_CONFIG_HOME/grobl/config.toml` or `~/.config/grobl/config.toml`
+  4. `.grobl.config.toml` in CWD or project root
+  5. `~/.groblrc` (optional)
+  * **Done when:** unit tests cover each layer.
+* [ ] Parse `$GROBL_OPTS` before CLI for default flags.
+  * **Done when:** env defaults can be overridden by explicit CLI flags.
+* [ ] Add `$GROBL_COLORS` and `$NO_COLOR` support.
+  * **Done when:** env affects color unless `--color` overrides.
+
+## Colors & Formatting (Rich integration)
+* [ ] Make Rich a core dependency; replace manual ANSI formatting with Rich styles for tables, warnings, errors, and headers.
+  * **Done when:** all non-JSON output uses Rich’s `Console`.
+* [ ] Auto-disable color when not a TTY; respect `--color=always|auto|never`.
+  * **Done when:** piping disables color unless `always`.
+* [ ] Implement clean fallback to plain text if Rich console color disabled.
+  * **Done when:** no ANSI codes appear in non-TTY plain mode.
+
+## Progress & Line Buffering
+* [ ] Implement `--progress` using Rich’s `Progress` for TTY; emit parseable lines in non-TTY or `--json` mode.
+  * **Done when:** progress output format is stable.
+* [ ] Add `--line-buffered` / `-u` for streaming modes.
+  * **Done when:** `sys.stdout.reconfigure(line_buffering=True)` or equivalent is active.
+
+## Pipeline & Record Delimiters
+* [ ] Support `-` in positional `PATH` to read newline-delimited paths from stdin.
+  * **Done when:** `printf "a\nb" | grobl -` works.
+* [ ] Implement `-0/--null` to output NUL-terminated records where applicable (e.g., `--mode files --list` if added).
+  * **Done when:** records end with `\0` under flag.
+
+## Signals & Exit Codes
+* [ ] Map exit codes to `<sysexits.h>`:
+  * usage → 64, noinput → 66, unavailable → 69, ioerr → 74, software → 70, config → 78; success → 0.
+  * **Done when:** all error paths return mapped codes.
+* [ ] Graceful `SIGINT/SIGTERM`: clean up, exit 130 (SIGINT) / 143 (SIGTERM), no tracebacks unless `--debug`.
+  * **Done when:** Ctrl-C yields clean exit.
+* [ ] Respect `SIGPIPE`: suppress BrokenPipe tracebacks.
+  * **Done when:** `| head -n1` does not print errors.
+
+## Subcommands Implementation
+* [ ] `version`: print version; support `-V/--version`.
+  * **Done when:** implemented and tested.
+* [ ] `models`: list encodings, models, budgets, aliases.
+  * **Done when:** output matches design; tests cover sample resources.
+* [ ] `init`: write default config to project root or CWD (no prompts); support `--yes` to overwrite.
+  * **Done when:** file written; idempotent behavior tested.
+* [ ] `migrate`: convert legacy config files; map exit codes.
+  * **Done when:** legacy → TOML and old files handled per flags.
+* [ ] `config show|edit|set|validate`.
+  * **Done when:** each subcommand works; `edit` respects `$EDITOR`.
+
+## Interactive Picker (Textual)
+* [ ] Make Textual an optional extra: `pip install grobl[pick]`.
+  * **Done when:** missing dependency triggers a friendly error and exit 69.
+* [ ] Implement `--pick` using Textual:
+  * Tree view for directories/files.
+  * Toggles for include/exclude tree (`t`) and include/exclude contents (`c`).
+  * Space to toggle selection.
+  * Status bar with counts and token/size info if available.
+  * `s` to save config, `Enter` to run, `q` to quit, `?` for help.
+  * **Done when:** full interaction matches design.
+* [ ] Integrate `--pick` with config saving (`--config` path if given).
+  * **Done when:** saved config validates with `config validate`.
+
+## Clipboard Behavior
+* [ ] Maintain default copy to clipboard + human summary to stdout.
+  * **Done when:** both happen on TTY; suppressed by `--no-clipboard`.
+* [ ] On pyperclip failure, fallback to stdout and emit one-line stderr note (respect `--quiet`).
+  * **Done when:** simulated failure covered by tests.
+
+## Formatting & Summary
+* [ ] Use Rich `Table` for the summary, aligning header `lines chars [tokens] included`.
+  * **Done when:** table formatting is deterministic and tested.
+* [ ] Append footer when any files skipped: `Note: N files skipped (reason).`
+  * **Done when:** shown conditionally.
+
+## Documentation
+* [ ] Update `--help` for root & each subcommand with concise examples.
+  * **Done when:** `grobl scan -h` shows examples.
+* [ ] Add man pages: `grobl(1)` and `grobl-config(1)` (SYNOPSIS/OPTIONS/EXAMPLES).
+  * **Done when:** installed via package; `man grobl` works in dev env.
+* [ ] Document JSON Schema and stability policy.
+  * **Done when:** `README` section links to schema file and shows sample JSON.
+
+## Internationalization
+* [ ] Wrap user-facing strings in gettext; load locale from `$LANG`.
+  * **Done when:** `.pot` template generated; English remains default.
+
+## Tests
+* [ ] Parser & help snapshots per subcommand.
+* [ ] Exit code mapping tests for each failure path.
+* [ ] Tokenization paths (present/missing tiktoken, large files, model inference).
+* [ ] Ignore precedence tests (gitignore, explicit ignore file, built-ins).
+* [ ] Config precedence & env (`$GROBL_CONFIG_PATH`, `$GROBL_OPTS`, XDG).
+* [ ] Progress/line-buffering behavior (smoke).
+* [ ] Signals (simulate SIGINT/SIGPIPE).
+* [ ] TUI smoke tests with Textual behind a flag (skip on CI without TTY).
+  * **Done when:** all tests pass locally and in CI.
+
+## CI & Packaging
+* [ ] Make Rich a core dependency in `pyproject.toml`.
+* [ ] Add optional extras:
+  * `pick = ["textual>=0.58"]`
+  * `tokens = ["tiktoken>=0.5"]`
+  * `schema = ["jsonschema>=4.0"]`
+  * `all = ["textual>=0.58", "tiktoken>=0.5", "jsonschema>=4.0", "pyperclip>=1.8.0"]`
+  * **Done when:** extras install and features gated properly.
+* [ ] Include man pages & JSON schema in sdist/wheel.
+  * **Done when:** `tar -tf` shows installed paths.
+* [ ] Add matrix job with `tokens` extra to exercise tiktoken path.
+  * **Done when:** CI matrix green.
