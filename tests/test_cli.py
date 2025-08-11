@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 import pyperclip
+import logging
 
 from grobl.directory import (
     DirectoryTreeBuilder,
@@ -107,7 +108,7 @@ def test_cli_basic_run(monkeypatch, tmp_path):
 
 def test_cli_migrate_config(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["grobl", "migrate-config"])
+    monkeypatch.setattr(sys, "argv", ["grobl", "migrate"])
     monkeypatch.setattr("grobl.cli.migrate_config", lambda *_a, **_k: None)
 
     with pytest.raises(SystemExit) as e:
@@ -327,7 +328,7 @@ def test_config_sets_default_cli_options(monkeypatch, tmp_path):
 
 def test_init_config_writes_default(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["grobl", "init-config"])
+    monkeypatch.setattr(sys, "argv", ["grobl", "init"])
     with pytest.raises(SystemExit):
         main()
     assert (tmp_path / ".grobl.config.toml").exists()
@@ -338,7 +339,7 @@ def test_init_config_project_root(monkeypatch, tmp_path):
     sub = tmp_path / "pkg"
     sub.mkdir()
     monkeypatch.chdir(sub)
-    monkeypatch.setattr(sys, "argv", ["grobl", "init-config"])
+    monkeypatch.setattr(sys, "argv", ["grobl", "init"])
     monkeypatch.setattr("builtins.input", lambda _=None: "y")
     with pytest.raises(SystemExit):
         main()
@@ -373,3 +374,47 @@ def test_model_alias_and_tier_budget(monkeypatch, tmp_path):
     main()
     assert captured["tokenizer"] == "fake"
     assert captured["budget"] == 64000
+
+
+def test_help_lists_subcommands(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["grobl", "-h"])
+    with pytest.raises(SystemExit):
+        main()
+    out = capsys.readouterr().out
+    assert "scan" in out and "migrate" in out and "version" in out
+
+
+def test_version_flag(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["grobl", "--version"])
+    with pytest.raises(SystemExit) as e:
+        main()
+    exc = e.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == 0
+    out = capsys.readouterr().out
+    from grobl import __version__
+
+    assert __version__ in out
+
+
+def test_verbose_and_log_level(monkeypatch):
+    captured: dict[str, int] = {}
+
+    def fake_basic_config(*, level, **kwargs):  # noqa: D401, ARG002
+        captured["level"] = level
+
+    monkeypatch.setattr(logging, "basicConfig", fake_basic_config)
+    monkeypatch.setattr("grobl.cli.process_paths", lambda *a, **k: None)
+    monkeypatch.setattr("grobl.cli.human_summary", lambda *_a, **_k: None)
+
+    monkeypatch.setattr(sys, "argv", ["grobl", "-v"])
+    main()
+    assert captured["level"] == logging.INFO
+
+    monkeypatch.setattr(sys, "argv", ["grobl", "-vv"])
+    main()
+    assert captured["level"] == logging.DEBUG
+
+    monkeypatch.setattr(sys, "argv", ["grobl", "-vv", "--log-level", "error"])
+    main()
+    assert captured["level"] == logging.ERROR
