@@ -281,7 +281,7 @@ def main() -> None:
             from collections import defaultdict
 
             mapping: dict[str, list[str]] = defaultdict(list)
-            for model, enc in tiktoken.model.MODEL_TO_ENCODING.items():
+            for model, enc in tiktoken.model.MODEL_TO_ENCODING.items():  # type: ignore[attr-defined]
                 mapping[enc].append(model)
         except ModuleNotFoundError:
             print("tiktoken is not installed", file=sys.stderr)
