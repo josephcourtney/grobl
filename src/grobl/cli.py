@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import argparse
 import logging
 import sys
-
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 import importlib.resources
 import tomllib
+import click
 
 from grobl import __version__
 from grobl.clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
@@ -57,6 +56,8 @@ def process_paths(
     budget: int | None = None,
     force_tokens: bool = False,
     verbose: bool = False,
+    mode: str = "all",
+    table: str = "full",
 ) -> DirectoryTreeBuilder:
     """Traverse ``paths`` and emit formatted output."""
 
@@ -70,7 +71,6 @@ def process_paths(
         builder = DirectoryTreeBuilder(base_path=common, exclude_patterns=excl_tree)
     else:
         builder.base_path = common  # ensure base_path is set correctly
-        # keep existing exclude patterns - ``traverse_dir`` handles filtering
     assert builder is not None
     builder_local = builder
 
@@ -100,9 +100,7 @@ def process_paths(
             print(f"Tokenizer: {tokenizer_name} (tiktoken {ver})")
             print(f"Token cache: {cache_path}")
 
-    current_item: dict[str, Path | None] = {
-        "path": None
-    }  # Mutable container to track current file/dir
+    current_item: dict[str, Path | None] = {"path": None}
 
     def collect(item: Path, prefix: str, is_last: bool) -> None:
         current_item["path"] = item
@@ -139,201 +137,136 @@ def process_paths(
     if tokens:
         save_cache(token_cache, cache_path)
 
-    tree_xml = "\n".join(builder_local.build_tree())
-    files_xml = builder_local.build_file_contents()
+    llm_parts: list[str] = []
     ttag = cfg.get("include_tree_tags")
     ftag = cfg.get("include_file_tags")
-    llm_out = (
-        f'<{ttag} name="{common.name}" path="{common}">\n{tree_xml}\n</{ttag}>\n'
-        f'<{ftag} root="{common.name}">\n{files_xml}\n</{ftag}>'
-    )
-    clipboard.copy(llm_out)
+    tree_xml = "\n".join(builder_local.build_tree())
+    files_xml = builder_local.build_file_contents()
+    if mode in {"all", "tree"}:
+        llm_parts.append(
+            f'<{ttag} name="{common.name}" path="{common}">\n{tree_xml}\n</{ttag}>'
+        )
+    if mode in {"all", "files"}:
+        llm_parts.append(f'<{ftag} root="{common.name}">\n{files_xml}\n</{ftag}>')
+    clipboard.copy("\n".join(llm_parts))
 
-    summary = builder_local.build_tree(include_metadata=True)
-    human_summary(
-        summary,
-        builder_local.total_lines,
-        builder_local.total_characters,
-        total_tokens=builder_local.total_tokens if tokens else None,
-        tokenizer=tokenizer_name if tokens else None,
-        budget=budget,
-    )
+    if mode in {"all", "summary"}:
+        summary = builder_local.build_tree(include_metadata=True)
+        human_summary(
+            summary,
+            builder_local.total_lines,
+            builder_local.total_characters,
+            total_tokens=builder_local.total_tokens if tokens else None,
+            tokenizer=tokenizer_name if tokens else None,
+            budget=budget,
+            table=table,
+        )
     return builder_local
 
 
-SUBCOMMANDS = {"scan", "init", "config", "models", "migrate", "version"}
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
+    "-v", "--verbose", count=True, help="Increase verbosity (use -vv for debug)"
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(
+        ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"], case_sensitive=False
+    ),
+    help="Set log level explicitly",
+)
+@click.version_option(__version__, "-V", "--version")
+@click.pass_context
+def cli(ctx: click.Context, verbose: int, log_level: str | None) -> None:
+    """Directory-to-Markdown utility with TOML config support."""
 
-
-def main(argv: list[str] | None = None) -> None:
-    """CLI entry point with subcommands."""
-
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv:
-        argv = ["scan"]
-    elif argv[0] not in SUBCOMMANDS and argv[0] not in {
-        "-h",
-        "--help",
-        "-V",
-        "--version",
-    }:
-        idx = 0
-        while idx < len(argv):
-            arg = argv[idx]
-            if arg.startswith("-v"):
-                idx += 1
-                continue
-            if arg == "--log-level":
-                idx += 2
-                continue
-            if arg.startswith("--log-level="):
-                idx += 1
-                continue
-            break
-        argv.insert(idx, "scan")
-
-    parser = argparse.ArgumentParser(
-        prog="grobl",
-        description="Directory-to-Markdown utility with TOML config support",
-    )
-    parser.add_argument("-V", "--version", action="version", version=__version__)
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
-        default=0,
-        help="Increase verbosity (use -vv for debug)",
-    )
-    parser.add_argument(
-        "--log-level",
-        type=str.upper,
-        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
-        help="Set log level explicitly",
-    )
-
-    subparsers = parser.add_subparsers(dest="command")
-
-    scan = subparsers.add_parser("scan", help="Scan directories")
-    scan.add_argument(
-        "--ignore-defaults",
-        "-I",
-        action="store_true",
-        help="Ignore bundled default exclude patterns",
-    )
-    scan.add_argument("paths", nargs="*", type=Path, help="Directories to scan")
-    scan.add_argument(
-        "--no-clipboard",
-        action="store_true",
-        help="Print output to stdout instead of copying to clipboard",
-    )
-    scan.add_argument("--output", type=Path, help="Write output to a file")
-    scan.add_argument(
-        "--add-ignore",
-        action="append",
-        default=[],
-        help="Additional ignore pattern for this run",
-    )
-    scan.add_argument(
-        "--remove-ignore",
-        action="append",
-        default=[],
-        help="Ignore pattern to remove for this run",
-    )
-    scan.add_argument(
-        "--interactive",
-        action="store_true",
-        help="Interactively adjust ignore settings for this run",
-    )
-    scan.add_argument("--tokens", action="store_true", help="Enable token counting")
-    scan.add_argument("--tokenizer", default="o200k_base", help="Tokenizer name to use")
-    scan.add_argument("--model", help="Model name to infer tokenizer and token budget")
-    scan.add_argument(
-        "--tokens-for",
-        choices=["printed", "all"],
-        default="printed",
-        help="Which files to count tokens for",
-    )
-    scan.add_argument(
-        "--budget",
-        type=int,
-        help="Total token budget to display usage percentage",
-    )
-    scan.add_argument(
-        "--force-tokens",
-        action="store_true",
-        help="Force tokenization of very large files",
-    )
-
-    init_p = subparsers.add_parser("init", help="Write default config to project")
-    init_p.add_argument("--yes", action="store_true", help="Overwrite without prompt")
-
-    subparsers.add_parser("models", help="List available tiktoken models")
-
-    migrate_p = subparsers.add_parser("migrate", help="Migrate legacy configuration")
-    migrate_p.add_argument(
-        "--yes", action="store_true", help="Delete old files without prompting"
-    )
-    migrate_p.add_argument(
-        "--stdout", action="store_true", help="Print new config to stdout"
-    )
-
-    subparsers.add_parser("version", help="Print version and exit")
-    subparsers.add_parser("config", help="Configuration management")
-
-    args = parser.parse_args(argv)
     level: int
-    if args.log_level:
-        level = getattr(logging, args.log_level.upper())
-    elif args.verbose >= 2:
+    if log_level:
+        level = getattr(logging, log_level.upper())
+    elif verbose >= 2:
         level = logging.DEBUG
-    elif args.verbose == 1:
+    elif verbose == 1:
         level = logging.INFO
     else:
         level = logging.WARNING
     logging.basicConfig(level=level, force=True)
 
+
+@cli.command()
+@click.option(
+    "--ignore-defaults",
+    "-I",
+    is_flag=True,
+    help="Ignore bundled default exclude patterns",
+)
+@click.option(
+    "--no-clipboard",
+    is_flag=True,
+    help="Print output to stdout instead of copying to clipboard",
+)
+@click.option(
+    "--output", type=click.Path(path_type=Path), help="Write output to a file"
+)
+@click.option(
+    "--add-ignore", multiple=True, help="Additional ignore pattern for this run"
+)
+@click.option(
+    "--remove-ignore", multiple=True, help="Ignore pattern to remove for this run"
+)
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="Interactively adjust ignore settings for this run",
+)
+@click.option("--tokens", is_flag=True, help="Enable token counting")
+@click.option("--tokenizer", default="o200k_base", help="Tokenizer name to use")
+@click.option("--model", help="Model name to infer tokenizer and token budget")
+@click.option(
+    "--tokens-for",
+    type=click.Choice(["printed", "all"]),
+    default="printed",
+    help="Which files to count tokens for",
+)
+@click.option(
+    "--budget", type=int, help="Total token budget to display usage percentage"
+)
+@click.option(
+    "--force-tokens", is_flag=True, help="Force tokenization of very large files"
+)
+@click.option(
+    "--mode",
+    type=click.Choice(["all", "tree", "summary", "files"]),
+    default="all",
+    help="Output mode",
+)
+@click.option(
+    "--table",
+    type=click.Choice(["full", "compact", "none"]),
+    default="full",
+    help="Summary table style",
+)
+@click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
+def scan(
+    *,
+    ignore_defaults: bool,
+    no_clipboard: bool,
+    output: Path | None,
+    add_ignore: tuple[str, ...],
+    remove_ignore: tuple[str, ...],
+    interactive: bool,
+    tokens: bool,
+    tokenizer: str,
+    model: str | None,
+    tokens_for: str,
+    budget: int | None,
+    force_tokens: bool,
+    mode: str,
+    table: str,
+    paths: tuple[Path, ...],
+) -> None:
     cwd = Path()
-
-    if args.command == "version":
-        print(__version__)
-        sys.exit(0)
-
-    if args.command == "models":
-        try:
-            import tiktoken  # type: ignore
-
-            names = sorted(tiktoken.list_encoding_names())
-            from collections import defaultdict
-
-            mapping: dict[str, list[str]] = defaultdict(list)
-            for model, enc in tiktoken.model.MODEL_TO_ENCODING.items():  # type: ignore[attr-defined]
-                mapping[enc].append(model)
-        except ModuleNotFoundError:
-            print("tiktoken is not installed", file=sys.stderr)
-            sys.exit(1)
-        for name in names:
-            if models := ", ".join(sorted(mapping.get(name, []))):
-                print(f"{name}: {models}")
-            else:
-                print(name)
-        sys.exit(0)
-
-    if args.command == "migrate":
-        migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
-        sys.exit(0)
-
-    if args.command == "init":
-        target = find_project_root(cwd) or cwd
-        if target != cwd and not args.yes:
-            resp = input(f"Write {TOML_CONFIG} to {target}? (y/N): ").strip().lower()
-            if resp != "y":
-                target = cwd
-        write_default_config(target)
-        print(f"Wrote {TOML_CONFIG} to {target}")
-        sys.exit(0)
-
-    # Default scan behavior
-    paths = args.paths or [cwd]
-    if args.ignore_defaults:
+    paths = paths or (cwd,)
+    if ignore_defaults:
         common_dirs = {"node_modules", "venv", ".venv", "env", "site-packages"}
         for p in paths:
             for d in common_dirs:
@@ -346,35 +279,36 @@ def main(argv: list[str] | None = None) -> None:
                         .lower()
                     )
                     if resp != "y":
-                        sys.exit(1)
+                        raise SystemExit(1)
                     break
             else:
                 continue
             break
 
     try:
-        cfg = read_config(base_path=cwd, ignore_default=args.ignore_defaults)
+        cfg = read_config(base_path=cwd, ignore_default=ignore_defaults)
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
-        sys.exit(1)
+        raise SystemExit(1)
 
-    if args.interactive:
-        interactive_edit_config(paths, cfg, save=False)
+    if interactive:
+        interactive_edit_config(list(paths), cfg, save=False)
 
-    for pat in args.add_ignore:
+    for pat in add_ignore:
         cfg.setdefault("exclude_tree", [])
         if pat not in cfg["exclude_tree"]:
             cfg["exclude_tree"].append(pat)
-    for pat in args.remove_ignore:
+    for pat in remove_ignore:
         if pat in cfg.get("exclude_tree", []):
             cfg["exclude_tree"].remove(pat)
-    no_clipboard = args.no_clipboard or cfg.get("no_clipboard", False)
-    tokens_flag = args.tokens or cfg.get("tokens", False)
-    model_arg = args.model or cfg.get("model")
-    budget = args.budget if args.budget is not None else cfg.get("budget")
-    force_tokens = args.force_tokens or cfg.get("force_tokens", False)
-    verbose_flag = args.verbose > 0 or cfg.get("verbose", False)
-    tokenizer_name = args.tokenizer
+
+    no_clip = no_clipboard or cfg.get("no_clipboard", False)
+    tokens_flag = tokens or cfg.get("tokens", False)
+    model_arg = model or cfg.get("model")
+    budget_val = budget if budget is not None else cfg.get("budget")
+    force_tokens_flag = force_tokens or cfg.get("force_tokens", False)
+    verbose_flag = cfg.get("verbose", False)
+    tokenizer_name = tokenizer
     if model_arg:
         base, tier = (model_arg.split(":", 1) + ["default"])[:2]
         spec = MODEL_SPECS.get(base)
@@ -383,17 +317,17 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(1)
         tokenizer_name = spec.get("tokenizer", tokenizer_name)
         tokens_flag = True
-        if budget is None:
+        if budget_val is None:
             limits = spec.get("budget")
             if isinstance(limits, int):
-                budget = limits
+                budget_val = limits
             elif isinstance(limits, dict):
-                budget = limits.get(tier) or limits.get("default")
+                budget_val = limits.get(tier) or limits.get("default")
 
     clipboard: ClipboardInterface
-    if args.output:
-        clipboard = StdoutClipboard(args.output)
-    elif no_clipboard:
+    if output:
+        clipboard = StdoutClipboard(output)
+    elif no_clip:
         clipboard = StdoutClipboard()
     else:
         clipboard = PyperclipClipboard(fallback=StdoutClipboard())
@@ -404,19 +338,83 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         process_paths(
-            paths,
+            list(paths),
             cfg,
             clipboard,
             builder,
             tokens=tokens_flag,
             tokenizer_name=tokenizer_name,
-            tokens_for=args.tokens_for,
-            budget=budget,
-            force_tokens=force_tokens,
+            tokens_for=tokens_for,
+            budget=budget_val,
+            force_tokens=force_tokens_flag,
             verbose=verbose_flag,
+            mode=mode,
+            table=table,
         )
     except KeyboardInterrupt:
         print_interrupt_diagnostics(cwd, cfg, builder)
+
+
+@cli.command()
+@click.option("--yes", is_flag=True, help="Overwrite without prompt")
+def init(yes: bool) -> None:
+    """Write default config to project."""
+
+    cwd = Path()
+    target = find_project_root(cwd) or cwd
+    if target != cwd and not yes:
+        resp = input(f"Write {TOML_CONFIG} to {target}? (y/N): ").strip().lower()
+        if resp != "y":
+            target = cwd
+    write_default_config(target)
+    print(f"Wrote {TOML_CONFIG} to {target}")
+
+
+@cli.command()
+def models() -> None:  # noqa: D401 - help from decorator
+    """List available tiktoken models."""
+
+    try:
+        import tiktoken  # type: ignore
+
+        names = sorted(tiktoken.list_encoding_names())
+        from collections import defaultdict
+
+        mapping: dict[str, list[str]] = defaultdict(list)
+        for model, enc in tiktoken.model.MODEL_TO_ENCODING.items():  # type: ignore[attr-defined]
+            mapping[enc].append(model)
+    except ModuleNotFoundError:
+        print("tiktoken is not installed", file=sys.stderr)
+        raise SystemExit(1)
+    for name in names:
+        if models := ", ".join(sorted(mapping.get(name, []))):
+            print(f"{name}: {models}")
+        else:
+            print(name)
+
+
+@cli.command()
+@click.option("--yes", is_flag=True, help="Delete old files without prompting")
+@click.option("--stdout", is_flag=True, help="Print new config to stdout")
+def migrate(yes: bool, stdout: bool) -> None:
+    """Migrate legacy configuration."""
+
+    cwd = Path()
+    migrate_config(cwd, assume_yes=yes, to_stdout=stdout)
+
+
+@cli.command()
+def version() -> None:
+    """Print version and exit."""
+
+    print(__version__)
+
+
+@cli.command()
+def config() -> None:  # noqa: D401 - placeholder
+    """Configuration management (placeholder)."""
+
+    pass
 
 
 def print_interrupt_diagnostics(
@@ -442,6 +440,36 @@ def print_interrupt_diagnostics(
     print(")")
 
     raise
+
+
+SUBCOMMANDS = {"scan", "init", "config", "models", "migrate", "version"}
+
+
+def main(argv: list[str] | None = None) -> None:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        argv = ["scan"]
+    elif argv[0] not in SUBCOMMANDS and argv[0] not in {
+        "-h",
+        "--help",
+        "-V",
+        "--version",
+    }:
+        idx = 0
+        while idx < len(argv):
+            arg = argv[idx]
+            if arg.startswith("-v"):
+                idx += 1
+                continue
+            if arg == "--log-level":
+                idx += 2
+                continue
+            if arg.startswith("--log-level="):
+                idx += 1
+                continue
+            break
+        argv.insert(idx, "scan")
+    cli.main(args=argv, prog_name="grobl", standalone_mode=False)
 
 
 if __name__ == "__main__":

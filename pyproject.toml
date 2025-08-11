@@ -1,7 +1,7 @@
 # =================================== project ====================================
 [project]
   name = "grobl"
-  version = "0.4.13"
+  version = "0.4.14"
   description = "A script to display directory structure and Python file contents"
   readme = "README.md"
   authors = [
@@ -17,9 +17,10 @@
   ]
   requires-python = ">=3.12"
   dependencies = [
+    "click>=8.2.1",
     "pyperclip",
     "tomlkit>=0.13.2",
-  ]
+]
 
   [project.optional-dependencies]
     tokens = ["tiktoken"] # optional dependency for token counting

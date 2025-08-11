@@ -17,7 +17,14 @@ def test_cli_tokens_summary(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
     def fake_summary(
-        lines, total_lines, total_chars, *, total_tokens, tokenizer, budget
+        lines,
+        total_lines,
+        total_chars,
+        *,
+        total_tokens,
+        tokenizer,
+        budget,
+        table,
     ):
         captured["lines"] = lines
         captured["total_tokens"] = total_tokens
@@ -88,10 +95,7 @@ def test_list_token_models(monkeypatch, capsys):
 
     monkeypatch.setitem(sys.modules, "tiktoken", Fake)
     monkeypatch.setattr(sys, "argv", ["grobl", "models"])
-    with pytest.raises(SystemExit) as exc:
-        main()
-    assert isinstance(exc.value, SystemExit)
-    assert exc.value.code == 0
+    main()
     out = capsys.readouterr().out
     assert "a: m1, m2" in out
     assert "b: m3" in out
@@ -155,7 +159,14 @@ def test_model_option_sets_tokenizer_and_budget(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
     def fake_summary(
-        lines, total_lines, total_chars, *, total_tokens, tokenizer, budget
+        lines,
+        total_lines,
+        total_chars,
+        *,
+        total_tokens,
+        tokenizer,
+        budget,
+        table,
     ):
         captured["tokenizer"] = tokenizer
         captured["budget"] = budget

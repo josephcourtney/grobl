@@ -18,12 +18,27 @@ def human_summary(
     total_tokens: int | None = None,
     tokenizer: str | None = None,
     budget: int | None = None,
+    table: str = "full",
 ) -> None:
     """Print a human-readable summary table.
 
     ``tokenizer`` is accepted for backwards compatibility but is no longer
     displayed in the summary title.
     """
+
+    if table == "none":
+        return
+
+    if table == "compact":
+        print(f"Total lines: {total_lines}")
+        print(f"Total characters: {total_chars}")
+        if total_tokens is not None:
+            line = f"Total tokens: {total_tokens}"
+            if budget:
+                pct = total_tokens / budget if budget else 0
+                line += f" ({pct:.0%} of {budget:,} token budget)"
+            print(line)
+        return
 
     max_width = max(len(line) for line in tree_lines)
     title = " Project Summary "
