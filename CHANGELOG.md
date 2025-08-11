@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.13] - 2025-08-10
+
+### Added
+- add subcommand-based CLI with default `scan`
+- add global `--version` flag and `version` subcommand
+- add stackable `-v/--verbose` and `--log-level` options
+
+### Changed
+- reorganize CLI around subparsers
+
 ## [0.4.12] - 2025-08-10
 
 ### Added

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 
 from collections.abc import Callable
@@ -11,6 +12,7 @@ from typing import Any
 import importlib.resources
 import tomllib
 
+from grobl import __version__
 from grobl.clipboard import ClipboardInterface, PyperclipClipboard, StdoutClipboard
 from grobl.config import TOML_CONFIG, migrate_config, read_config, write_default_config
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
@@ -159,121 +161,143 @@ def process_paths(
     return builder_local
 
 
-def _execute_subcommand(command: str, args: argparse.Namespace, cwd: Path) -> None:
-    """Handle maintenance subcommands and exit."""
-
-    if command == "migrate-config":
-        migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
-        sys.exit(0)
-    if command == "edit-config":
-        cfg = read_config(base_path=cwd, ignore_default=args.ignore_defaults)
-        interactive_edit_config([cwd], cfg, save=True)
-        sys.exit(0)
-    if command == "init-config":
-        target = find_project_root(cwd) or cwd
-        if target != cwd and not args.yes:
-            resp = input(f"Write {TOML_CONFIG} to {target}? (y/N): ").strip().lower()
-            if resp != "y":
-                target = cwd
-        write_default_config(target)
-        print(f"Wrote {TOML_CONFIG} to {target}")
-        sys.exit(0)
+SUBCOMMANDS = {"scan", "init", "config", "models", "migrate", "version"}
 
 
-def main() -> None:
-    """CLI entry point."""
+def main(argv: list[str] | None = None) -> None:
+    """CLI entry point with subcommands."""
+
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        argv = ["scan"]
+    elif argv[0] not in SUBCOMMANDS and argv[0] not in {
+        "-h",
+        "--help",
+        "-V",
+        "--version",
+    }:
+        idx = 0
+        while idx < len(argv):
+            arg = argv[idx]
+            if arg.startswith("-v"):
+                idx += 1
+                continue
+            if arg == "--log-level":
+                idx += 2
+                continue
+            if arg.startswith("--log-level="):
+                idx += 1
+                continue
+            break
+        argv.insert(idx, "scan")
 
     parser = argparse.ArgumentParser(
         prog="grobl",
         description="Directory-to-Markdown utility with TOML config support",
     )
+    parser.add_argument("-V", "--version", action="version", version=__version__)
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity (use -vv for debug)",
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str.upper,
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Set log level explicitly",
+    )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    scan = subparsers.add_parser("scan", help="Scan directories")
+    scan.add_argument(
         "--ignore-defaults",
         "-I",
         action="store_true",
         help="Ignore bundled default exclude patterns",
     )
-    parser.add_argument("paths", nargs="*", type=Path, help="Directories to scan")
-    parser.add_argument(
+    scan.add_argument("paths", nargs="*", type=Path, help="Directories to scan")
+    scan.add_argument(
         "--no-clipboard",
         action="store_true",
         help="Print output to stdout instead of copying to clipboard",
     )
-    parser.add_argument("--output", type=Path, help="Write output to a file")
-    parser.add_argument(
+    scan.add_argument("--output", type=Path, help="Write output to a file")
+    scan.add_argument(
         "--add-ignore",
         action="append",
         default=[],
         help="Additional ignore pattern for this run",
     )
-    parser.add_argument(
+    scan.add_argument(
         "--remove-ignore",
         action="append",
         default=[],
         help="Ignore pattern to remove for this run",
     )
-    parser.add_argument(
+    scan.add_argument(
         "--interactive",
         action="store_true",
         help="Interactively adjust ignore settings for this run",
     )
-    parser.add_argument("--tokens", action="store_true", help="Enable token counting")
-    parser.add_argument(
-        "--tokenizer", default="o200k_base", help="Tokenizer name to use"
-    )
-    parser.add_argument(
-        "--model", help="Model name to infer tokenizer and token budget"
-    )
-    parser.add_argument(
+    scan.add_argument("--tokens", action="store_true", help="Enable token counting")
+    scan.add_argument("--tokenizer", default="o200k_base", help="Tokenizer name to use")
+    scan.add_argument("--model", help="Model name to infer tokenizer and token budget")
+    scan.add_argument(
         "--tokens-for",
         choices=["printed", "all"],
         default="printed",
         help="Which files to count tokens for",
     )
-    parser.add_argument(
+    scan.add_argument(
         "--budget",
         type=int,
         help="Total token budget to display usage percentage",
     )
-    parser.add_argument(
+    scan.add_argument(
         "--force-tokens",
         action="store_true",
         help="Force tokenization of very large files",
     )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Enable verbose output",
+
+    init_p = subparsers.add_parser("init", help="Write default config to project")
+    init_p.add_argument("--yes", action="store_true", help="Overwrite without prompt")
+
+    subparsers.add_parser("models", help="List available tiktoken models")
+
+    migrate_p = subparsers.add_parser("migrate", help="Migrate legacy configuration")
+    migrate_p.add_argument(
+        "--yes", action="store_true", help="Delete old files without prompting"
     )
-    parser.add_argument(
-        "--list-token-models",
-        action="store_true",
-        help="List available tiktoken models and exit",
-    )
-    parser.add_argument(
-        "--yes",
-        action="store_true",
-        help="Delete old files without prompting (migrate-config)",
-    )
-    parser.add_argument(
-        "--stdout",
-        action="store_true",
-        help="Print new config to stdout (migrate-config)",
+    migrate_p.add_argument(
+        "--stdout", action="store_true", help="Print new config to stdout"
     )
 
-    args = parser.parse_args()
+    subparsers.add_parser("version", help="Print version and exit")
+    subparsers.add_parser("config", help="Configuration management")
+
+    args = parser.parse_args(argv)
+    level: int
+    if args.log_level:
+        level = getattr(logging, args.log_level.upper())
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    else:
+        level = logging.WARNING
+    logging.basicConfig(level=level, force=True)
+
     cwd = Path()
 
-    command = None
-    if args.paths and str(args.paths[0]) in {
-        "migrate-config",
-        "edit-config",
-        "init-config",
-    }:
-        command = str(args.paths.pop(0))
+    if args.command == "version":
+        print(__version__)
+        sys.exit(0)
 
-    if args.list_token_models:
+    if args.command == "models":
         try:
             import tiktoken  # type: ignore
 
@@ -293,9 +317,21 @@ def main() -> None:
                 print(name)
         sys.exit(0)
 
-    if command:
-        _execute_subcommand(command, args, cwd)
+    if args.command == "migrate":
+        migrate_config(cwd, assume_yes=args.yes, to_stdout=args.stdout)
+        sys.exit(0)
 
+    if args.command == "init":
+        target = find_project_root(cwd) or cwd
+        if target != cwd and not args.yes:
+            resp = input(f"Write {TOML_CONFIG} to {target}? (y/N): ").strip().lower()
+            if resp != "y":
+                target = cwd
+        write_default_config(target)
+        print(f"Wrote {TOML_CONFIG} to {target}")
+        sys.exit(0)
+
+    # Default scan behavior
     paths = args.paths or [cwd]
     if args.ignore_defaults:
         common_dirs = {"node_modules", "venv", ".venv", "env", "site-packages"}
@@ -317,10 +353,7 @@ def main() -> None:
             break
 
     try:
-        cfg = read_config(
-            base_path=cwd,
-            ignore_default=args.ignore_defaults,
-        )
+        cfg = read_config(base_path=cwd, ignore_default=args.ignore_defaults)
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
         sys.exit(1)
@@ -340,7 +373,7 @@ def main() -> None:
     model_arg = args.model or cfg.get("model")
     budget = args.budget if args.budget is not None else cfg.get("budget")
     force_tokens = args.force_tokens or cfg.get("force_tokens", False)
-    verbose = args.verbose or cfg.get("verbose", False)
+    verbose_flag = args.verbose > 0 or cfg.get("verbose", False)
     tokenizer_name = args.tokenizer
     if model_arg:
         base, tier = (model_arg.split(":", 1) + ["default"])[:2]
@@ -380,7 +413,7 @@ def main() -> None:
             tokens_for=args.tokens_for,
             budget=budget,
             force_tokens=force_tokens,
-            verbose=verbose,
+            verbose=verbose_flag,
         )
     except KeyboardInterrupt:
         print_interrupt_diagnostics(cwd, cfg, builder)
