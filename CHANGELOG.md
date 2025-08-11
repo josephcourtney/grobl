@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.14] - 2025-08-10
+
+### Added
+- reimplement CLI with click
+- add `--mode` and `--table` options
+
 ## [0.4.13] - 2025-08-10
 
 ### Added

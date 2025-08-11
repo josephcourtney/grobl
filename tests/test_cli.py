@@ -2,7 +2,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import pyperclip
 import logging
 
@@ -110,12 +109,7 @@ def test_cli_migrate_config(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["grobl", "migrate"])
     monkeypatch.setattr("grobl.cli.migrate_config", lambda *_a, **_k: None)
-
-    with pytest.raises(SystemExit) as e:
-        main()
-    exc = e.value
-    assert isinstance(exc, SystemExit)
-    assert exc.code == 0
+    main()
 
 
 def test_binary_file_in_tree_without_content(tmp_path, mock_clipboard):
@@ -307,6 +301,8 @@ def test_config_sets_default_cli_options(monkeypatch, tmp_path):
         budget,
         force_tokens,
         verbose,
+        mode,
+        table,
     ):
         captured["tokens"] = tokens
         captured["tokenizer_name"] = tokenizer_name
@@ -329,8 +325,7 @@ def test_config_sets_default_cli_options(monkeypatch, tmp_path):
 def test_init_config_writes_default(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["grobl", "init"])
-    with pytest.raises(SystemExit):
-        main()
+    main()
     assert (tmp_path / ".grobl.config.toml").exists()
 
 
@@ -341,8 +336,7 @@ def test_init_config_project_root(monkeypatch, tmp_path):
     monkeypatch.chdir(sub)
     monkeypatch.setattr(sys, "argv", ["grobl", "init"])
     monkeypatch.setattr("builtins.input", lambda _=None: "y")
-    with pytest.raises(SystemExit):
-        main()
+    main()
     assert (tmp_path / ".grobl.config.toml").exists()
 
 
@@ -362,7 +356,14 @@ def test_model_alias_and_tier_budget(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
 
     def fake_summary(
-        lines, total_lines, total_chars, *, total_tokens, tokenizer, budget
+        lines,
+        total_lines,
+        total_chars,
+        *,
+        total_tokens,
+        tokenizer,
+        budget,
+        table,
     ):
         captured["tokenizer"] = tokenizer
         captured["budget"] = budget
@@ -378,19 +379,14 @@ def test_model_alias_and_tier_budget(monkeypatch, tmp_path):
 
 def test_help_lists_subcommands(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["grobl", "-h"])
-    with pytest.raises(SystemExit):
-        main()
+    main()
     out = capsys.readouterr().out
     assert "scan" in out and "migrate" in out and "version" in out
 
 
 def test_version_flag(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["grobl", "--version"])
-    with pytest.raises(SystemExit) as e:
-        main()
-    exc = e.value
-    assert isinstance(exc, SystemExit)
-    assert exc.code == 0
+    main()
     out = capsys.readouterr().out
     from grobl import __version__
 
@@ -418,3 +414,76 @@ def test_verbose_and_log_level(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["grobl", "-vv", "--log-level", "error"])
     main()
     assert captured["level"] == logging.ERROR
+
+
+def test_mode_option_controls_output(monkeypatch, tmp_path, capsys):
+    (tmp_path / "file.txt").write_text("hello", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    called = {"summary": False}
+
+    def fake_summary(*_a, **_k) -> None:  # noqa: D401, ARG002
+        called["summary"] = True
+
+    monkeypatch.setattr("grobl.cli.human_summary", fake_summary)
+
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--mode", "tree"])
+    main()
+    out = capsys.readouterr().out
+    assert "<directory" in out and "<file:content" not in out
+    assert called["summary"] is False
+
+    called["summary"] = False
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--mode", "files"])
+    main()
+    out = capsys.readouterr().out
+    assert "<file:content" in out and "<directory" not in out
+    assert called["summary"] is False
+
+    def summary_printer(*_a, **_k) -> None:  # noqa: D401, ARG002
+        print("SUMMARY")
+        called["summary"] = True
+
+    monkeypatch.setattr("grobl.cli.human_summary", summary_printer)
+    monkeypatch.setattr(sys, "argv", ["grobl", "--no-clipboard", "--mode", "summary"])
+    main()
+    out = capsys.readouterr().out
+    assert "SUMMARY" in out and "<directory" not in out and "<file:content" not in out
+    assert called["summary"] is True
+
+
+def test_table_option(monkeypatch, tmp_path, capsys):
+    (tmp_path / "file.txt").write_text("hi", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grobl",
+            "--no-clipboard",
+            "--mode",
+            "summary",
+            "--table",
+            "compact",
+        ],
+    )
+    main()
+    out = capsys.readouterr().out
+    assert "Total lines" in out and "Project Summary" not in out
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grobl",
+            "--no-clipboard",
+            "--mode",
+            "summary",
+            "--table",
+            "none",
+        ],
+    )
+    main()
+    out = capsys.readouterr().out
+    assert out.strip() == ""
