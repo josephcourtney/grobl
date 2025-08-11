@@ -5,6 +5,7 @@
   * **Done when:** `grobl --version` prints version and exits 0.
 * [x] Implement `-v/--verbose` (stackable) and `--log-level` (advanced).
   * **Done when:** `-v` → INFO, `-vv` → DEBUG; `--log-level` overrides.
+* [ ] Reimplement CLI with click
 * [ ] Implement `--mode [all|tree|summary|files]`.
   * **Done when:** each mode suppresses the others.
 * [ ] Implement `--table [full|compact|none]`.
