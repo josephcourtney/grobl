@@ -2,6 +2,9 @@
 exclude_tree = [
   "AGENTS.md",
 
+  "ruff.default.toml",
+  "ruff.toml",
+
   ".git",
   ".hg",
   ".svn",
@@ -46,6 +49,12 @@ exclude_tree = [
 
 # Files/folders where presence is useful but contents usually aren't.
 exclude_print = [
+  ".gitignore",
+  ".grobl.config.toml",
+  ".python-version",
+  ".sourcery.yaml",
+
+
   "LICENSE",
   "LICENSE.*",
   "COPYING",
@@ -53,7 +62,6 @@ exclude_print = [
   "CONTRIBUTING.md",
 
   # Documentation
-  "README.*",
   "docs",
   "docs/*",
 
