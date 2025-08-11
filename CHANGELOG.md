@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.12] - 2025-08-10
+
+### Added
+- add usability review document
+
+### Fixed
+- fix type checking for tiktoken model mapping
+
 ## [0.4.10] - 2025-08-10
 
 ### Added
