@@ -1,0 +1,1 @@
+- [ ] don't add a .grobl.config.toml automatically. Add a new "init" sub-command that adds the config file to the CWD
