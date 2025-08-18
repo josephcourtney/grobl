@@ -12,7 +12,7 @@ from typing import Any
 import click
 
 from grobl import __version__
-from grobl.config import load_and_adjust_config
+from grobl.config import LEGACY_TOML_CONFIG, TOML_CONFIG, load_and_adjust_config, write_default_config
 from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
@@ -24,6 +24,7 @@ from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import ConfigLoadError, PathNotFoundError, ScanInterrupted
 from grobl.output import OutputSinkAdapter, build_writer_from_config
 from grobl.services import ScanExecutor, ScanOptions
+from grobl.utils import is_text
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,64 @@ def _maybe_warn_on_common_heavy_dirs(
     msg = f"Warning: this scan may include heavy directories: {joined}. Continue? (y/N): "
     if not confirm(msg):
         raise SystemExit(1)
+
+
+def _scan_for_legacy_references(base: Path) -> list[tuple[Path, int, str]]:
+    """Return [(path, line_no, line)] where the legacy filename string appears."""
+    hits: list[tuple[Path, int, str]] = []
+    for path in base.rglob("*"):
+        # Skip directories and the legacy file itself (we handle it separately)
+        if path.is_dir():
+            continue
+        if path.name in {TOML_CONFIG, LEGACY_TOML_CONFIG}:
+            continue
+        # Cheap heuristics: only check text files
+        try:
+            if not is_text(path):
+                continue
+            with path.open("r", encoding="utf-8", errors="ignore") as f:
+                for i, line in enumerate(f, start=1):
+                    if LEGACY_TOML_CONFIG in line:
+                        hits.append((path, i, line.rstrip()))
+        except OSError:
+            continue
+    return hits
+
+
+def _maybe_offer_legacy_migration(
+    base: Path, *, assume_yes: bool, confirm: ConfirmFn = _default_confirm
+) -> None:
+    """Prompt to rename legacy .grobl.config.toml -> .grobl.toml and alert references."""
+    legacy = base / LEGACY_TOML_CONFIG
+    if not legacy.exists():
+        return
+    new = base / TOML_CONFIG
+
+    # Find references across the repo (do this before any rename so line numbers are stable)
+    refs = _scan_for_legacy_references(base)
+    if refs:
+        print(f"Found references to '{LEGACY_TOML_CONFIG}' in the repository:")
+        for p, ln, text in refs[:50]:
+            print(f"  - {p}:{ln}: {text}")
+        if len(refs) > 50:
+            print(f"  ... and {len(refs) - 50} more matches")
+        print("Consider updating these to the new filename '.grobl.toml'.")
+
+    if new.exists():
+        print(
+            f"Note: Both '{LEGACY_TOML_CONFIG}' and '{TOML_CONFIG}' exist. "
+            f"'{TOML_CONFIG}' will be preferred; you can delete the legacy file when ready."
+        )
+        return
+
+    if assume_yes or confirm(
+        f"Detected legacy config '{LEGACY_TOML_CONFIG}'. Rename it to '{TOML_CONFIG}' now? (y/N): "
+    ):
+        try:
+            legacy.rename(new)
+            print(f"Renamed '{LEGACY_TOML_CONFIG}' -> '{TOML_CONFIG}'.")
+        except OSError as e:
+            print(f"Could not rename legacy config: {e}", file=sys.stderr)
 
 
 def _execute_with_handling(
@@ -202,6 +261,9 @@ def scan(
     )
 
     cwd = Path()
+    # Handle legacy config detection / migration prompts and cross-repo alerts.
+    _maybe_offer_legacy_migration(cwd, assume_yes=yes)
+
     _maybe_warn_on_common_heavy_dirs(
         paths=params.paths, ignore_defaults=params.ignore_defaults, assume_yes=yes
     )
@@ -228,7 +290,61 @@ def scan(
         print(summary, end="")
 
 
-SUBCOMMANDS = {"scan", "version"}
+@cli.command()
+@click.option(
+    "--path", "target", type=click.Path(path_type=Path), default=Path(), help="Directory to initialize"
+)
+@click.option("--force", is_flag=True, help="Overwrite an existing config file")
+@click.option(
+    "--yes",
+    is_flag=True,
+    help="Assume 'yes' for interactive prompts (auto-migrate legacy filename and suppress questions).",
+)
+def init(*, target: Path, force: bool, yes: bool) -> None:
+    """Create a default .grobl.toml in the target directory (no auto-creation elsewhere)."""
+    target = target.resolve()
+    legacy = target / LEGACY_TOML_CONFIG
+    new = target / TOML_CONFIG
+
+    if legacy.exists() and not new.exists():
+        if yes or _default_confirm(
+            f"Found legacy '{LEGACY_TOML_CONFIG}'. Rename to '{TOML_CONFIG}' instead of creating a new one? (y/N): "
+        ):
+            try:
+                legacy.rename(new)
+                print(f"Renamed '{LEGACY_TOML_CONFIG}' -> '{TOML_CONFIG}'.")
+            except OSError as e:
+                print(f"Could not rename legacy config: {e}", file=sys.stderr)
+                raise SystemExit(1) from e
+        else:
+            # Fall through to create new file alongside legacy (explicitly allowed)
+            pass
+
+    if new.exists() and not force:
+        print(
+            f"Config '{TOML_CONFIG}' already exists at {target}. Use --force to overwrite.", file=sys.stderr
+        )
+        raise SystemExit(1)
+
+    try:
+        write_default_config(target)
+        print(f"Wrote default config to {new}")
+    except OSError as e:
+        print(f"Failed to write '{TOML_CONFIG}': {e}", file=sys.stderr)
+        raise SystemExit(1) from e
+
+    # After writing, scan for legacy references and alert the user
+    refs = _scan_for_legacy_references(target)
+    if refs:
+        print(f"Heads up: found {len(refs)} reference(s) to '{LEGACY_TOML_CONFIG}' in this repository:")
+        for p, ln, text in refs[:50]:
+            print(f"  - {p}:{ln}: {text}")
+        if len(refs) > 50:
+            print("  ... (truncated)")
+        print("Update these to '.grobl.toml' to avoid confusion.")
+
+
+SUBCOMMANDS = {"scan", "version", "init"}
 
 
 def main(argv: list[str] | None = None) -> None:
