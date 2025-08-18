@@ -9,13 +9,15 @@ from typing import TYPE_CHECKING, Any
 import tomlkit
 from tomlkit.exceptions import TOMLKitError
 
-from .errors import ConfigLoadError
+from grobl.errors import ConfigLoadError
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 # Configuration filenames
-TOML_CONFIG = ".grobl.config.toml"
+TOML_CONFIG = ".grobl.toml"
+# Legacy filename we still detect and optionally migrate:
+LEGACY_TOML_CONFIG = ".grobl.config.toml"
 
 
 def load_default_config() -> dict[str, Any]:
@@ -38,26 +40,13 @@ def write_default_config(target_dir: Path) -> Path:
     return toml_path
 
 
-def ensure_default_config_exists(base_path: Path) -> tuple[bool, str | None]:
-    """Ensure the default config exists. Returns (created, error_message)."""
-    toml_path = base_path / TOML_CONFIG
-    if toml_path.exists():
-        return (False, None)
-    try:
-        write_default_config(base_path)
-    except OSError as e:
-        return (False, f"could not write default config: {e}")
-    else:
-        return (True, None)
-
-
 def load_toml_config(path: Path) -> dict[str, Any]:
     """Load configuration from a TOML file."""
     raw = path.read_text(encoding="utf-8")
     try:
         return tomlkit.loads(raw)
     except TOMLKitError as e:
-        msg = f"Error parsing {TOML_CONFIG}: {e}"
+        msg = f"Error parsing {path.name}: {e}"
         raise ConfigLoadError(msg) from e
 
 
@@ -66,17 +55,22 @@ def read_config(
     *,
     ignore_default: bool = False,
 ) -> dict[str, Any]:
-    """Read configuration from ``base_path`` and merge defaults."""
+    """Read configuration from ``base_path`` and merge defaults.
+
+    Preference: new file (.grobl.toml) -> legacy file (.grobl.config.toml) -> none.
+    """
     toml_path = base_path / TOML_CONFIG
     pyproject_path = base_path / "pyproject.toml"
-
-    # Ensure the file exists but do not print from this module
-    ensure_default_config_exists(base_path)
 
     cfg: dict[str, Any] = {} if ignore_default else load_default_config()
 
     if toml_path.exists():
-        cfg.update(load_toml_config(toml_path))
+        cfg |= load_toml_config(toml_path)
+    else:
+        legacy = base_path / LEGACY_TOML_CONFIG
+        if legacy.exists():
+            # Still load it for backward compatibility (CLI will also prompt to migrate)
+            cfg.update(load_toml_config(legacy))
     if pyproject_path.exists():
         try:
             data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))

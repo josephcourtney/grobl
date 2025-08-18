@@ -1,8 +1,8 @@
 # =================================== project ====================================
 [project]
   name = "grobl"
-  version = "0.5.0"
-  description = "A script to display directory structure and Python file contents"
+  version = "0.5.1"
+  description = "A tool to copy directory structure and file contents as a single string."
   readme = "README.md"
   authors = [
     { name = "Joseph M Courtney", email = "Joseph.M.Courtney@gmail.com" },
