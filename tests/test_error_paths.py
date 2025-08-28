@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import CliRunner
 
 from grobl.cli import cli
@@ -19,10 +21,11 @@ def test_usage_error_invalid_mode(tmp_path: Path) -> None:
     assert res.exit_code == EXIT_USAGE
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-only path assumptions")
 def test_path_error_no_real_common_ancestor() -> None:
     runner = CliRunner()
     # Using "/" and "/tmp" yields common ancestor "/" which our helper rejects
-    res = runner.invoke(cli, ["scan", "/", "/tmp"])
+    res = runner.invoke(cli, ["scan", "/", "/tmp"])  # noqa: S108 - controlled use in test
     assert res.exit_code == EXIT_PATH
     assert "No common ancestor" in res.output or res.output
 

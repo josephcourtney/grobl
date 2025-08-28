@@ -25,14 +25,15 @@ def test_readme_output_to_file(tmp_path: Path) -> None:
     res = runner.invoke(cli, ["scan", str(tmp_path), "--output", str(out)])
     assert res.exit_code == 0
     assert out.exists()
-    assert out.read_text(encoding="utf-8").strip() != ""
+    # Simplify truthy check per linter guidance
+    assert out.read_text(encoding="utf-8").strip()
 
 
 def test_readme_version_and_completions(tmp_path: Path) -> None:
     runner = CliRunner()
     v = runner.invoke(cli, ["version"])  # prints version
     assert v.exit_code == 0
-    assert v.output.strip() != ""
+    assert v.output.strip()
 
     c = runner.invoke(cli, ["completions", "--shell", "bash"])  # prints script
     assert c.exit_code == 0

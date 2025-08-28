@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import operator
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: S405 - coverage XML is locally generated and trusted
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +16,8 @@ def _read_coverage_xml() -> ET.Element | None:
     if not path.exists():
         return None
     try:
-        return ET.parse(path).getroot()
+        # Parse local coverage XML; safe within our trust boundary.
+        return ET.parse(path).getroot()  # noqa: S314 - parsing trusted local file
     except ET.ParseError:
         return None
 
@@ -31,7 +32,8 @@ def _parse_condition_coverage(text: str) -> tuple[int, int] | None:
 
 
 def _iter_class_stats(root: ET.Element) -> Iterable[tuple[str, int, int, float, int, int, float]]:
-    """Yield per-class coverage statistics:
+    """Yield per-class coverage statistics.
+
     (filename, statements, missed, line_rate, branch_total, branch_covered, branch_rate).
     """
     for cls in root.findall(".//class"):
@@ -174,15 +176,21 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: Any)
             total_statements,
             total_statements - uncovered,
             uncovered,
-            (f"{line_rate * 100:.0f}%" if line_rate else "n/a"),
+            (f"{line_rate * 100:.0f}%" if total_statements else "n/a"),
             total_branches,
             covered_branches,
             total_branches - covered_branches,
             (f"{(covered_branches / total_branches) * 100:.0f}%" if total_branches else "n/a"),
         )
-        for fname, total_statements, uncovered, line_rate, total_branches, covered_branches, _br_rate in _iter_class_stats(
-            root
-        )
+        for (
+            fname,
+            total_statements,
+            uncovered,
+            line_rate,
+            total_branches,
+            covered_branches,
+            _br_rate,
+        ) in _iter_class_stats(root)
         if fname and ("src/grobl/" in fname or fname.startswith("grobl/"))
     ]
 
@@ -190,6 +198,17 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: Any)
         return
 
     raw_rows.sort(key=operator.itemgetter(0))
+
+    # Compute overall totals and coverage percentages for a final summary row.
+    sum_stmt_tot = sum(r[1] for r in raw_rows)
+    sum_stmt_hit = sum(r[2] for r in raw_rows)
+    sum_stmt_miss = sum(r[3] for r in raw_rows)
+    stmt_cov = f"{(sum_stmt_hit / sum_stmt_tot) * 100:.0f}%" if sum_stmt_tot else "n/a"
+
+    sum_br_tot = sum(r[5] for r in raw_rows)
+    sum_br_hit = sum(r[6] for r in raw_rows)
+    sum_br_miss = sum(r[7] for r in raw_rows)
+    br_cov = f"{(sum_br_hit / sum_br_tot) * 100:.0f}%" if sum_br_tot else "n/a"
 
     headers = (
         (
@@ -208,6 +227,18 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: Any)
     )
 
     terminalreporter.write_line("")
-    terminalreporter.write(format_table(headers, raw_rows))
+    total_row = (
+        "Overall",
+        sum_stmt_tot,
+        sum_stmt_hit,
+        sum_stmt_miss,
+        stmt_cov,
+        sum_br_tot,
+        sum_br_hit,
+        sum_br_miss,
+        br_cov,
+    )
+    spacer_row = ("", "", "", "", "", "", "", "", "")
+    terminalreporter.write(format_table(headers, [*raw_rows, spacer_row, total_row]))
     terminalreporter.write_line("")
     terminalreporter.write_line("")

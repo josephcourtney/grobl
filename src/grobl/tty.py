@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Helpers for TTY detection and output decisions."""
+
+from __future__ import annotations
 
 import sys
 from typing import Any
@@ -12,7 +12,8 @@ def stdout_is_tty() -> bool:
     """Return True if stdout is a TTY. Isolated for testability."""
     try:
         return sys.stdout.isatty()
-    except Exception:
+    except AttributeError:
+        # stdout replaced with an object lacking isatty(); treat as non-TTY
         return False
 
 

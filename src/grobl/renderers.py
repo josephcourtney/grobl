@@ -48,23 +48,20 @@ class DirectoryRenderer:
             marker_w = max(len("included"), 8)
             return name_w, line_w, char_w, marker_w
 
-        name_width, line_width, char_width, marker_width = _column_widths()
-        header = (
-            f"{'':{name_width}} {'lines':>{line_width}} {'chars':>{char_width}} {'included':>{marker_width}}"
-        )
+        widths = _column_widths()
+        name_w, line_w, char_w, mark_w = widths
+        header = f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{mark_w}}"
         output = [header, b.base_path.name]
 
         entry_map = dict(b.file_tree_entries())
         for idx, text in enumerate(raw_tree):
-            if idx in entry_map:
-                rel = entry_map[idx]
-                meta = b.get_metadata(str(rel)) or (0, 0, False)
-                ln, ch, included = meta
-                marker = " " if included else "*"
-                line = f"{text:<{name_width}} {ln:>{line_width}} {ch:>{char_width}} {marker:>{marker_width}}"
-                output.append(line)
-            else:
+            rel = entry_map.get(idx)
+            if rel is None:
                 output.append(text)
+                continue
+            ln, ch, included = b.get_metadata(str(rel)) or (0, 0, False)
+            marker = " " if included else "*"
+            output.append(f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {marker:>{mark_w}}")
 
         return output
 
