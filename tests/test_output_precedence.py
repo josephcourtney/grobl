@@ -11,6 +11,8 @@ from grobl.output import build_writer_from_config
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pytest
+
 
 def test_output_goes_to_file_first(tmp_path: Path, monkeypatch: object) -> None:
     out = tmp_path / "out.txt"
@@ -19,7 +21,7 @@ def test_output_goes_to_file_first(tmp_path: Path, monkeypatch: object) -> None:
     assert out.read_text(encoding="utf-8") == "hello"
 
 
-def test_clipboard_failure_falls_back_to_stdout(monkeypatch: object) -> None:
+def test_clipboard_failure_falls_back_to_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
     # Force TTY so clipboard_allowed() would return True
     class DummyStdout(io.StringIO):
         def isatty(self) -> bool:  # type: ignore[override]

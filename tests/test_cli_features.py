@@ -4,6 +4,7 @@ import io
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import CliRunner
 
 from grobl.cli import _maybe_offer_legacy_migration, cli, print_interrupt_diagnostics
@@ -41,13 +42,12 @@ def test_legacy_migration_renames_file(tmp_path: Path) -> None:
 
 def test_interrupt_diagnostics_exit_code(tmp_path: Path) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    try:
+    with pytest.raises(SystemExit) as e:
         print_interrupt_diagnostics(tmp_path, {"exclude_tree": []}, builder)
-    except SystemExit as e:  # expected
-        assert e.code == EXIT_INTERRUPT
+    assert e.value.code == EXIT_INTERRUPT
 
 
-def test_non_tty_disables_clipboard(tmp_path: Path, monkeypatch: object) -> None:
+def test_non_tty_disables_clipboard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Force non-tty for stdout
     class DummyStdout(io.StringIO):
         def isatty(self) -> bool:  # type: ignore[override]
@@ -61,7 +61,7 @@ def test_non_tty_disables_clipboard(tmp_path: Path, monkeypatch: object) -> None
     assert res.exit_code == 0
 
 
-def test_auto_table_compact_when_not_tty(tmp_path: Path, monkeypatch: object) -> None:
+def test_auto_table_compact_when_not_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Force TTY helper to return False regardless of Click's runner internals
     from grobl import tty
 

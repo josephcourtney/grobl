@@ -86,6 +86,28 @@ def load_toml_config(path: Path) -> dict[str, Any]:
     return _load_with_extends(path)
 
 
+def _xdg_config_path() -> Path:
+    xdg_home = os.environ.get("XDG_CONFIG_HOME")
+    xdg_dir = Path(xdg_home) if xdg_home else Path.home() / ".config"
+    return xdg_dir / "grobl" / "config.toml"
+
+
+def _merge_pyproject_cfg(pyproject_path: Path, cfg: dict[str, Any]) -> dict[str, Any]:
+    if not pyproject_path.exists():
+        return cfg
+    try:
+        data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))
+    except TOMLKitError as e:
+        msg = f"Error parsing pyproject.toml: {e}"
+        raise ConfigLoadError(msg) from e
+    tool = data.get("tool", {})
+    if isinstance(tool, dict):
+        grobl_cfg = tool.get("grobl")
+        if isinstance(grobl_cfg, dict):
+            cfg |= grobl_cfg
+    return cfg
+
+
 def read_config(
     *,
     base_path: Path,
@@ -105,34 +127,15 @@ def read_config(
     """
     cfg: dict[str, Any] = {} if ignore_default else load_default_config()
 
-    # 2-4) Layer lower-priority external sources in a simple loop to reduce complexity.
-    def xdg_config_path() -> Path:
-        xdg_home = os.environ.get("XDG_CONFIG_HOME")
-        xdg_dir = Path(xdg_home) if xdg_home else Path.home() / ".config"
-        return xdg_dir / "grobl" / "config.toml"
-
-    candidates: list[Path] = [xdg_config_path()]
-    toml_path = base_path / TOML_CONFIG
-    legacy = base_path / LEGACY_TOML_CONFIG
-    if toml_path.exists():
-        candidates.append(toml_path)
-    elif legacy.exists():
-        candidates.append(legacy)
-    pyproject_path = base_path / "pyproject.toml"
-    for p in candidates:
-        if p.exists() and p.suffix == ".toml":
+    # 2-4) layer XDG, local TOML (or legacy), then pyproject table
+    for p in (
+        _xdg_config_path(),
+        (base_path / TOML_CONFIG if (base_path / TOML_CONFIG).exists() else base_path / LEGACY_TOML_CONFIG),
+    ):
+        if p.exists():
             cfg |= load_toml_config(p)
-    if pyproject_path.exists():
-        try:
-            data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))
-        except TOMLKitError as e:
-            msg = f"Error parsing pyproject.toml: {e}"
-            raise ConfigLoadError(msg) from e
-        tool = data.get("tool", {})
-        if isinstance(tool, dict):
-            grobl_cfg = tool.get("grobl")
-            if isinstance(grobl_cfg, dict):
-                cfg |= grobl_cfg
+
+    cfg = _merge_pyproject_cfg(base_path / "pyproject.toml", cfg)
 
     # 5) env override
     env_path = os.environ.get("GROBL_CONFIG_PATH")

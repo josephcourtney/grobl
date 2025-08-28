@@ -8,13 +8,17 @@ from grobl.utils import find_common_ancestor
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pytest
+
 
 def write_toml(p: Path, content: str) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
 
 
-def test_config_precedence_explicit_overrides_env_and_local(tmp_path: Path, monkeypatch: object) -> None:
+def test_config_precedence_explicit_overrides_env_and_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     base = tmp_path / "proj"
     base.mkdir()
 
