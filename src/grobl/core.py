@@ -5,13 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from grobl.binary_probe import probe_binary_details
 from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
 )
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
 from grobl.errors import ScanInterrupted
-from grobl.utils import find_common_ancestor, is_text, probe_binary_details, read_text
+from grobl.utils import find_common_ancestor, is_text, read_text
 
 if TYPE_CHECKING:
     from pathlib import Path

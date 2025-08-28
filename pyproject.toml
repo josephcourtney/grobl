@@ -47,7 +47,7 @@
 
 # ==================================== lint ====================================
 [tool.ruff]
-  extend = "./ruff.default.toml"
+  extend = "./ruff.toml"
 
   [tool.ruff.lint]
     ignore = [
