@@ -140,6 +140,7 @@ def traverse_dir(
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1
         callback(item, prefix, is_last=is_last)
-        if item.is_dir():
+        # Do not follow directory symlinks by default to avoid cycles
+        if item.is_dir() and not item.is_symlink():
             next_prefix = "    " if is_last else "│   "
             traverse_dir(item, config, callback, prefix + next_prefix)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 from collections.abc import Callable
@@ -24,9 +25,13 @@ from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import ConfigLoadError, PathNotFoundError, ScanInterrupted
 from grobl.output import OutputSinkAdapter, build_writer_from_config
 from grobl.services import ScanExecutor, ScanOptions
-from grobl.utils import is_text
+from grobl.utils import find_common_ancestor, is_text
 
 logger = logging.getLogger(__name__)
+
+
+MAX_REF_PREVIEW = 50
+VERBOSE_DEBUG_THRESHOLD = 2
 
 
 @dataclass(frozen=True)
@@ -38,8 +43,13 @@ class ScanParams:
     output: Path | None
     add_ignore: tuple[str, ...]
     remove_ignore: tuple[str, ...]
+    add_ignore_file: tuple[Path, ...]
+    no_ignore: bool
     mode: OutputMode
     table: TableStyle
+    config_path: Path | None
+    quiet: bool
+    fmt: str
     paths: tuple[Path, ...]
 
 
@@ -70,9 +80,15 @@ def _maybe_warn_on_common_heavy_dirs(
     confirm: ConfirmFn = _default_confirm,  # "injected for tests"
 ) -> None:
     """Warn only when default ignores are disabled; skip if --yes was passed."""
-    if assume_yes or not ignore_defaults:
+    if assume_yes:
         return
     found = _detect_heavy_dirs(paths)
+    # Also trigger when user explicitly targets a known heavy dir, regardless of defaults
+    explicit_heavy = any({p.name for p in paths} & HEAVY_DIRS) or any(
+        d in set(p.parts) for p in paths for d in HEAVY_DIRS
+    )
+    if not ignore_defaults and not explicit_heavy:
+        return
     if not found:
         return
     joined = ", ".join(sorted(found))
@@ -116,10 +132,10 @@ def _maybe_offer_legacy_migration(
     refs = _scan_for_legacy_references(base)
     if refs:
         print(f"Found references to '{LEGACY_TOML_CONFIG}' in the repository:")
-        for p, ln, text in refs[:50]:
+        for p, ln, text in refs[:MAX_REF_PREVIEW]:
             print(f"  - {p}:{ln}: {text}")
-        if len(refs) > 50:
-            print(f"  ... and {len(refs) - 50} more matches")
+        if len(refs) > MAX_REF_PREVIEW:
+            print(f"  ... and {len(refs) - MAX_REF_PREVIEW} more matches")
         print("Consider updating these to the new filename '.grobl.toml'.")
 
     if new.exists():
@@ -194,12 +210,12 @@ def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: Dire
 )
 @click.version_option(__version__, "-V", "--version")
 @click.pass_context
-def cli(ctx: click.Context, verbose: int, log_level: str | None) -> None:
+def cli(_ctx: click.Context, verbose: int, log_level: str | None) -> None:
     """Directory-to-Markdown utility with TOML config support."""
     level: int
     if log_level:
         level = getattr(logging, log_level.upper())
-    elif verbose >= 2:
+    elif verbose >= VERBOSE_DEBUG_THRESHOLD:
         level = logging.DEBUG
     elif verbose == 1:
         level = logging.INFO
@@ -219,10 +235,26 @@ def version() -> None:
     "--yes", is_flag=True, help="Assume 'yes' for interactive prompts (skip heavy-dir confirmation)."
 )
 @click.option("--ignore-defaults", "-I", is_flag=True, help="Ignore bundled default exclude patterns")
+@click.option("--no-ignore", is_flag=True, help="Disable all ignore patterns (overrides defaults and config)")
 @click.option("--no-clipboard", is_flag=True, help="Print output to stdout instead of copying to clipboard")
 @click.option("--output", type=click.Path(path_type=Path), help="Write output to a file")
 @click.option("--add-ignore", multiple=True, help="Additional ignore pattern for this run")
 @click.option("--remove-ignore", multiple=True, help="Ignore pattern to remove for this run")
+@click.option(
+    "--ignore-file",
+    multiple=True,
+    type=click.Path(path_type=Path),
+    help="Read ignore patterns from file (one per line)",
+)
+@click.option("--config", "config_path", type=click.Path(path_type=Path), help="Explicit config file path")
+@click.option("--quiet", is_flag=True, help="Suppress human summary output")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["human", "json"], case_sensitive=False),
+    default="human",
+    help="Summary output format",
+)
 @click.option(
     "--mode",
     type=click.Choice([m.value for m in OutputMode], case_sensitive=False),
@@ -232,31 +264,41 @@ def version() -> None:
 @click.option(
     "--table",
     type=click.Choice([t.value for t in TableStyle], case_sensitive=False),
-    default=TableStyle.FULL.value,
-    help="Summary table style",
+    default=TableStyle.AUTO.value,
+    help="Summary table style (auto/full/compact/none)",
 )
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
 def scan(
     *,
     ignore_defaults: bool,
+    no_ignore: bool,
     no_clipboard: bool,
     output: Path | None,
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
+    ignore_file: tuple[Path, ...],
     mode: str,
     table: str,
+    config_path: Path | None,
+    fmt: str,
+    quiet: bool,
     paths: tuple[Path, ...],
     yes: bool,
 ) -> None:
     """Run a directory scan based on CLI flags and paths, then emit/copy output."""
     params = ScanParams(
         ignore_defaults=ignore_defaults,
+        no_ignore=no_ignore,
         no_clipboard=no_clipboard,
         output=output,
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
+        add_ignore_file=ignore_file,
         mode=OutputMode(mode),
         table=TableStyle(table),
+        config_path=config_path,
+        quiet=quiet,
+        fmt=fmt,
         paths=paths or (Path(),),
     )
 
@@ -268,12 +310,22 @@ def scan(
         paths=params.paths, ignore_defaults=params.ignore_defaults, assume_yes=yes
     )
 
+    # Determine the common ancestor for config loading precedence
+
+    try:
+        common_base = find_common_ancestor(list(params.paths) or [cwd])
+    except (ValueError, PathNotFoundError):
+        common_base = cwd
+
     try:
         cfg = load_and_adjust_config(
-            cwd=cwd,
+            base_path=common_base,
+            explicit_config=params.config_path,
             ignore_defaults=params.ignore_defaults,
             add_ignore=params.add_ignore,
             remove_ignore=params.remove_ignore,
+            add_ignore_files=params.add_ignore_file,
+            no_ignore=params.no_ignore,
         )
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
@@ -285,9 +337,35 @@ def scan(
         output=params.output,
     )
 
-    summary = _execute_with_handling(params=params, cfg=cfg, cwd=cwd, write_fn=write_fn)
-    if summary:
-        print(summary, end="")
+    # Resolve table style 'auto' based on TTY
+    actual_table = params.table
+    if actual_table is TableStyle.AUTO:
+        actual_table = TableStyle.FULL if sys.stdout.isatty() else TableStyle.COMPACT
+
+    # Warn when summary + no table would produce no output (unless quiet or json)
+    if (
+        params.fmt == "human"
+        and not params.quiet
+        and params.mode is OutputMode.SUMMARY
+        and actual_table is TableStyle.NONE
+    ):
+        print("warning: --mode summary with --table none produces no output", file=sys.stderr)
+
+    # Execute scan and handle outputs
+    summary, summary_json = _execute_with_handling(params=params, cfg=cfg, cwd=cwd, write_fn=write_fn)
+
+    # Human or JSON summary emission (respect --quiet)
+    if not params.quiet:
+        try:
+            if params.fmt == "json":
+                print(json.dumps(summary_json, sort_keys=True))
+            elif summary:
+                print(summary, end="")
+        except BrokenPipeError:
+            try:
+                sys.stdout.close()
+            finally:
+                raise SystemExit(0)
 
 
 @cli.command()
@@ -308,7 +386,10 @@ def init(*, target: Path, force: bool, yes: bool) -> None:
 
     if legacy.exists() and not new.exists():
         if yes or _default_confirm(
-            f"Found legacy '{LEGACY_TOML_CONFIG}'. Rename to '{TOML_CONFIG}' instead of creating a new one? (y/N): "
+
+                f"Found legacy '{LEGACY_TOML_CONFIG}'. Rename to '{TOML_CONFIG}' "
+                "instead of creating a new one? (y/N): "
+
         ):
             try:
                 legacy.rename(new)
@@ -339,7 +420,7 @@ def init(*, target: Path, force: bool, yes: bool) -> None:
         print(f"Heads up: found {len(refs)} reference(s) to '{LEGACY_TOML_CONFIG}' in this repository:")
         for p, ln, text in refs[:50]:
             print(f"  - {p}:{ln}: {text}")
-        if len(refs) > 50:
+        if len(refs) > MAX_REF_PREVIEW:
             print("  ... (truncated)")
         print("Update these to '.grobl.toml' to avoid confusion.")
 
@@ -367,7 +448,14 @@ def main(argv: list[str] | None = None) -> None:
                 continue
             break
         argv.insert(idx, "scan")
-    cli.main(args=argv, prog_name="grobl", standalone_mode=False)
+    try:
+        cli.main(args=argv, prog_name="grobl", standalone_mode=False)
+    except BrokenPipeError:
+        # Graceful SIGPIPE/closed pipe handling (no traceback)
+        try:
+            sys.stdout.close()
+        finally:
+            raise SystemExit(0)
 
 
 if __name__ == "__main__":

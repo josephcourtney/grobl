@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import importlib.resources
+import os
 import tomllib
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import tomlkit
 from tomlkit.exceptions import TOMLKitError
 
 from grobl.errors import ConfigLoadError
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # Configuration filenames
 TOML_CONFIG = ".grobl.toml"
@@ -40,37 +39,89 @@ def write_default_config(target_dir: Path) -> Path:
     return toml_path
 
 
-def load_toml_config(path: Path) -> dict[str, Any]:
-    """Load configuration from a TOML file."""
+def _load_with_extends(path: Path, *, _visited: set[Path] | None = None) -> dict[str, Any]:
+    """Load a TOML file supporting an optional 'extends' key for inheritance.
+
+    Later files override earlier ones. Relative paths in 'extends' are resolved
+    relative to the parent of ``path``.
+    """
+    if _visited is None:
+        _visited = set()
+    real = path.resolve()
+    if real in _visited:
+        # Prevent cycles; later file wins so just stop here.
+        return {}
+    _visited.add(real)
+
     raw = path.read_text(encoding="utf-8")
     try:
-        return tomlkit.loads(raw)
+        data = tomlkit.loads(raw)
     except TOMLKitError as e:
         msg = f"Error parsing {path.name}: {e}"
         raise ConfigLoadError(msg) from e
 
+    # Handle 'extends' (string or list of strings)
+    base_cfg: dict[str, Any] = {}
+    ext = data.get("extends")
+    if isinstance(ext, str):
+        ext_list = [ext]
+    elif isinstance(ext, list):
+        ext_list = [e for e in ext if isinstance(e, str)]
+    else:
+        ext_list = []
+    for entry in ext_list:
+        ext_path = Path(entry)
+        if not ext_path.is_absolute():
+            ext_path = (path.parent / ext_path).resolve()
+        if ext_path.exists():
+            base_cfg |= _load_with_extends(ext_path, _visited=_visited)
+
+    # Current file overrides extended values
+    base_cfg |= {k: v for k, v in data.items() if k != "extends"}
+    return base_cfg
+
+
+def load_toml_config(path: Path) -> dict[str, Any]:
+    """Load configuration from a TOML file (supports 'extends')."""
+    return _load_with_extends(path)
+
 
 def read_config(
-    base_path: Path,
     *,
+    base_path: Path,
     ignore_default: bool = False,
+    explicit_config: Path | None = None,
 ) -> dict[str, Any]:
-    """Read configuration from ``base_path`` and merge defaults.
+    """Read configuration merging multiple sources with clear precedence.
 
-    Preference: new file (.grobl.toml) -> legacy file (.grobl.config.toml) -> none.
+    Precedence (low → high):
+      1. bundled defaults (unless ``ignore_default``)
+      2. XDG config: $XDG_CONFIG_HOME/grobl/config.toml (or ~/.config/grobl/config.toml)
+      3. local project files in ``base_path``: .grobl.toml, legacy .grobl.config.toml
+      4. [tool.grobl] table in pyproject.toml at ``base_path``
+      5. $GROBL_CONFIG_PATH (if set)
+      6. ``explicit_config`` (from --config)
+    Later sources override earlier ones.
     """
-    toml_path = base_path / TOML_CONFIG
-    pyproject_path = base_path / "pyproject.toml"
-
     cfg: dict[str, Any] = {} if ignore_default else load_default_config()
 
+    # 2-4) Layer lower-priority external sources in a simple loop to reduce complexity.
+    def xdg_config_path() -> Path:
+        xdg_home = os.environ.get("XDG_CONFIG_HOME")
+        xdg_dir = Path(xdg_home) if xdg_home else Path.home() / ".config"
+        return xdg_dir / "grobl" / "config.toml"
+
+    candidates: list[Path] = [xdg_config_path()]
+    toml_path = base_path / TOML_CONFIG
+    legacy = base_path / LEGACY_TOML_CONFIG
     if toml_path.exists():
-        cfg |= load_toml_config(toml_path)
-    else:
-        legacy = base_path / LEGACY_TOML_CONFIG
-        if legacy.exists():
-            # Still load it for backward compatibility (CLI will also prompt to migrate)
-            cfg.update(load_toml_config(legacy))
+        candidates.append(toml_path)
+    elif legacy.exists():
+        candidates.append(legacy)
+    pyproject_path = base_path / "pyproject.toml"
+    for p in candidates:
+        if p.exists() and p.suffix == ".toml":
+            cfg |= load_toml_config(p)
     if pyproject_path.exists():
         try:
             data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))
@@ -81,7 +132,18 @@ def read_config(
         if isinstance(tool, dict):
             grobl_cfg = tool.get("grobl")
             if isinstance(grobl_cfg, dict):
-                cfg.update(grobl_cfg)
+                cfg |= grobl_cfg
+
+    # 5) env override
+    env_path = os.environ.get("GROBL_CONFIG_PATH")
+    if env_path:
+        p = Path(env_path)
+        if p.exists():
+            cfg |= load_toml_config(p)
+
+    # 6) explicit path override
+    if explicit_config and explicit_config.exists():
+        cfg |= load_toml_config(explicit_config)
 
     return cfg
 
@@ -91,28 +153,51 @@ def apply_runtime_ignores(
     *,
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
+    add_ignore_files: tuple[Path, ...] = (),
+    no_ignore: bool = False,
 ) -> dict[str, Any]:
     """Apply one-off ignore adjustments from CLI to the loaded config."""
     # "Centralized here to keep CLI thin and make testing easier."
     cfg = dict(cfg)
     exclude = list(cfg.get("exclude_tree", []))
+    # merge ignore files
+    for f in add_ignore_files:
+        try:
+            lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            if s not in exclude:
+                exclude.append(s)
     for pat in add_ignore:
         if pat not in exclude:
             exclude.append(pat)
     for pat in remove_ignore:
         if pat in exclude:
             exclude.remove(pat)
-    cfg["exclude_tree"] = exclude
+    cfg["exclude_tree"] = [] if no_ignore else exclude
     return cfg
 
 
 def load_and_adjust_config(
     *,
-    cwd: Path,
+    base_path: Path,
+    explicit_config: Path | None,
     ignore_defaults: bool,
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
+    add_ignore_files: tuple[Path, ...] = (),
+    no_ignore: bool = False,
 ) -> dict[str, Any]:
     """Read config and apply ad-hoc ignore edits."""
-    base = read_config(base_path=cwd, ignore_default=ignore_defaults)
-    return apply_runtime_ignores(base, add_ignore=add_ignore, remove_ignore=remove_ignore)
+    base = read_config(base_path=base_path, ignore_default=ignore_defaults, explicit_config=explicit_config)
+    return apply_runtime_ignores(
+        base,
+        add_ignore=add_ignore,
+        remove_ignore=remove_ignore,
+        add_ignore_files=add_ignore_files,
+        no_ignore=no_ignore,
+    )

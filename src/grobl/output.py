@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import sys
 from typing import TYPE_CHECKING, Protocol
 
 import pyperclip
@@ -98,5 +99,6 @@ def build_writer_from_config(
     output: Path | None,
 ) -> Callable[[str], None]:
     """Centralize writer creation based on config and CLI flags."""
-    allow_clipboard = not (no_clipboard_flag or bool(cfg.get("no_clipboard")))
+    # auto-disable clipboard for non-TTY stdout or when explicitly disabled
+    allow_clipboard = sys.stdout.isatty() and not (no_clipboard_flag or bool(cfg.get("no_clipboard")))
     return compose_output_strategy(output_file=output, allow_clipboard=allow_clipboard)

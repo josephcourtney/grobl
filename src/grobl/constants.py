@@ -17,6 +17,7 @@ class OutputMode(StrEnum):
 class TableStyle(StrEnum):
     """Valid table styles for summary printing."""
 
+    AUTO = "auto"
     FULL = "full"
     COMPACT = "compact"
     NONE = "none"
