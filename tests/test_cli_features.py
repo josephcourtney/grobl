@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import io
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-import click
 from click.testing import CliRunner
 
-from grobl.cli import cli, _maybe_offer_legacy_migration, print_interrupt_diagnostics
+from grobl.cli import _maybe_offer_legacy_migration, cli, print_interrupt_diagnostics
 from grobl.constants import EXIT_INTERRUPT
 from grobl.directory import DirectoryTreeBuilder
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_warn_on_summary_table_none(tmp_path: Path, monkeypatch: object) -> None:
@@ -61,15 +63,17 @@ def test_non_tty_disables_clipboard(tmp_path: Path, monkeypatch: object) -> None
 
 def test_auto_table_compact_when_not_tty(tmp_path: Path, monkeypatch: object) -> None:
     # Force TTY helper to return False regardless of Click's runner internals
-    import grobl.tty as tty
+    from grobl import tty
+
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: False)
     (tmp_path / "f.txt").write_text("data", encoding="utf-8")
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path), "--mode", "summary", "--table", "auto"]) 
+    res = runner.invoke(cli, ["scan", str(tmp_path), "--mode", "summary", "--table", "auto"])
     assert res.exit_code == 0
     out = res.output
     # compact table prints simple totals; full table includes a title with spaces around
-    assert "Total lines:" in out and " Project Summary " not in out
+    assert "Total lines:" in out
+    assert " Project Summary " not in out
 
 
 def test_cli_flags_matrix_smoke(tmp_path: Path) -> None:

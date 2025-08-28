@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import sys
 from typing import TYPE_CHECKING, Protocol
 
 import pyperclip
+
 from .tty import clipboard_allowed
 
 if TYPE_CHECKING:

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import io
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pyperclip
 
 from grobl.output import build_writer_from_config
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_output_goes_to_file_first(tmp_path: Path, monkeypatch: object) -> None:
@@ -27,10 +30,10 @@ def test_clipboard_failure_falls_back_to_stdout(monkeypatch: object) -> None:
 
     # Cause pyperclip to fail
     def boom(_: str) -> None:
-        raise pyperclip.PyperclipException("fail")
+        msg = "fail"
+        raise pyperclip.PyperclipException(msg)
 
     monkeypatch.setattr(pyperclip, "copy", boom)
     writer = build_writer_from_config(cfg={}, no_clipboard_flag=False, output=None)
     writer("hi")
     assert "hi" in buf.getvalue()
-

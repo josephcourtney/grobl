@@ -57,11 +57,14 @@
 # =================================== test ===================================
 [tool.pytest.ini_options]
   addopts = [
+    "--cov-branch",
     "--cov=grobl",
     "--cov-report=xml",
-    "--cov-report=term-missing",
   ]
   testpaths = ["tests"]
+  markers = [
+    "perf: performance tests",
+  ]
 
 # =================================== test:coverage ===================================
 [tool.coverage.run]
@@ -70,7 +73,7 @@
   parallel = true
 
 [tool.coverage.report]
-  show_missing = true
+  show_missing = false
   skip_covered = true
   # Regexes for lines to exclude from consideration
   exclude_also = [

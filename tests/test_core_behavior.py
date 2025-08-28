@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from grobl.core import run_scan
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
 from grobl.utils import find_common_ancestor
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_common_ancestor_config_base(tmp_path: Path) -> None:
@@ -38,7 +41,8 @@ def test_traversal_order_and_exclude_patterns(tmp_path: Path) -> None:
     tree = builder.tree_output()
     # a.txt should come before b.txt; ignore.me excluded
     joined = "\n".join(tree)
-    assert "a.txt" in joined and "b.txt" in joined
+    assert "a.txt" in joined
+    assert "b.txt" in joined
     assert "ignore.me" not in joined
     assert joined.index("a.txt") < joined.index("b.txt")
 
@@ -54,7 +58,8 @@ def test_file_collection_and_metadata(tmp_path: Path) -> None:
     b = res.builder
     meta = dict(b.metadata_items())
 
-    assert meta["inc.txt"][0] == 2 and meta["inc.txt"][2] is True
+    assert meta["inc.txt"][0] == 2
+    assert meta["inc.txt"][2] is True
     assert meta["skip.txt"][2] is False
-    assert meta["bin.dat"][0] == 0 and meta["bin.dat"][1] == 4
-
+    assert meta["bin.dat"][0] == 0
+    assert meta["bin.dat"][1] == 4
