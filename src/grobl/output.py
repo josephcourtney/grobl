@@ -6,6 +6,7 @@ import sys
 from typing import TYPE_CHECKING, Protocol
 
 import pyperclip
+from .tty import clipboard_allowed
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -35,10 +36,7 @@ class ClipboardOutput:
 
     @staticmethod
     def write(content: str) -> None:  # keep static contract simple
-        try:
-            pyperclip.copy(content)
-        except (pyperclip.PyperclipException, RuntimeError) as e:
-            logger.warning("Clipboard copy failed: %s", e)
+        pyperclip.copy(content)
 
 
 class StdoutOutput:
@@ -100,5 +98,5 @@ def build_writer_from_config(
 ) -> Callable[[str], None]:
     """Centralize writer creation based on config and CLI flags."""
     # auto-disable clipboard for non-TTY stdout or when explicitly disabled
-    allow_clipboard = sys.stdout.isatty() and not (no_clipboard_flag or bool(cfg.get("no_clipboard")))
+    allow_clipboard = clipboard_allowed(cfg, no_clipboard_flag=no_clipboard_flag)
     return compose_output_strategy(output_file=output, allow_clipboard=allow_clipboard)

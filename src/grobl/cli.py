@@ -18,6 +18,10 @@ from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
     HEAVY_DIRS,
+    EXIT_CONFIG,
+    EXIT_PATH,
+    EXIT_USAGE,
+    EXIT_INTERRUPT,
     OutputMode,
     TableStyle,
 )
@@ -26,6 +30,7 @@ from grobl.errors import ConfigLoadError, PathNotFoundError, ScanInterrupted
 from grobl.output import OutputSinkAdapter, build_writer_from_config
 from grobl.services import ScanExecutor, ScanOptions
 from grobl.utils import find_common_ancestor, is_text
+from grobl.tty import resolve_table_style
 
 logger = logging.getLogger(__name__)
 
@@ -161,21 +166,22 @@ def _execute_with_handling(
     cfg: dict[str, Any],
     cwd: Path,
     write_fn: Callable[[str], None],
-) -> str:
+    table: TableStyle,
+) -> tuple[str, dict[str, Any]]:
     """Run the scan service and keep `scan()` slim; return human summary text."""
     try:
         executor = ScanExecutor(sink=OutputSinkAdapter(write_fn))
         return executor.execute(
             paths=list(params.paths),
             cfg=cfg,
-            options=ScanOptions(mode=params.mode, table=params.table),
+            options=ScanOptions(mode=params.mode, table=table),
         )
     except PathNotFoundError as e:
         print(e, file=sys.stderr)
-        raise SystemExit(1) from e
+        raise SystemExit(EXIT_PATH) from e
     except ValueError as e:
         print(e, file=sys.stderr)
-        raise SystemExit(1) from e
+        raise SystemExit(EXIT_USAGE) from e
     except ScanInterrupted as si:
         print_interrupt_diagnostics(si.common, cfg, si.builder)
         raise
@@ -198,7 +204,7 @@ def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: Dire
     print(f"    total_characters  = {builder.total_characters}")
     print(f"    exclude_patterns  = {builder.exclude_patterns}")
     print(")")
-    raise SystemExit(130)
+    raise SystemExit(EXIT_INTERRUPT)
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -329,7 +335,7 @@ def scan(
         )
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
-        raise SystemExit(1) from err
+        raise SystemExit(EXIT_CONFIG) from err
 
     write_fn = build_writer_from_config(
         cfg=cfg,
@@ -338,9 +344,7 @@ def scan(
     )
 
     # Resolve table style 'auto' based on TTY
-    actual_table = params.table
-    if actual_table is TableStyle.AUTO:
-        actual_table = TableStyle.FULL if sys.stdout.isatty() else TableStyle.COMPACT
+    actual_table = resolve_table_style(params.table)
 
     # Warn when summary + no table would produce no output (unless quiet or json)
     if (
@@ -352,7 +356,13 @@ def scan(
         print("warning: --mode summary with --table none produces no output", file=sys.stderr)
 
     # Execute scan and handle outputs
-    summary, summary_json = _execute_with_handling(params=params, cfg=cfg, cwd=cwd, write_fn=write_fn)
+    summary, summary_json = _execute_with_handling(
+        params=params,
+        cfg=cfg,
+        cwd=cwd,
+        write_fn=write_fn,
+        table=actual_table,
+    )
 
     # Human or JSON summary emission (respect --quiet)
     if not params.quiet:
@@ -366,6 +376,31 @@ def scan(
                 sys.stdout.close()
             finally:
                 raise SystemExit(0)
+
+
+@cli.command()
+@click.option(
+    "--shell",
+    type=click.Choice(["bash", "zsh", "fish"], case_sensitive=False),
+    required=True,
+    help="Target shell to generate completion script for",
+)
+def completions(shell: str) -> None:
+    """Print shell completion script for the given shell."""
+    prog = "grobl"
+    var = "_GROBL_COMPLETE"
+    if shell == "bash":
+        print(
+            f"_grobl_completion() {{ eval \"$(env {var}=bash_source {prog} \"$@\")\"; }}\n"
+            f"complete -F _grobl_completion {prog}"
+        )
+    elif shell == "zsh":
+        print(f"autoload -U compinit; compinit\n_eval \"$(env {var}=zsh_source {prog})\"")
+    elif shell == "fish":
+        print(f"eval (env {var}=fish_source {prog})")
+    else:  # pragma: no cover - defensive
+        print(f"Unsupported shell: {shell}", file=sys.stderr)
+        raise SystemExit(EXIT_USAGE)
 
 
 @cli.command()
@@ -425,7 +460,7 @@ def init(*, target: Path, force: bool, yes: bool) -> None:
         print("Update these to '.grobl.toml' to avoid confusion.")
 
 
-SUBCOMMANDS = {"scan", "version", "init"}
+SUBCOMMANDS = {"scan", "version", "init", "completions"}
 
 
 def main(argv: list[str] | None = None) -> None:
