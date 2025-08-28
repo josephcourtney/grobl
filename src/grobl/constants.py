@@ -34,3 +34,10 @@ CONFIG_INCLUDE_FILE_TAGS = "include_file_tags"
 
 DEFAULT_TREE_TAG = "directory"
 DEFAULT_FILE_TAG = "file"
+
+# Exit codes
+EXIT_OK = 0
+EXIT_USAGE = 2
+EXIT_CONFIG = 3
+EXIT_PATH = 4
+EXIT_INTERRUPT = 130

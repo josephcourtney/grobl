@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from grobl.config import load_and_adjust_config
+from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -74,3 +75,26 @@ def test_runtime_ignore_files_and_no_ignore(tmp_path: Path) -> None:
         no_ignore=True,
     )
     assert cfg2.get("exclude_tree") == []
+
+
+def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
+    # project layout: base/.grobl.toml and two subpaths are scanned
+    base = tmp_path / "proj"
+    (base / "a").mkdir(parents=True)
+    (base / "b").mkdir(parents=True)
+    (base / ".grobl.toml").write_text("exclude_tree=['from-base']\n", encoding="utf-8")
+
+    p1 = base / "a" / "one.txt"
+    p2 = base / "b" / "two.txt"
+    p1.write_text("1", encoding="utf-8")
+    p2.write_text("2", encoding="utf-8")
+
+    common = find_common_ancestor([p1, p2])
+    cfg = load_and_adjust_config(
+        base_path=common,
+        explicit_config=None,
+        ignore_defaults=True,
+        add_ignore=(),
+        remove_ignore=(),
+    )
+    assert cfg.get("exclude_tree") == ["from-base"]
