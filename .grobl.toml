@@ -2,6 +2,10 @@
 # Files/folders whose *presence* isn't helpful
 # ============================================
 exclude_tree = [
+  # ---------------- project-specific ----------------
+  "./best practices - automated testing.md",
+  "./best practices - command line interfaces.md",
+
   # ---------------- grobl-specific ----------------
   ".grobl.config.json",
   ".grobl.config.toml",   # legacy config, superseded by .grobl.toml
