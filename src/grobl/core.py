@@ -11,7 +11,7 @@ from grobl.constants import (
 )
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
 from grobl.errors import ScanInterrupted
-from grobl.utils import find_common_ancestor, is_text, read_text
+from grobl.utils import find_common_ancestor, is_text, probe_binary_details, read_text
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -53,6 +53,9 @@ def run_scan(
         else:
             size = item.stat().st_size
             builder.record_metadata(rel, 0, size)
+            # Collect additional binary summary details (e.g., image dimensions)
+            details = probe_binary_details(item)
+            builder.record_binary_details(rel, details)
 
     config_tuple = (resolved, excl_tree, common)
     try:

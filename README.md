@@ -31,6 +31,7 @@ Key options:
 - `--add-ignore PATTERN`/`--remove-ignore PATTERN`
 - `--config PATH`: explicit config
 - `--quiet`: suppress human summary (payload still emitted as configured)
+- `--format {human,json}`: choose human-readable or JSON summary output
 
 ## Configuration Precedence
 
@@ -79,6 +80,50 @@ Two XML-like blocks (when `--mode all`):
 - File contents: `<file root="ROOT"> <file:content name="rel/path" lines="N" chars="M">..</file:content> ... </file>`
 
 Markdown code fences in `.md` files are escaped to avoid breaking formatting.
+
+## JSON Summary
+
+When `--format json` is used, grobl prints a machine-readable summary to stdout.
+Schema (stable keys, deterministic ordering):
+
+- root: absolute path to the common ancestor directory
+- mode: the `--mode` selected (all/tree/files/summary)
+- table: the summary table style used (auto/full/compact/none)
+- totals: { total_lines, total_characters, all_total_lines, all_total_characters }
+- files: list of file entries with keys:
+  - path: path relative to `root`
+  - lines: number of lines for included text files (0 for binaries)
+  - chars: number of characters for included text files (size in bytes for binaries)
+  - included: whether the file’s contents are included in the payload
+  - binary: present and true for detected binary files
+  - binary_details: present for binary files; includes size_bytes and, for common images, width/height and format
+
+Example:
+
+```
+{
+  "root": "/path/to/project",
+  "mode": "summary",
+  "table": "compact",
+  "totals": {
+    "total_lines": 10,
+    "total_characters": 120,
+    "all_total_lines": 10,
+    "all_total_characters": 1234
+  },
+  "files": [
+    {"path": "src/app.py", "lines": 10, "chars": 120, "included": true},
+    {
+      "path": "assets/logo.png",
+      "lines": 0,
+      "chars": 1110,
+      "included": false,
+      "binary": true,
+      "binary_details": {"size_bytes": 1110, "format": "png", "width": 512, "height": 512}
+    }
+  ]
+}
+```
 
 ## Large Repos
 

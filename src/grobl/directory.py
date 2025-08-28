@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class TreeCallback(Protocol):
@@ -33,6 +33,9 @@ class DirectoryTreeBuilder:
     _metadata: dict[str, tuple[int, int, bool]] = field(default_factory=dict)
     _file_contents: list[str] = field(default_factory=list)
     _file_tree_entries: list[tuple[int, Path]] = field(default_factory=list)
+    _binary_details: dict[str, dict] = field(default_factory=dict)
+    _ordered_entries: list[tuple[str, Path]] = field(default_factory=list)
+    _json_file_blobs: list[dict[str, Any]] = field(default_factory=list)
 
     # "Totals for included files (backward compatible fields used by summary)."
     total_lines: int = 0
@@ -58,6 +61,16 @@ class DirectoryTreeBuilder:
     def file_tree_entries(self) -> list[tuple[int, Path]]:
         return list(self._file_tree_entries)
 
+    def get_binary_details(self, key: str) -> dict | None:
+        return self._binary_details.get(key)
+
+    def ordered_entries(self) -> list[tuple[str, Path]]:
+        """Return ordered entries as ("dir"|"file", relpath)."""
+        return list(self._ordered_entries)
+
+    def files_json(self) -> list[dict[str, Any]]:
+        return list(self._json_file_blobs)
+
     # ----- Mutators (internal use) -----
     def add_directory(
         self,
@@ -69,6 +82,8 @@ class DirectoryTreeBuilder:
         """Record a directory in the tree output."""
         connector = "└── " if is_last else "├── "
         self._tree_output.append(f"{prefix}{connector}{directory_path.name}")
+        rel = directory_path.relative_to(self.base_path)
+        self._ordered_entries.append(("dir", rel))
 
     def add_file_to_tree(
         self,
@@ -82,6 +97,7 @@ class DirectoryTreeBuilder:
         rel = file_path.relative_to(self.base_path)
         self._tree_output.append(f"{prefix}{connector}{file_path.name}")
         self._file_tree_entries.append((len(self._tree_output) - 1, rel))
+        self._ordered_entries.append(("file", rel))
 
     def record_metadata(
         self,
@@ -112,8 +128,12 @@ class DirectoryTreeBuilder:
             content,
             "</file:content>",
         ])
+        self._json_file_blobs.append({"name": str(rel), "lines": lines, "chars": chars, "content": content})
         self.total_lines += lines
         self.total_characters += chars
+
+    def record_binary_details(self, rel: Path, details: dict) -> None:
+        self._binary_details[str(rel)] = dict(details)
 
 
 def filter_items(items: list[Path], paths: list[Path], patterns: list[str], base: Path) -> list[Path]:

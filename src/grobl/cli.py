@@ -174,7 +174,7 @@ def _execute_with_handling(
         return executor.execute(
             paths=list(params.paths),
             cfg=cfg,
-            options=ScanOptions(mode=params.mode, table=table),
+            options=ScanOptions(mode=params.mode, table=table, fmt=params.fmt),
         )
     except PathNotFoundError as e:
         print(e, file=sys.stderr)
@@ -367,10 +367,11 @@ def scan(
     # Human or JSON summary emission (respect --quiet)
     if not params.quiet:
         try:
-            if params.fmt == "json":
-                print(json.dumps(summary_json, sort_keys=True))
-            elif summary:
+            if params.fmt == "human" and summary:
                 print(summary, end="")
+            elif params.fmt == "json" and params.mode == OutputMode.SUMMARY:
+                # Pretty-print summary JSON only in summary mode
+                print(json.dumps(summary_json, sort_keys=True, indent=2))
         except BrokenPipeError:
             try:
                 sys.stdout.close()

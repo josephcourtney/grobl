@@ -20,7 +20,7 @@ LEGACY_TOML_CONFIG = ".grobl.config.toml"
 
 
 def load_default_config() -> dict[str, Any]:
-    """Return the bundled default configuration."""
+    """Return the bundled default configuration as a Python dict."""
     try:
         cfg_path = importlib.resources.files("grobl.resources").joinpath("default_config.toml")
         with cfg_path.open("r", encoding="utf-8") as f:  # type: ignore[attr-defined]
@@ -31,11 +31,30 @@ def load_default_config() -> dict[str, Any]:
     return tomllib.loads(text)
 
 
+def load_default_config_text() -> str:
+    """Return the bundled default configuration text.
+
+    This preserves formatting (one item per line arrays, comments, spacing)
+    so that `grobl init` writes a nicely formatted file.
+    """
+    try:
+        cfg_path = importlib.resources.files("grobl.resources").joinpath("default_config.toml")
+        with cfg_path.open("r", encoding="utf-8") as f:  # type: ignore[attr-defined]
+            return f.read()
+    except OSError as err:  # pragma: no cover - exercised via CLI
+        msg = f"Error loading default configuration: {err}"
+        raise ConfigLoadError(msg) from err
+
+
 def write_default_config(target_dir: Path) -> Path:
-    """Write the bundled default configuration into ``target_dir``."""
-    cfg = load_default_config()
+    """Write the bundled default configuration into ``target_dir``.
+
+    Writes the original resource text to preserve human-friendly formatting
+    (arrays split one item per line, comments, and spacing).
+    """
+    text = load_default_config_text()
     toml_path = target_dir / TOML_CONFIG
-    toml_path.write_text(tomlkit.dumps(cfg), encoding="utf-8")
+    toml_path.write_text(text, encoding="utf-8")
     return toml_path
 
 
