@@ -85,3 +85,12 @@ Markdown code fences in `.md` files are escaped to avoid breaking formatting.
 - Use ignore patterns and modes to limit payload size.
 - Prefer `--mode summary` or `--mode tree` to explore structure first.
 - Use `--output` for large payloads and inspect with external tools.
+
+## Testing
+
+- Run tests: `pytest` (coverage and branch coverage enabled via config).
+- Branch coverage: configured with `--cov-branch`; reports show branch metrics.
+- README smoke tests: exercise quick-start, `--output`, `version`, `completions`, and `init` examples.
+- Performance tests: skipped by default in CI; enable with env:
+  - `GROBL_RUN_PERF=1 pytest` to run perf tests in CI.
+  - `GROBL_PERF_BUDGET_SEC=3.0` to adjust the runtime budget threshold.

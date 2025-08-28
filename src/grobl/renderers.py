@@ -49,7 +49,9 @@ class DirectoryRenderer:
             return name_w, line_w, char_w, marker_w
 
         name_width, line_width, char_width, marker_width = _column_widths()
-        header = f"{'':{name_width}} {'lines':>{line_width}} {'chars':>{char_width}} {'included':>{marker_width}}"
+        header = (
+            f"{'':{name_width}} {'lines':>{line_width}} {'chars':>{char_width}} {'included':>{marker_width}}"
+        )
         output = [header, b.base_path.name]
 
         entry_map = dict(b.file_tree_entries())

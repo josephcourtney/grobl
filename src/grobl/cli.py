@@ -17,11 +17,11 @@ from grobl.config import LEGACY_TOML_CONFIG, TOML_CONFIG, load_and_adjust_config
 from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
-    HEAVY_DIRS,
     EXIT_CONFIG,
+    EXIT_INTERRUPT,
     EXIT_PATH,
     EXIT_USAGE,
-    EXIT_INTERRUPT,
+    HEAVY_DIRS,
     OutputMode,
     TableStyle,
 )
@@ -29,8 +29,8 @@ from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import ConfigLoadError, PathNotFoundError, ScanInterrupted
 from grobl.output import OutputSinkAdapter, build_writer_from_config
 from grobl.services import ScanExecutor, ScanOptions
-from grobl.utils import find_common_ancestor, is_text
 from grobl.tty import resolve_table_style
+from grobl.utils import find_common_ancestor, is_text
 
 logger = logging.getLogger(__name__)
 
@@ -391,11 +391,11 @@ def completions(shell: str) -> None:
     var = "_GROBL_COMPLETE"
     if shell == "bash":
         print(
-            f"_grobl_completion() {{ eval \"$(env {var}=bash_source {prog} \"$@\")\"; }}\n"
+            f'_grobl_completion() {{ eval "$(env {var}=bash_source {prog} "$@")"; }}\n'
             f"complete -F _grobl_completion {prog}"
         )
     elif shell == "zsh":
-        print(f"autoload -U compinit; compinit\n_eval \"$(env {var}=zsh_source {prog})\"")
+        print(f'autoload -U compinit; compinit\n_eval "$(env {var}=zsh_source {prog})"')
     elif shell == "fish":
         print(f"eval (env {var}=fish_source {prog})")
     else:  # pragma: no cover - defensive
@@ -421,10 +421,8 @@ def init(*, target: Path, force: bool, yes: bool) -> None:
 
     if legacy.exists() and not new.exists():
         if yes or _default_confirm(
-
-                f"Found legacy '{LEGACY_TOML_CONFIG}'. Rename to '{TOML_CONFIG}' "
-                "instead of creating a new one? (y/N): "
-
+            f"Found legacy '{LEGACY_TOML_CONFIG}'. Rename to '{TOML_CONFIG}' "
+            "instead of creating a new one? (y/N): "
         ):
             try:
                 legacy.rename(new)

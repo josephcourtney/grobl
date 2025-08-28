@@ -1,4 +1,6 @@
-- [x] add `--format json` for machine-readable summary output (define and document a stable schema)
+- [ ] when adding default config file, format it nicely (one list item per row, etc.)
+- [ ] add `--format json` for machine-readable summary output (define and document a stable schema)
+- [ ] make json printout pretty
 - [ ] consider JSON formats for `tree`/`files` modes (investigate feasibility and size/streaming considerations)
 - [ ] document JSON summary schema and provide examples in README
 - [ ] add tests for JSON summary schema (structure, keys, determinism)
