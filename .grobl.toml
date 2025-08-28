@@ -7,10 +7,7 @@ exclude_tree = [
   "./best practices - command line interfaces.md",
 
   # ---------------- grobl-specific ----------------
-  ".grobl.config.json",
-  ".grobl.config.toml",   # legacy config, superseded by .grobl.toml
-  ".grobl.tokens.json",   # API tokens or auth, irrelevant for code context
-  ".groblignore",         # ignore rules, not source
+  ".grobl.toml",
 
   # ---------------- secrets ----------------
   ".envrc",
@@ -95,6 +92,9 @@ exclude_tree = [
 
   # ---------------- misc fixtures ----------------
   "tests/fixtures/*.yaml", # vcrpy recordings (non-essential for AI)
+
+  # ---------------- tooling configs ----------------
+  ".sourcery.yaml",
 ]
 
 # =================================================
@@ -142,7 +142,6 @@ exclude_print = [
   # ---------------- tooling configs ----------------
   ".pre-commit-config.yaml",
   ".python-version",
-  ".sourcery.yaml",
 ]
 
 # ============================================

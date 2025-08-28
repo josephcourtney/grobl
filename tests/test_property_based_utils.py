@@ -11,7 +11,7 @@ try:  # import at module level; skip the whole module if unavailable
 except ImportError:  # pragma: no cover - tooling availability
     pytest.skip("hypothesis not available", allow_module_level=True)
 
-from grobl.utils import probe_binary_details
+from grobl.binary_probe import probe_binary_details
 
 
 @given(st.binary(min_size=0, max_size=4096))

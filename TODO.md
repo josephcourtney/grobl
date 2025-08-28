@@ -1,1 +1,15 @@
-- [ ] implement proper mutation testing
+- [ ] Refactor DirectoryTreeBuilder into smaller classes:
+  - TreeCollector (directory/file structure only).
+  - FileCollector (metadata + contents).
+  - BinaryCollector (binary details).
+  - Keep DirectoryTreeBuilder as orchestrator.
+- [ ] Unify summary construction:
+  - Consolidate summary._file_entries and builder.files_json() into one canonical JSON exporter.
+  - services.py should rely only on summary.
+- [ ] Consistent exit codes:
+  - Replace raw SystemExit(1) with constants (EXIT_PATH, EXIT_CONFIG, etc.).
+- [ ] Apply Strategy pattern to binary probing:
+  - Replace _parse_png_dims,_parse_gif_dims, etc. with registered parsers implementing BinaryParser protocol.
+  - This allows easier extension and testing.
+- [ ] Replace OutputSinkAdapter with a @dataclass(frozen=True) with __call__.
+- [ ] Add structured logging (logging) for warnings/errors instead of raw print.

@@ -8,6 +8,7 @@ from .constants import CONFIG_INCLUDE_FILE_TAGS, CONFIG_INCLUDE_TREE_TAGS, Outpu
 from .core import run_scan
 from .formatter import human_summary
 from .renderers import DirectoryRenderer, build_llm_payload
+from .summary import build_sink_payload_json, build_summary
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -37,48 +38,19 @@ class ScanExecutor:
         cfg: dict[str, object],
         options: ScanOptions,
     ) -> tuple[str, dict[str, Any]]:
-        """Return (human summary, json-summary); emit LLM payload to sink.
-
-        "The CLI stays thin; this service is easy to unit-test.".
-        """
+        """Return (human summary, json-summary); emit payload to sink as needed."""
         result = run_scan(paths=paths, cfg=cfg)
 
         ttag = str(cfg.get(CONFIG_INCLUDE_TREE_TAGS, "directory"))
         ftag = str(cfg.get(CONFIG_INCLUDE_FILE_TAGS, "file"))
 
         if options.fmt == "json" and options.mode != OutputMode.SUMMARY:
-            # Build JSON payload and embed summary information
-            payload_json: dict[str, Any] = {
-                "root": str(result.common),
-                "mode": options.mode.value,
-            }
-            if options.mode in {OutputMode.ALL, OutputMode.TREE}:
-                entries = [{"type": typ, "path": str(rel)} for typ, rel in result.builder.ordered_entries()]
-                payload_json["tree"] = entries
-            if options.mode in {OutputMode.ALL, OutputMode.FILES}:
-                payload_json["files"] = result.builder.files_json()
-
-            # Prepare summary contents consistent with summary mode
-            sum_files: list[dict[str, Any]] = []
-            for key, (ln, ch, included) in result.builder.metadata_items():
-                entry: dict[str, Any] = {"path": key, "lines": ln, "chars": ch, "included": included}
-                is_binary = ch > 0 and ln == 0 and not included
-                if is_binary:
-                    entry["binary"] = True
-                    details = result.builder.get_binary_details(key) or {"size_bytes": ch}
-                    entry["binary_details"] = details
-                sum_files.append(entry)
-            payload_json["summary"] = {
-                "table": options.table.value,
-                "totals": {
-                    "total_lines": result.builder.total_lines,
-                    "total_characters": result.builder.total_characters,
-                    "all_total_lines": result.builder.all_total_lines,
-                    "all_total_characters": result.builder.all_total_characters,
-                },
-                "files": sum_files,
-            }
-
+            payload_json = build_sink_payload_json(
+                builder=result.builder,
+                common=result.common,
+                mode=options.mode,
+                table=options.table,
+            )
             self._sink.write(_json.dumps(payload_json, sort_keys=True, indent=2))
         else:
             payload = build_llm_payload(
@@ -100,27 +72,11 @@ class ScanExecutor:
             total_chars=result.builder.total_characters,
             table=options.table.value,
         )
-        # Build a machine-readable summary structure
-        files: list[dict[str, Any]] = []
-        for key, (ln, ch, included) in result.builder.metadata_items():
-            entry: dict[str, Any] = {"path": key, "lines": ln, "chars": ch, "included": included}
-            # Heuristic: non-empty files with zero lines are treated as binary
-            is_binary = ch > 0 and ln == 0 and not included
-            if is_binary:
-                entry["binary"] = True
-                details = result.builder.get_binary_details(key) or {"size_bytes": ch}
-                entry["binary_details"] = details
-            files.append(entry)
-        json_summary: dict[str, Any] = {
-            "root": str(result.common),
-            "mode": options.mode.value,
-            "table": options.table.value,
-            "totals": {
-                "total_lines": result.builder.total_lines,
-                "total_characters": result.builder.total_characters,
-                "all_total_lines": result.builder.all_total_lines,
-                "all_total_characters": result.builder.all_total_characters,
-            },
-            "files": files,
-        }
+        # Build a machine-readable summary structure (for SUMMARY mode printing)
+        json_summary = build_summary(
+            builder=result.builder,
+            common=result.common,
+            mode=options.mode,
+            table=options.table,
+        )
         return human, json_summary
