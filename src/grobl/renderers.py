@@ -38,20 +38,18 @@ class DirectoryRenderer:
         if not raw_tree:
             return [b.base_path.name]
 
-        name_width = max(len(line) for line in raw_tree)
+        def _column_widths() -> tuple[int, int, int, int]:
+            name_w = max(len(line) for line in raw_tree)
+            meta_values = list(b.metadata_items())
+            max_line_digits = max((len(str(v[0])) for _, v in meta_values), default=1)
+            max_char_digits = max((len(str(v[1])) for _, v in meta_values), default=1)
+            line_w = max(max_line_digits, len("lines"))
+            char_w = max(max_char_digits, len("chars"))
+            marker_w = max(len("included"), 8)
+            return name_w, line_w, char_w, marker_w
 
-        # compute column widths using metadata
-        meta_values = list(b.metadata_items())
-        max_line_digits = max((len(str(v[0])) for _, v in meta_values), default=1)
-        max_char_digits = max((len(str(v[1])) for _, v in meta_values), default=1)
-
-        line_width = max(max_line_digits, len("lines"))
-        char_width = max(max_char_digits, len("chars"))
-        marker_width = max(len("included"), 8)
-
-        header = (
-            f"{'':{name_width}} {'lines':>{line_width}} {'chars':>{char_width}} {'included':>{marker_width}}"
-        )
+        name_width, line_width, char_width, marker_width = _column_widths()
+        header = f"{'':{name_width}} {'lines':>{line_width}} {'chars':>{char_width}} {'included':>{marker_width}}"
         output = [header, b.base_path.name]
 
         entry_map = dict(b.file_tree_entries())
