@@ -6,7 +6,7 @@ Separated from generic utilities to keep responsibilities focused and ease testi
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,6 +38,13 @@ JPEG_MIN_SEG_LEN = 2
 IHDR_COLOR_TYPE_OFFSET = 25
 
 
+@runtime_checkable
+class BinaryParser(Protocol):
+    """Strategy for parsing a specific binary format."""
+
+    def parse(self, data: bytes) -> dict[str, Any] | None: ...
+
+
 def _read_prefix(path: Path, size: int = 65536) -> bytes:
     try:
         with path.open("rb") as f:
@@ -46,76 +53,88 @@ def _read_prefix(path: Path, size: int = 65536) -> bytes:
         return b""
 
 
-def _parse_png_dims(data: bytes) -> tuple[int | None, int | None, str | None]:
-    if not data.startswith(PNG_SIGNATURE):
-        return None, None, None
-    if len(data) < PNG_IHDR_MIN_TOTAL:
-        return None, None, None
-    if data[12:16] != b"IHDR":
-        return None, None, None
-    w = int.from_bytes(data[16:20], "big")
-    h = int.from_bytes(data[20:24], "big")
-    color_type = data[IHDR_COLOR_TYPE_OFFSET] if len(data) > IHDR_COLOR_TYPE_OFFSET else None
-    color_map = {0: "grayscale", 2: "truecolor", 3: "indexed", 4: "grayscale-alpha", 6: "rgba"}
-    cstr = color_map.get(color_type) if color_type is not None else None
-    return w, h, cstr
+class PngParser:
+    @staticmethod
+    def parse(data: bytes) -> dict[str, Any] | None:
+        if not data.startswith(PNG_SIGNATURE):
+            return None
+        if len(data) < PNG_IHDR_MIN_TOTAL:
+            return None
+        if data[12:16] != b"IHDR":
+            return None
+        w = int.from_bytes(data[16:20], "big")
+        h = int.from_bytes(data[20:24], "big")
+        color_type = data[IHDR_COLOR_TYPE_OFFSET] if len(data) > IHDR_COLOR_TYPE_OFFSET else None
+        color_map = {0: "grayscale", 2: "truecolor", 3: "indexed", 4: "grayscale-alpha", 6: "rgba"}
+        details: dict[str, Any] = {"format": "png", "width": w, "height": h}
+        if color_type is not None and (cstr := color_map.get(color_type)):
+            details["color_type"] = cstr
+        return details
 
 
-def _parse_gif_dims(data: bytes) -> tuple[int | None, int | None]:
-    if not (data.startswith((b"GIF87a", b"GIF89a"))):
-        return None, None
-    if len(data) < GIF_MIN_HEADER:
-        return None, None
-    w = int.from_bytes(data[6:8], "little")
-    h = int.from_bytes(data[8:10], "little")
-    return w, h
+class GifParser:
+    @staticmethod
+    def parse(data: bytes) -> dict[str, Any] | None:
+        if not (data.startswith((b"GIF87a", b"GIF89a"))):
+            return None
+        if len(data) < GIF_MIN_HEADER:
+            return None
+        w = int.from_bytes(data[6:8], "little")
+        h = int.from_bytes(data[8:10], "little")
+        return {"format": "gif", "width": w, "height": h}
 
 
-def _parse_bmp_dims(data: bytes) -> tuple[int | None, int | None]:
-    if not data.startswith(b"BM"):
-        return None, None
-    if len(data) < BMP_MIN_HEADER:
-        return None, None
-    # DIB header starts at offset 14, width/height at 18/22 (little-endian)
-    w = int.from_bytes(data[18:22], "little")
-    h = int.from_bytes(data[22:26], "little")
-    return w, h
+class BmpParser:
+    @staticmethod
+    def parse(data: bytes) -> dict[str, Any] | None:
+        if not data.startswith(b"BM"):
+            return None
+        if len(data) < BMP_MIN_HEADER:
+            return None
+        w = int.from_bytes(data[18:22], "little")
+        h = int.from_bytes(data[22:26], "little")
+        return {"format": "bmp", "width": w, "height": h}
 
 
 def _is_jpeg_sof_marker(marker: int) -> bool:
     return marker in JPEG_SOF_MARKERS
 
 
-def _parse_jpeg_dims(data: bytes) -> tuple[int | None, int | None]:  # noqa: C901 - small, contained scanner
-    if not data.startswith(JPEG_SOI):
-        return None, None
-    i = 2
-    data_len = len(data)
-    while i + 9 < data_len:
-        if data[i] != JPEG_MARKER_PREFIX:
+class JpegParser:
+    @staticmethod
+    def parse(data: bytes) -> dict[str, Any] | None:  # noqa: C901 - small, contained scanner
+        if not data.startswith(JPEG_SOI):
+            return None
+        i = 2
+        data_len = len(data)
+        while i + 9 < data_len:
+            if data[i] != JPEG_MARKER_PREFIX:
+                i += 1
+                continue
+            while i < data_len and data[i] == JPEG_MARKER_PREFIX:
+                i += 1
+            if i >= data_len:
+                break
+            marker = data[i]
             i += 1
-            continue
-        while i < data_len and data[i] == JPEG_MARKER_PREFIX:
-            i += 1
-        if i >= data_len:
-            break
-        marker = data[i]
-        i += 1
-        if marker in {0xD8, 0xD9}:  # SOI/EOI w/o length
-            continue
-        if i + 1 >= data_len:
-            break
-        seg_len = int.from_bytes(data[i : i + 2], "big")
-        if seg_len < JPEG_MIN_SEG_LEN:
-            break
-        if _is_jpeg_sof_marker(marker):
-            if i + 7 < data_len:
-                height = int.from_bytes(data[i + 3 : i + 5], "big")
-                width = int.from_bytes(data[i + 5 : i + 7], "big")
-                return width, height
-            break
-        i += seg_len
-    return None, None
+            if marker in {0xD8, 0xD9}:  # SOI/EOI w/o length
+                continue
+            if i + 1 >= data_len:
+                break
+            seg_len = int.from_bytes(data[i : i + 2], "big")
+            if seg_len < JPEG_MIN_SEG_LEN:
+                break
+            if _is_jpeg_sof_marker(marker):
+                if i + 7 < data_len:
+                    height = int.from_bytes(data[i + 3 : i + 5], "big")
+                    width = int.from_bytes(data[i + 5 : i + 7], "big")
+                    return {"format": "jpeg", "width": width, "height": height}
+                break
+            i += seg_len
+        return None
+
+
+PARSERS = (PngParser(), JpegParser(), GifParser(), BmpParser())
 
 
 def probe_binary_details(path: Path) -> dict[str, Any]:
@@ -131,28 +150,11 @@ def probe_binary_details(path: Path) -> dict[str, Any]:
     data = _read_prefix(path)
     details: dict[str, Any] = {"size_bytes": size}
 
-    # PNG
-    w, h, c = _parse_png_dims(data)
-    if w is not None and h is not None:
-        details |= {"format": "png", "width": w, "height": h}
-        if c is not None:
-            details["color_type"] = c
-        return details
-    # JPEG
-    wj, hj = _parse_jpeg_dims(data)
-    if wj is not None and hj is not None:
-        details |= {"format": "jpeg", "width": wj, "height": hj}
-        return details
-    # GIF
-    wg, hg = _parse_gif_dims(data)
-    if wg is not None and hg is not None:
-        details |= {"format": "gif", "width": wg, "height": hg}
-        return details
-    # BMP
-    wb, hb = _parse_bmp_dims(data)
-    if wb is not None and hb is not None:
-        details |= {"format": "bmp", "width": wb, "height": hb}
-        return details
+    for parser in PARSERS:
+        parsed = parser.parse(data)
+        if parsed:
+            details |= parsed
+            return details
 
     # Fallback: include extension as a hint if present
     ext = path.suffix.lower().lstrip(".")
