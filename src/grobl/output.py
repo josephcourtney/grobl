@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 import pyperclip
@@ -47,18 +49,17 @@ class StdoutOutput:
         print(content)
 
 
+@dataclass(frozen=True)
 class OutputSinkAdapter:
-    """
-    Tiny adapter to turn a bare write-function into an OutputStrategy.
+    """Adapter turning a bare write-function into a callable and OutputStrategy."""
 
-    Why: simplifies injection from the CLI without reflection hacks.
-    """
+    write_fn: Callable[[str], None]
 
-    def __init__(self, write_fn: Callable[[str], None]) -> None:
-        self._write = write_fn
+    def __call__(self, content: str) -> None:
+        self.write_fn(content)
 
     def write(self, content: str) -> None:
-        self._write(content)
+        self(content)
 
 
 def compose_output_strategy(

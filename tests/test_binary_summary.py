@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from grobl.constants import OutputMode, TableStyle
-from grobl.output import OutputSinkAdapter
 from grobl.services import ScanExecutor, ScanOptions
 
 if TYPE_CHECKING:
@@ -34,7 +33,7 @@ def test_binary_summary_includes_image_details(tmp_path: Path) -> None:
     img.write_bytes(_fake_png_bytes(2, 3))
 
     cfg = {"exclude_tree": [], "exclude_print": []}
-    executor = ScanExecutor(sink=OutputSinkAdapter(_write_noop))
+    executor = ScanExecutor(sink=_write_noop)
     _, js = executor.execute(
         paths=[tmp_path],
         cfg=cfg,

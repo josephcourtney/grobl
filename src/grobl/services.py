@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json as _json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from .constants import CONFIG_INCLUDE_FILE_TAGS, CONFIG_INCLUDE_TREE_TAGS, OutputMode, TableStyle
 from .core import run_scan
@@ -11,11 +11,8 @@ from .renderers import DirectoryRenderer, build_llm_payload
 from .summary import build_sink_payload_json, build_summary
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
-
-
-class OutputSink(Protocol):
-    def write(self, content: str) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -28,7 +25,7 @@ class ScanOptions:
 class ScanExecutor:
     """Application service that runs a scan and produces both machine and human outputs."""
 
-    def __init__(self, sink: OutputSink) -> None:
+    def __init__(self, sink: Callable[[str], None]) -> None:
         self._sink = sink
 
     def execute(
@@ -51,7 +48,7 @@ class ScanExecutor:
                 mode=options.mode,
                 table=options.table,
             )
-            self._sink.write(_json.dumps(payload_json, sort_keys=True, indent=2))
+            self._sink(_json.dumps(payload_json, sort_keys=True, indent=2))
         else:
             payload = build_llm_payload(
                 builder=result.builder,
@@ -61,7 +58,7 @@ class ScanExecutor:
                 file_tag=ftag,
             )
             if payload:
-                self._sink.write(payload)
+                self._sink(payload)
 
         renderer = DirectoryRenderer(result.builder)
         tree_lines = renderer.tree_lines(include_metadata=True)

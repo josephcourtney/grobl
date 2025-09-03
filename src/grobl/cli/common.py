@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -18,7 +19,6 @@ from grobl.constants import (
 )
 from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError, ScanInterrupted
-from grobl.output import OutputSinkAdapter
 from grobl.services import ScanExecutor, ScanOptions
 from grobl.utils import is_text
 
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 MAX_REF_PREVIEW = 50
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -81,8 +82,9 @@ def _maybe_warn_on_common_heavy_dirs(
         return
     joined = ", ".join(sorted(found))
     msg = f"Warning: this scan may include heavy directories: {joined}. Continue? (y/N): "
+    logger.warning("potential heavy scan; dirs=%s", joined)
     if not confirm(msg):
-        raise SystemExit(1)
+        raise SystemExit(EXIT_USAGE)
 
 
 def _scan_for_legacy_references(base: Path) -> list[tuple[Path, int, str]]:
@@ -113,6 +115,7 @@ def _maybe_offer_legacy_migration(
     new = base / TOML_CONFIG
     refs = _scan_for_legacy_references(base)
     if refs:
+        logger.warning("found references to legacy config '%s'", LEGACY_TOML_CONFIG)
         print(f"Found references to '{LEGACY_TOML_CONFIG}' in the repository:")
         for p, ln, text in refs[:MAX_REF_PREVIEW]:
             print(f"  - {p}:{ln}: {text}")
@@ -130,8 +133,10 @@ def _maybe_offer_legacy_migration(
     ):
         try:
             legacy.rename(new)
+            logger.info("renamed legacy config '%s' -> '%s'", LEGACY_TOML_CONFIG, TOML_CONFIG)
             print(f"Renamed '{LEGACY_TOML_CONFIG}' -> '{TOML_CONFIG}'.")
         except OSError as e:
+            logger.exception("could not rename legacy config")
             print(f"Could not rename legacy config: {e}", file=sys.stderr)
 
 
@@ -158,7 +163,7 @@ def _execute_with_handling(
     table: TableStyle,
 ) -> tuple[str, dict[str, Any]]:
     try:
-        executor = ScanExecutor(sink=OutputSinkAdapter(write_fn))
+        executor = ScanExecutor(sink=write_fn)
         return executor.execute(
             paths=list(params.paths),
             cfg=cfg,
