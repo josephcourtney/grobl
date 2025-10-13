@@ -6,6 +6,16 @@
 ### Changed
 - nothing yet
 
+## [0.7.1] - 2025-08-28
+
+### Fixed
+- append trailing slashes to directory entries in tree output for clarity
+- restore zsh completion snippet to use `eval "$(env _GROBL_COMPLETE=zsh_source grobl)"`
+- update bundled default config to exclude `.grobl.config.toml` instead of `.grobl.toml`
+
+### Documentation
+- clarify shell completion setup in the README and add an end-to-end workflow overview
+
 ## [0.6.0] - 2025-08-28
 
 ### Added

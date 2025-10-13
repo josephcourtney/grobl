@@ -1,28 +1,3 @@
-## P0 — Immediate fixes (user-visible / correctness)
-
-* [ ] Append trailing “/” to directory entries in the tree output (`src/grobl/directory.py`: `TreeCollector.add_dir`).
-* [ ] Correct legacy filename/comment in default config: exclude `.grobl.config.toml` (not `.grobl.toml`) and fix the adjacent comment (`src/grobl/resources/default_config.toml`).
-
-## P1 — Tests & release hygiene
-
-* [ ] Add test: directories end with `/` in tree lines (`tests/test_tree_trailing_slash.py`).
-* [ ] Extend completions test to cover zsh; assert it contains `eval "$(env _GROBL_COMPLETE=zsh_source grobl)"` (`tests/test_cli_features.py`).
-* [ ] Resource regression test: bundled default config `exclude_tree` contains `.grobl.config.toml` and **not** `.grobl.toml` (new test).
-* [ ] Update `CHANGELOG.md`: note trailing-slash change, zsh completions fix, and default-config correction; bump patch version in `pyproject.toml`.
-* [ ] Review `README.md` completion instructions; ensure zsh uses `eval "$(env _GROBL_COMPLETE=zsh_source grobl)"`.
-
-## P2 — Small refactors (low risk / tidy-ups)
-
-* [ ] Centralize shell completion snippets in a small dictionary to reduce duplication/typos (`src/grobl/cli/completions.py`).
-* [ ] Extract tree connector glyphs (`"└── "`, `"├── "`) into named constants in `src/grobl/directory.py`.
-
-## P3 — Documentation quality
-
-* [ ] Clarify each module’s **purpose** at the top via a brief docstring (1–2 sentences).
-* [ ] Add a high-level **README** section explaining end-to-end flow (inputs → processing → outputs).
-* [ ] Add **module/class/function docstrings** (purpose, params, returns, raises, examples as applicable).
-* [ ] Add targeted **inline comments** for non-obvious logic (avoid narrating the obvious).
-
 ## P4 — Design & architecture (apply pragmatically with YAGNI)
 
 * [ ] Enforce **Single Responsibility** where classes/modules span multiple concerns.

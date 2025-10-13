@@ -1,3 +1,5 @@
+"""Output strategies responsible for delivering rendered payloads."""
+
 from __future__ import annotations
 
 import contextlib

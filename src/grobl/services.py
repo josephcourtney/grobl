@@ -1,3 +1,5 @@
+"""Application services that glue together scanning and rendering."""
+
 from __future__ import annotations
 
 import json as _json

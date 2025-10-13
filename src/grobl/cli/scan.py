@@ -1,3 +1,5 @@
+"""CLI command implementation for the ``grobl scan`` workflow."""
+
 from __future__ import annotations
 
 import json
