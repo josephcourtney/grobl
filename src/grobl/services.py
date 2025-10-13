@@ -10,7 +10,7 @@ from .constants import CONFIG_INCLUDE_FILE_TAGS, CONFIG_INCLUDE_TREE_TAGS, Outpu
 from .core import run_scan
 from .formatter import human_summary
 from .renderers import DirectoryRenderer, build_llm_payload
-from .summary import build_sink_payload_json, build_summary
+from .summary import SummaryContext, build_sink_payload_json, build_summary
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -30,6 +30,10 @@ class ScanExecutor:
     def __init__(self, sink: Callable[[str], None]) -> None:
         self._sink = sink
 
+    @staticmethod
+    def _should_emit_json_payload(options: ScanOptions) -> bool:
+        return options.fmt == "json" and options.mode != OutputMode.SUMMARY
+
     def execute(
         self,
         *,
@@ -43,24 +47,12 @@ class ScanExecutor:
         ttag = str(cfg.get(CONFIG_INCLUDE_TREE_TAGS, "directory"))
         ftag = str(cfg.get(CONFIG_INCLUDE_FILE_TAGS, "file"))
 
-        if options.fmt == "json" and options.mode != OutputMode.SUMMARY:
-            payload_json = build_sink_payload_json(
-                builder=result.builder,
-                common=result.common,
-                mode=options.mode,
-                table=options.table,
-            )
-            self._sink(_json.dumps(payload_json, sort_keys=True, indent=2))
-        else:
-            payload = build_llm_payload(
-                builder=result.builder,
-                common=result.common,
-                mode=options.mode,
-                tree_tag=ttag,
-                file_tag=ftag,
-            )
-            if payload:
-                self._sink(payload)
+        context = SummaryContext(
+            builder=result.builder,
+            common=result.common,
+            mode=options.mode,
+            table=options.table,
+        )
 
         renderer = DirectoryRenderer(result.builder)
         tree_lines = renderer.tree_lines(include_metadata=True)
@@ -71,11 +63,23 @@ class ScanExecutor:
             total_chars=result.builder.total_characters,
             table=options.table.value,
         )
-        # Build a machine-readable summary structure (for SUMMARY mode printing)
-        json_summary = build_summary(
+
+        if self._should_emit_json_payload(options):
+            payload_json = build_sink_payload_json(context)
+            self._sink(_json.dumps(payload_json, sort_keys=True, indent=2))
+            json_summary = build_summary(context)
+            return human, json_summary
+
+        payload = build_llm_payload(
             builder=result.builder,
             common=result.common,
             mode=options.mode,
-            table=options.table,
+            tree_tag=ttag,
+            file_tag=ftag,
         )
+        if payload:
+            self._sink(payload)
+
+        # Build a machine-readable summary structure (for SUMMARY mode printing)
+        json_summary = build_summary(context)
         return human, json_summary
