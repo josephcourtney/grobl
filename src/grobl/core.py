@@ -56,6 +56,11 @@ def run_scan(
     start = perf_counter()
     resolved = [p.resolve() for p in paths]
     common = find_common_ancestor(resolved)
+    if common.is_file():
+        # For single-file scans the common ancestor resolves to the file path
+        # itself. Normalise to the containing directory so relative paths and
+        # directory traversal operate on a directory base.
+        common = common.parent
 
     excl_tree = list(cfg.get(CONFIG_EXCLUDE_TREE, []))
     excl_print = list(cfg.get(CONFIG_EXCLUDE_PRINT, []))

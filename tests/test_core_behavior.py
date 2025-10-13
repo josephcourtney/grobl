@@ -136,6 +136,22 @@ def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
     assert meta["note.txt"][0] == 1
 
 
+def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
+    target = tmp_path / "solo.txt"
+    target.write_text("line1\nline2\n", encoding="utf-8")
+
+    res = run_scan(paths=[target], cfg={})
+
+    assert res.common == tmp_path
+    tree = res.builder.tree_output()
+    assert any("solo.txt" in line for line in tree)
+    meta = dict(res.builder.metadata_items())
+    assert "solo.txt" in meta
+    lines, _, included = meta["solo.txt"]
+    assert lines == 2
+    assert included is True
+
+
 def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
     binary = tmp_path / "blob.bin"
     binary.write_bytes(b"abc")

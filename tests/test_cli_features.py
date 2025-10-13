@@ -23,6 +23,14 @@ def test_warn_on_summary_table_none(tmp_path: Path, monkeypatch: object) -> None
     assert "warning: --mode summary with --table none" in result.output
 
 
+def test_cli_scan_accepts_file_path(tmp_path: Path) -> None:
+    target = tmp_path / "solo.txt"
+    target.write_text("hello\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(cli, ["scan", str(target), "--mode", "summary"])
+    assert result.exit_code == 0
+
+
 def test_completions_command_outputs_script() -> None:
     runner = CliRunner()
     res = runner.invoke(cli, ["completions", "--shell", "bash"])
