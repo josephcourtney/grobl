@@ -4,7 +4,7 @@
 - change: apply gitignore-style pattern semantics (including `**`) for all exclude lists
 
 ### Changed
-- nothing yet
+- refactor summary builders to share a dataclass context and guard JSON emission flow
 
 ## [0.7.1] - 2025-08-28
 

@@ -1,13 +1,8 @@
-"""Helpers to build machine-readable summaries and JSON payloads.
-
-This module centralizes logic that was previously duplicated in services.py:
-- constructing per-file entries with binary heuristics
-- assembling totals and top-level summary structures
-- building the non-summary JSON payload written to the sink
-"""
+"""Helpers for building machine-readable summaries and sink payloads."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .constants import OutputMode, TableStyle
@@ -16,6 +11,16 @@ if TYPE_CHECKING:  # resolve types for static checkers without runtime imports
     from pathlib import Path
 
     from .directory import DirectoryTreeBuilder
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryContext:
+    """Parameter object capturing the shared summary inputs."""
+
+    builder: DirectoryTreeBuilder
+    common: Path
+    mode: OutputMode
+    table: TableStyle
 
 
 def _file_entries(builder: DirectoryTreeBuilder) -> list[dict[str, Any]]:
@@ -41,30 +46,19 @@ def _totals(builder: DirectoryTreeBuilder) -> dict[str, int]:
     }
 
 
-def build_summary(
-    *,
-    builder: DirectoryTreeBuilder,
-    common: Path,
-    mode: OutputMode,
-    table: TableStyle,
-) -> dict[str, Any]:
+def build_summary(context: SummaryContext) -> dict[str, Any]:
     """Build a machine-readable summary for SUMMARY mode printing."""
+    builder = context.builder
     return {
-        "root": str(common),
-        "mode": mode.value,
-        "table": table.value,
+        "root": str(context.common),
+        "mode": context.mode.value,
+        "table": context.table.value,
         "totals": _totals(builder),
         "files": _file_entries(builder),
     }
 
 
-def build_sink_payload_json(
-    *,
-    builder: DirectoryTreeBuilder,
-    common: Path,
-    mode: OutputMode,
-    table: TableStyle,
-) -> dict[str, Any]:
+def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
     """Build the JSON payload written to the sink for non-summary JSON mode.
 
     Structure is preserved for backward compatibility with existing behavior:
@@ -76,18 +70,19 @@ def build_sink_payload_json(
       "summary": {"table": str, "totals": {...}, "files": [...]}
     }
     """
+    builder = context.builder
     payload: dict[str, Any] = {
-        "root": str(common),
-        "mode": mode.value,
+        "root": str(context.common),
+        "mode": context.mode.value,
     }
-    if mode in {OutputMode.ALL, OutputMode.TREE}:
+    if context.mode in {OutputMode.ALL, OutputMode.TREE}:
         entries = [{"type": typ, "path": str(rel)} for typ, rel in builder.ordered_entries()]
         payload["tree"] = entries
-    if mode in {OutputMode.ALL, OutputMode.FILES}:
+    if context.mode in {OutputMode.ALL, OutputMode.FILES}:
         payload["files"] = builder.files_json()
 
     payload["summary"] = {
-        "table": table.value,
+        "table": context.table.value,
         "totals": _totals(builder),
         "files": _file_entries(builder),
     }
