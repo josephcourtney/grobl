@@ -10,9 +10,7 @@
 
 ## P5 — Code quality & consistency
 
-* [ ] Replace repeated parameter groups with **Parameter Objects** (`@dataclass`, `slots=True` where many instances).
 * [ ] Prefer **keyword arguments**; order consistently (inputs → options → dependencies).
-* [ ] Simplify conditionals with extracted predicates and guard clauses.
 * [ ] Reduce **message chains** by introducing well-named locals/facades.
 * [ ] DRY up duplicate logic via shared helpers/utilities.
 * [ ] Remove unreachable code, unused functions/classes, and commented-out blocks.
