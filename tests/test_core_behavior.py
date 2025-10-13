@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from grobl.core import run_scan
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
 from grobl.file_handling import (
@@ -155,3 +157,9 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
     res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers)
     meta = dict(res.builder.metadata_items())
     assert meta["blob.bin"][1] == 0
+
+
+def test_run_scan_rejects_missing_paths(tmp_path: Path) -> None:
+    missing = tmp_path / "does-not-exist"
+    with pytest.raises(ValueError, match="scan paths do not exist"):
+        run_scan(paths=[missing], cfg={})
