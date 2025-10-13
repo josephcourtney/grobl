@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from pathspec import PathSpec
+
 
 class TreeCallback(Protocol):
     """Directory traversal callback.
@@ -186,13 +188,28 @@ class DirectoryTreeBuilder:
         self.binaries.record(rel, details)
 
 
-def filter_items(items: list[Path], paths: list[Path], patterns: list[str], base: Path) -> list[Path]:
-    """Filter ``items`` against ``paths`` and ``patterns``."""
+def _to_git_path(p: Path, *, is_dir: bool) -> str:
+    """Return POSIX-like path string suitable for gitignore matching.
+
+    For directories, append a trailing slash to preserve directory-only patterns.
+    """
+    s = p.as_posix()
+    return s + ("/" if is_dir and not s.endswith("/") else "")
+
+
+def filter_items(
+    items: list[Path], paths: list[Path], patterns: list[str], base: Path, spec: PathSpec | None = None
+) -> list[Path]:
+    """Filter ``items`` against ``paths`` and ``patterns`` using gitignore semantics."""
+    # Compile once per call if not provided (keeps backward compatibility for direct calls in tests)
+    spec = spec or PathSpec.from_lines("gitwildmatch", patterns)
     results: list[Path] = []
     for item in items:
         if not any(item.is_relative_to(p) for p in paths):
             continue
-        if any(item.relative_to(base).match(pat) for pat in patterns):
+        rel = item.relative_to(base)
+        rel_git = _to_git_path(rel, is_dir=item.is_dir())
+        if spec.match_file(rel_git):
             continue
         results.append(item)
     return sorted(results, key=lambda x: x.name)
@@ -200,13 +217,17 @@ def filter_items(items: list[Path], paths: list[Path], patterns: list[str], base
 
 def traverse_dir(
     path: Path,
-    config: tuple[list[Path], list[str], Path],
+    config: tuple[list[Path], list[str], Path] | tuple[list[Path], list[str], Path, PathSpec],
     callback: TreeCallback,
     prefix: str = "",
 ) -> None:
     """Depth-first traversal applying ``callback`` to each item."""
-    paths, patterns, base = config
-    items = filter_items(list(path.iterdir()), paths, patterns, base)
+    if len(config) == 3:
+        paths, patterns, base = config
+        spec: PathSpec | None = None
+    else:
+        paths, patterns, base, spec = config  # type: ignore[misc,assignment]
+    items = filter_items(list(path.iterdir()), paths, patterns, base, spec)
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1
         callback(item, prefix, is_last=is_last)

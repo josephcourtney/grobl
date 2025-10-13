@@ -24,7 +24,7 @@ def completions(shell: str) -> None:
             f"complete -F _grobl_completion {prog}"
         )
     elif shell == "zsh":
-        print(f'autoload -U compinit; compinit\n_eval "$(env {var}=zsh_source {prog})"')
+        print(f'autoload -U compinit; compinit\neval "$(env {var}=zsh_source {prog})"')
     elif shell == "fish":
         print(f"eval (env {var}=fish_source {prog})")
     else:  # pragma: no cover - defensive

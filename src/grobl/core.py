@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from pathspec import PathSpec
+
 from grobl.binary_probe import probe_binary_details
 from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
@@ -34,6 +36,9 @@ def run_scan(
 
     excl_tree = list(cfg.get(CONFIG_EXCLUDE_TREE, []))
     excl_print = list(cfg.get(CONFIG_EXCLUDE_PRINT, []))
+    # Compile gitignore-style specs once per run
+    tree_spec = PathSpec.from_lines("gitwildmatch", excl_tree)
+    print_spec = PathSpec.from_lines("gitwildmatch", excl_print)
 
     builder = DirectoryTreeBuilder(base_path=common, exclude_patterns=excl_tree)
 
@@ -49,7 +54,9 @@ def run_scan(
             content = read_text(item)
             ln, ch = len(content.splitlines()), len(content)
             builder.record_metadata(rel, ln, ch)
-            if not any(rel.match(p) for p in excl_print):
+            # gitignore semantics for exclude_print
+            rel_str = rel.as_posix()
+            if not print_spec.match_file(rel_str):
                 builder.add_file(item, rel, ln, ch, content)
         else:
             size = item.stat().st_size
@@ -58,9 +65,12 @@ def run_scan(
             details = probe_binary_details(item)
             builder.record_binary_details(rel, details)
 
-    config_tuple = (resolved, excl_tree, common)
     try:
-        traverse_dir(common, config_tuple, collect)
+        # Pass a 4-tuple so traverse_dir can reuse the compiled spec
+        from pathspec import PathSpec as _PS  # local import for type clarity
+
+        _ = _PS  # silence linters about unused import in runtime
+        traverse_dir(common, (resolved, excl_tree, common, tree_spec), collect)
     except KeyboardInterrupt as _:
         # Surface the partial state so the CLI can print proper diagnostics.
         raise ScanInterrupted(builder, common) from _
