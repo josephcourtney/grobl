@@ -6,6 +6,18 @@
 ### Changed
 - refactor summary builders to share a dataclass context and guard JSON emission flow
 
+## [0.7.2] - 2025-10-13
+
+### Added
+- add regression test ensuring JSON payload emission respects requested format
+
+### Changed
+- replace summary format string flags with a SummaryFormat enum across CLI and services
+- make scan option and result dataclasses immutable to prevent accidental mutation
+
+### Fixed
+- fix clipboard fallback by importing contextlib in the output strategy composer
+
 ## [0.7.1] - 2025-08-28
 
 ### Fixed

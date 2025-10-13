@@ -6,7 +6,13 @@ import json as _json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .constants import CONFIG_INCLUDE_FILE_TAGS, CONFIG_INCLUDE_TREE_TAGS, OutputMode, TableStyle
+from .constants import (
+    CONFIG_INCLUDE_FILE_TAGS,
+    CONFIG_INCLUDE_TREE_TAGS,
+    OutputMode,
+    SummaryFormat,
+    TableStyle,
+)
 from .core import run_scan
 from .formatter import human_summary
 from .renderers import DirectoryRenderer, build_llm_payload
@@ -17,11 +23,11 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ScanOptions:
     mode: OutputMode
     table: TableStyle
-    fmt: str = "human"
+    fmt: SummaryFormat = SummaryFormat.HUMAN
 
 
 class ScanExecutor:
@@ -32,7 +38,7 @@ class ScanExecutor:
 
     @staticmethod
     def _should_emit_json_payload(options: ScanOptions) -> bool:
-        return options.fmt == "json" and options.mode != OutputMode.SUMMARY
+        return options.fmt is SummaryFormat.JSON and options.mode is not OutputMode.SUMMARY
 
     def execute(
         self,

@@ -23,6 +23,13 @@ class TableStyle(StrEnum):
     NONE = "none"
 
 
+class SummaryFormat(StrEnum):
+    """Supported summary output formats."""
+
+    HUMAN = "human"
+    JSON = "json"
+
+
 # "Common heavy directories that can cause very large scans when default ignores are disabled."
 HEAVY_DIRS: set[str] = {"node_modules", "venv", ".venv", "env", "site-packages"}
 

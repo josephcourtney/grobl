@@ -9,7 +9,7 @@ from pathlib import Path
 import click
 
 from grobl.config import load_and_adjust_config
-from grobl.constants import EXIT_CONFIG, OutputMode, TableStyle
+from grobl.constants import EXIT_CONFIG, OutputMode, SummaryFormat, TableStyle
 from grobl.errors import ConfigLoadError, PathNotFoundError
 from grobl.output import build_writer_from_config
 from grobl.tty import resolve_table_style
@@ -54,8 +54,8 @@ from .common import (
 @click.option(
     "--format",
     "fmt",
-    type=click.Choice(["human", "json"], case_sensitive=False),
-    default="human",
+    type=click.Choice([f.value for f in SummaryFormat], case_sensitive=False),
+    default=SummaryFormat.HUMAN.value,
     help="Summary output format",
 )
 @click.option(
@@ -101,7 +101,7 @@ def scan(
         table=TableStyle(table),
         config_path=config_path,
         quiet=quiet,
-        fmt=fmt,
+        fmt=SummaryFormat(fmt),
         paths=paths or (Path(),),
     )
 
@@ -134,7 +134,7 @@ def scan(
     actual_table = resolve_table_style(params.table)
 
     if (
-        params.fmt == "human"
+        params.fmt is SummaryFormat.HUMAN
         and not params.quiet
         and params.mode is OutputMode.SUMMARY
         and actual_table is TableStyle.NONE
@@ -147,9 +147,9 @@ def scan(
 
     if not params.quiet:
         try:
-            if params.fmt == "human" and summary:
+            if params.fmt is SummaryFormat.HUMAN and summary:
                 print(summary, end="")
-            elif params.fmt == "json" and params.mode == OutputMode.SUMMARY:
+            elif params.fmt is SummaryFormat.JSON and params.mode is OutputMode.SUMMARY:
                 print(json.dumps(summary_json, sort_keys=True, indent=2))
         except BrokenPipeError:
             try:
