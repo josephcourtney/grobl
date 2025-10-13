@@ -1,3 +1,5 @@
+"""CLI command reporting the installed grobl version."""
+
 from __future__ import annotations
 
 import click

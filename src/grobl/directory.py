@@ -3,9 +3,15 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from pathspec import PathSpec
+
+# Tree rendering glyphs are captured as constants to keep string literals
+# consistent across the codebase and the tests that assert on them.
+LAST_CONNECTOR = "└── "
+BRANCH_CONNECTOR = "├── "
+CONFIG_WITHOUT_SPEC_LENGTH = 3
 
 
 class TreeCallback(Protocol):
@@ -30,38 +36,47 @@ class TreeCollector:
     _ordered: list[tuple[str, Path]] = field(default_factory=list)
 
     def add_dir(self, base: Path, directory_path: Path, prefix: str, *, is_last: bool) -> None:
-        connector = "└── " if is_last else "├── "
-        self._tree_output.append(f"{prefix}{connector}{directory_path.name}")
+        """Record a directory in the rendered tree output."""
+        connector = LAST_CONNECTOR if is_last else BRANCH_CONNECTOR
+        self._tree_output.append(f"{prefix}{connector}{directory_path.name}/")
         rel = directory_path.relative_to(base)
         self._ordered.append(("dir", rel))
 
     def add_file(self, base: Path, file_path: Path, prefix: str, *, is_last: bool) -> None:
-        connector = "└── " if is_last else "├── "
+        """Record a file in the tree output and metadata structures."""
+        connector = LAST_CONNECTOR if is_last else BRANCH_CONNECTOR
         rel = file_path.relative_to(base)
         self._tree_output.append(f"{prefix}{connector}{file_path.name}")
         self._file_tree_entries.append((len(self._tree_output) - 1, rel))
         self._ordered.append(("file", rel))
 
     def lines(self) -> list[str]:
+        """Return a copy of the accumulated tree lines."""
         return list(self._tree_output)
 
     def entries(self) -> list[tuple[int, Path]]:
+        """Return recorded file entries pairing tree index to relative path."""
         return list(self._file_tree_entries)
 
     def ordered(self) -> list[tuple[str, Path]]:
+        """Return entries in visitation order tagged with their item type."""
         return list(self._ordered)
 
 
 @dataclass(slots=True)
 class FileCollector:
+    """Store metadata and content for files encountered during traversal."""
+
     _metadata: dict[str, tuple[int, int, bool]] = field(default_factory=dict)
     _file_contents: list[str] = field(default_factory=list)
     _json_file_blobs: list[dict[str, Any]] = field(default_factory=list)
 
     def record_metadata(self, rel: Path, lines: int, chars: int) -> None:
+        """Record line/character counts without capturing the file contents."""
         self._metadata[str(rel)] = (lines, chars, False)
 
     def add_file(self, file_path: Path, rel: Path, lines: int, chars: int, content: str) -> None:
+        """Record metadata plus sanitized content for ``rel``."""
         self._metadata[str(rel)] = (lines, chars, True)
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
@@ -73,26 +88,34 @@ class FileCollector:
         self._json_file_blobs.append({"name": str(rel), "lines": lines, "chars": chars, "content": content})
 
     def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
+        """Yield recorded metadata keyed by relative path string."""
         return self._metadata.items()
 
     def get_metadata(self, key: str) -> tuple[int, int, bool] | None:
+        """Return metadata for ``key`` if known."""
         return self._metadata.get(key)
 
     def contents(self) -> list[str]:
+        """Return captured file content payloads for rendering."""
         return list(self._file_contents)
 
     def files_json(self) -> list[dict[str, Any]]:
+        """Return JSON-safe blobs describing captured files."""
         return list(self._json_file_blobs)
 
 
 @dataclass(slots=True)
 class BinaryCollector:
+    """Maintain metadata about binary files encountered during traversal."""
+
     _details: dict[str, dict] = field(default_factory=dict)
 
     def record(self, rel: Path, details: dict) -> None:
+        """Store ``details`` for the binary file located at ``rel``."""
         self._details[str(rel)] = dict(details)
 
     def get(self, key: str) -> dict | None:
+        """Return stored metadata for ``key`` if available."""
         return self._details.get(key)
 
 
@@ -115,21 +138,27 @@ class DirectoryTreeBuilder:
 
     # ----- Read-only accessors (encapsulation) -----
     def tree_output(self) -> list[str]:
+        """Expose the collected tree lines for rendering."""
         return self.tree.lines()
 
     def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
+        """Iterate over the recorded file metadata."""
         return self.files.metadata_items()
 
     def get_metadata(self, key: str) -> tuple[int, int, bool] | None:
+        """Return stored metadata for ``key`` if it exists."""
         return self.files.get_metadata(key)
 
     def file_contents(self) -> list[str]:
+        """Return captured file content payloads."""
         return self.files.contents()
 
     def file_tree_entries(self) -> list[tuple[int, Path]]:
+        """Return tree indices paired with file paths for later augmentation."""
         return self.tree.entries()
 
     def get_binary_details(self, key: str) -> dict | None:
+        """Return binary metadata for ``key`` if known."""
         return self.binaries.get(key)
 
     def ordered_entries(self) -> list[tuple[str, Path]]:
@@ -137,6 +166,7 @@ class DirectoryTreeBuilder:
         return self.tree.ordered()
 
     def files_json(self) -> list[dict[str, Any]]:
+        """Return JSON payloads for included files."""
         return self.files.files_json()
 
     # ----- Mutators (internal use) -----
@@ -185,6 +215,7 @@ class DirectoryTreeBuilder:
         self.total_characters += chars
 
     def record_binary_details(self, rel: Path, details: dict) -> None:
+        """Record metadata about a binary artifact at ``rel``."""
         self.binaries.record(rel, details)
 
 
@@ -222,11 +253,11 @@ def traverse_dir(
     prefix: str = "",
 ) -> None:
     """Depth-first traversal applying ``callback`` to each item."""
-    if len(config) == 3:
-        paths, patterns, base = config
+    if len(config) == CONFIG_WITHOUT_SPEC_LENGTH:
+        paths, patterns, base = cast(tuple[list[Path], list[str], Path], config)  # noqa: TC006 - runtime tuple unpacking
         spec: PathSpec | None = None
     else:
-        paths, patterns, base, spec = config  # type: ignore[misc,assignment]
+        paths, patterns, base, spec = cast(tuple[list[Path], list[str], Path, PathSpec], config)  # noqa: TC006 - runtime tuple unpacking
     items = filter_items(list(path.iterdir()), paths, patterns, base, spec)
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1

@@ -1,3 +1,5 @@
+"""CLI command that bootstraps a default configuration file."""
+
 from __future__ import annotations
 
 import sys

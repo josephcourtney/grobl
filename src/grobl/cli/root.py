@@ -1,3 +1,5 @@
+"""Top-level Click group wiring together all grobl commands."""
+
 from __future__ import annotations
 
 import logging

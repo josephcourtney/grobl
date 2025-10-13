@@ -67,9 +67,6 @@ def run_scan(
 
     try:
         # Pass a 4-tuple so traverse_dir can reuse the compiled spec
-        from pathspec import PathSpec as _PS  # local import for type clarity
-
-        _ = _PS  # silence linters about unused import in runtime
         traverse_dir(common, (resolved, excl_tree, common, tree_spec), collect)
     except KeyboardInterrupt as _:
         # Surface the partial state so the CLI can print proper diagnostics.

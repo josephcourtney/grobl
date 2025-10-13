@@ -62,8 +62,14 @@ If default ignores are disabled or you explicitly target known heavy directories
 
 Generate and install completion scripts per shell:
 - Bash: `grobl completions --shell bash > /usr/local/etc/bash_completion.d/grobl`
-- Zsh: `grobl completions --shell zsh > ~/.zfunc/_grobl` then add `fpath+=(~/.zfunc)` and `autoload -U compinit && compinit` in your `.zshrc`.
+- Zsh: `grobl completions --shell zsh > ~/.zfunc/_grobl` then add `fpath+=(~/.zfunc)` and `autoload -U compinit && compinit` in your `.zshrc`, followed by `eval "$(env _GROBL_COMPLETE=zsh_source grobl)"` to enable completions in the current shell.
 - Fish: `grobl completions --shell fish > ~/.config/fish/completions/grobl.fish`
+
+## How grobl processes a project
+
+1. **Input discovery** – `grobl scan` walks the supplied project paths, applying ignore rules from `.grobl.toml`, CLI overrides, and built-in defaults to decide which directories and files to consider.
+2. **Data collection** – the directory walker records the tree structure, gathers file metadata (line and character counts), and captures file contents when requested, while heuristics flag binaries to avoid dumping unreadable data.
+3. **Formatting and output** – renderers convert the collected data into human or JSON output, optionally copying it to the clipboard, and summaries aggregate statistics for quick inspection or automated tooling.
 
 ## Exit Codes
 
