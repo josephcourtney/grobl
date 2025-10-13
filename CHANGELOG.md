@@ -1,13 +1,21 @@
 ## [Unreleased]
 
+## [0.7.3] - 2025-10-18
+
 ### Added
 - change: apply gitignore-style pattern semantics (including `**`) for all exclude lists
 - add file handling strategy registry and template-based handlers for text and binary files
+- add structured logging helpers and emit scan lifecycle events
+- add property-based regression for runtime ignore merging logic
 
 ### Changed
 - refactor summary builders to share a dataclass context and guard JSON emission flow
 - refactor scan execution to inject dependencies and collapse message chains
 - refactor output writer creation into a factory-driven strategy chain with graceful clipboard fallback
+- enforce scan input validation and capture traversal timing metrics
+
+### Fixed
+- guard clipboard copies with bounded retries and timeout logging
 
 ## [0.7.2] - 2025-10-13
 
