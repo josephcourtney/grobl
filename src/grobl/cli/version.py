@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import click
 
-from grobl import __version__
+from grobl import __version__, __version_source__
 
 
 @click.command()
 def version() -> None:
     """Print version and exit."""
-    print(__version__)
+    print(f"{__version__} ({__version_source__})")
