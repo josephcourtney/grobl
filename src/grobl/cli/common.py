@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -90,8 +90,7 @@ def _maybe_warn_on_common_heavy_dirs(
         raise SystemExit(EXIT_USAGE)
 
 
-def _scan_for_legacy_references(base: Path) -> list[tuple[Path, int, str]]:
-    hits: list[tuple[Path, int, str]] = []
+def iter_legacy_references(base: Path) -> Iterator[tuple[Path, int, str]]:
     for path in base.rglob("*"):
         if path.is_dir():
             continue
@@ -103,10 +102,13 @@ def _scan_for_legacy_references(base: Path) -> list[tuple[Path, int, str]]:
             with path.open("r", encoding="utf-8", errors="ignore") as f:
                 for i, line in enumerate(f, start=1):
                     if LEGACY_TOML_CONFIG in line:
-                        hits.append((path, i, line.rstrip()))
+                        yield path, i, line.rstrip()
         except OSError:
             continue
-    return hits
+
+
+def _scan_for_legacy_references(base: Path) -> list[tuple[Path, int, str]]:
+    return list(iter_legacy_references(base))
 
 
 def _maybe_offer_legacy_migration(
