@@ -2,9 +2,12 @@
 
 ### Added
 - change: apply gitignore-style pattern semantics (including `**`) for all exclude lists
+- add file handling strategy registry and template-based handlers for text and binary files
 
 ### Changed
 - refactor summary builders to share a dataclass context and guard JSON emission flow
+- refactor scan execution to inject dependencies and collapse message chains
+- refactor output writer creation into a factory-driven strategy chain with graceful clipboard fallback
 
 ## [0.7.2] - 2025-10-13
 

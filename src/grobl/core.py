@@ -7,14 +7,18 @@ from typing import TYPE_CHECKING, Any
 
 from pathspec import PathSpec
 
-from grobl.binary_probe import probe_binary_details
 from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
 )
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
 from grobl.errors import ScanInterrupted
-from grobl.utils import find_common_ancestor, is_text, read_text
+from grobl.file_handling import (
+    FileHandlerRegistry,
+    FileProcessingContext,
+    ScanDependencies,
+)
+from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -27,8 +31,11 @@ class ScanResult:
 
 
 def run_scan(
+    *,
     paths: list[Path],
     cfg: dict[str, Any],
+    dependencies: ScanDependencies | None = None,
+    handlers: FileHandlerRegistry | None = None,
 ) -> ScanResult:
     """Traverse the requested paths and collect data only."""
     resolved = [p.resolve() for p in paths]
@@ -41,6 +48,14 @@ def run_scan(
     print_spec = PathSpec.from_lines("gitwildmatch", excl_print)
 
     builder = DirectoryTreeBuilder(base_path=common, exclude_patterns=excl_tree)
+    deps = ScanDependencies.default() if dependencies is None else dependencies
+    registry = FileHandlerRegistry.default() if handlers is None else handlers
+    context = FileProcessingContext(
+        builder=builder,
+        common=common,
+        print_spec=print_spec,
+        dependencies=deps,
+    )
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
         if item.is_dir():
@@ -49,21 +64,7 @@ def run_scan(
 
         # file
         builder.add_file_to_tree(item, prefix, is_last=is_last)
-        rel = item.relative_to(common)
-        if is_text(item):
-            content = read_text(item)
-            ln, ch = len(content.splitlines()), len(content)
-            builder.record_metadata(rel, ln, ch)
-            # gitignore semantics for exclude_print
-            rel_str = rel.as_posix()
-            if not print_spec.match_file(rel_str):
-                builder.add_file(item, rel, ln, ch, content)
-        else:
-            size = item.stat().st_size
-            builder.record_metadata(rel, 0, size)
-            # Collect additional binary summary details (e.g., image dimensions)
-            details = probe_binary_details(item)
-            builder.record_binary_details(rel, details)
+        registry.handle(path=item, context=context)
 
     try:
         # Pass a 4-tuple so traverse_dir can reuse the compiled spec
