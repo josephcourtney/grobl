@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 import pyperclip
+
+from grobl.logging_utils import StructuredLogEvent, get_logger, log_event
 
 from .tty import clipboard_allowed
 
@@ -14,7 +18,16 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+MAX_CLIPBOARD_TIMEOUT = 2.0
+MAX_CLIPBOARD_RETRIES = 2
+
+
+def _copy_with_timeout(content: str, *, timeout: float = MAX_CLIPBOARD_TIMEOUT) -> None:
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(pyperclip.copy, content)
+        future.result(timeout=timeout)
 
 
 class OutputStrategy(Protocol):
@@ -38,7 +51,50 @@ class ClipboardOutput:
 
     @staticmethod
     def write(content: str) -> None:
-        pyperclip.copy(content)
+        last_error: Exception | None = None
+        for attempt in range(1, MAX_CLIPBOARD_RETRIES + 1):
+            try:
+                _copy_with_timeout(content)
+            except FuturesTimeoutError as err:
+                timeout_error = TimeoutError(
+                    f"clipboard copy timed out after {MAX_CLIPBOARD_TIMEOUT} seconds"
+                )
+                log_event(
+                    logger,
+                    StructuredLogEvent(
+                        name="clipboard.timeout",
+                        message="clipboard copy timed out",
+                        level=logging.WARNING,
+                        context={"attempt": attempt, "max_attempts": MAX_CLIPBOARD_RETRIES},
+                    ),
+                )
+                raise timeout_error from err
+            except pyperclip.PyperclipException as err:  # pragma: no cover - backend dependent
+                last_error = err
+                if attempt < MAX_CLIPBOARD_RETRIES:
+                    log_event(
+                        logger,
+                        StructuredLogEvent(
+                            name="clipboard.retry",
+                            message="clipboard copy failed; retrying",
+                            level=logging.WARNING,
+                            context={"attempt": attempt, "max_attempts": MAX_CLIPBOARD_RETRIES},
+                        ),
+                    )
+                    continue
+            else:
+                return
+        if last_error is not None:
+            log_event(
+                logger,
+                StructuredLogEvent(
+                    name="clipboard.failed",
+                    message="clipboard copy failed after retries",
+                    level=logging.ERROR,
+                    context={"max_attempts": MAX_CLIPBOARD_RETRIES},
+                ),
+            )
+            raise last_error
 
 
 class StdoutOutput:

@@ -16,6 +16,7 @@ from .constants import (
 )
 from .core import ScanResult, run_scan
 from .formatter import human_summary
+from .logging_utils import StructuredLogEvent, get_logger, log_event
 from .renderers import DirectoryRenderer, build_llm_payload
 from .summary import SummaryContext, build_sink_payload_json, build_summary
 
@@ -57,6 +58,8 @@ class ScanExecutorDependencies:
 class ScanExecutor:
     """Application service that runs a scan and produces both machine and human outputs."""
 
+    _logger = get_logger(__name__)
+
     def __init__(
         self,
         *,
@@ -78,6 +81,18 @@ class ScanExecutor:
         options: ScanOptions,
     ) -> tuple[str, dict[str, Any]]:
         """Return (human summary, json-summary); emit payload to sink as needed."""
+        log_event(
+            self._logger,
+            StructuredLogEvent(
+                name="executor.start",
+                message="starting scan executor",
+                context={
+                    "path_count": len(paths),
+                    "mode": options.mode.value,
+                    "format": options.fmt.value,
+                },
+            ),
+        )
         result = self._deps.scan(paths=paths, cfg=cfg)
 
         ttag = str(cfg.get(CONFIG_INCLUDE_TREE_TAGS, "directory"))
@@ -102,6 +117,17 @@ class ScanExecutor:
             payload_json = self._deps.sink_payload_builder(context)
             self._sink(_json.dumps(payload_json, sort_keys=True, indent=2))
             json_summary = self._deps.summary_builder(context)
+            log_event(
+                self._logger,
+                StructuredLogEvent(
+                    name="executor.emitted_json",
+                    message="emitted json payload to sink",
+                    context={
+                        "tree_entries": len(builder.tree_output()),
+                        "file_entries": len(builder.file_contents()),
+                    },
+                ),
+            )
             return human, json_summary
 
         payload = self._deps.payload_builder(
@@ -116,4 +142,15 @@ class ScanExecutor:
 
         # Build a machine-readable summary structure (for SUMMARY mode printing)
         json_summary = self._deps.summary_builder(context)
+        log_event(
+            self._logger,
+            StructuredLogEvent(
+                name="executor.complete",
+                message="scan executor completed",
+                context={
+                    "total_lines": builder.total_lines,
+                    "total_characters": builder.total_characters,
+                },
+            ),
+        )
         return human, json_summary
