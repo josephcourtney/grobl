@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+## [0.7.4] - 2025-10-19
+
+### Fixed
+- fix scan traversal to accept single-file inputs without raising directory errors
+
+=======
+
 ## [0.7.3] - 2025-10-18
 
 ### Added
