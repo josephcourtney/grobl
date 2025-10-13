@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class ScanResult:
     builder: DirectoryTreeBuilder
     common: Path
