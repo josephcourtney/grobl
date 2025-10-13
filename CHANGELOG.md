@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Added
-- nothing yet
+- change: apply gitignore-style pattern semantics (including `**`) for all exclude lists
 
 ### Changed
 - nothing yet
