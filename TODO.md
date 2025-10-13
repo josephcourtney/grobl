@@ -1,71 +1,153 @@
-## Correctness / Bugs
+## P0 — Correctness & Crash Prevention (ship first)
 
-* [ ] Version source labeling: in `src/grobl/__init__.py`, if `importlib.metadata` lookup fails, parse `[project].version` from `pyproject.toml`; expose `__version_source__ = "distribution"|"pyproject"|"fallback"`.
-* [ ] `version` subcommand: print version with source annotation (e.g., `0.7.4 (pyproject)`).
-* [ ] Route *all* output through the sink: in `cli/scan.py`, send human/JSON summaries via `write_fn(...)` instead of `print(...)` so `--mode summary --output <file>` writes to the file.
-* [ ] `--quiet` must not suppress machine output: allow JSON summaries to print even with `--quiet`.
-* [ ] Click errors without tracebacks: wrap `cli.main(...)` with `try/except` for `click.UsageError`/`ClickException`, call `.show()` and exit with `EXIT_USAGE`.
-* [ ] Config precedence with legacy: if both `.grobl.config.toml` and `.grobl.toml` exist, load legacy first, modern second; warn once that legacy is present.
-* [ ] Improve “No common ancestor” message when only filesystem root is shared.
+* [ ] **Route *all* summaries through the sink (no direct `print`)**
 
-## UX simplifications
+  * **Files**: `src/grobl/cli/scan.py`
+  * **Change**: Send both human and JSON summaries via `write_fn(...)`.
+  * **Notes**: Human summary respects `--quiet`; JSON summary is **never** suppressed by `--quiet`.
 
-* [ ] Unify routing model: one writer for payload + summaries (done above); remove direct `print` paths.
-* [ ] Add `--emit {human,json,none}` (default: `human` on TTY; `json` if `--format json` or non-TTY). Wire to summary emission only.
-* [ ] Add `--payload {all,tree,files,none}` (alias of current `--mode`; keep old names as hidden aliases). Use `--payload` to select LLM/JSON sink content.
-* [ ] Validate no-output combos: treat `--payload none --emit none` and legacy `--mode summary --table none` as usage errors with actionable hint.
-* [ ] Safer defaults: on TTY with no flags, default to summary-only (`--payload none`, `--emit human`).
-* [ ] Heavy-dir prompt text: include tip about `--yes` and keeping default ignores; support `GROBL_ASSUME_YES=1`.
+* [ ] **`--quiet` must not suppress machine output**
 
-## Discovery / Performance controls
+  * **Files**: `src/grobl/cli/scan.py`
+  * **Change**: Ensure JSON summary in `--mode summary --format json` always emits via sink.
 
-* [ ] Add positive filters: `--include <glob>` (repeatable, gitwildmatch). Intersect in `filter_items()`; thread through CLI→core.
-* [ ] Add depth limit: `--max-depth N`; stop recursion when depth > N in `traverse_dir`.
-* [ ] Add payload governors in `TextFileHandler`: `--max-file-lines`, `--max-file-bytes`, `--max-total-bytes`; annotate truncated entries in JSON (`"truncated": {...}`) and mark in human output.
+* [ ] **Friendly Click errors (no tracebacks)**
 
-## Optional emit formats
+  * **Files**: `src/grobl/cli/root.py`
+  * **Change**: Wrap `cli.main(..., standalone_mode=False)` with `try/except` for `click.UsageError` / `ClickException`, call `.show()`, exit with `EXIT_USAGE`.
 
-* [ ] ND-JSON stream mode: `--emit ndjson` to write tree entries, files, and final summary as separate records to stdout/sink.
+* [ ] **Improve “No common ancestor” message**
 
-## Architecture / internal polish
+  * **Files**: likely `src/grobl/utils.py` (where `PathNotFoundError` is raised) and CLI edge handling
+  * **Change**: When only filesystem root is shared, provide an actionable error (e.g., “No common ancestor (only `/` shared). Choose paths under a common project dir.”).
 
-* [ ] Require precompiled `PathSpec` in `filter_items()` to eliminate optional recompute path; update call sites accordingly.
-* [ ] Authoritative binary flag: set `binary=True` when `BinaryFileHandler` handles a path; drop heuristic in `summary._file_entries()` and use the recorded flag.
-* [ ] Structured logging correlation: add `scan_id` (uuid4) and `root` to all `StructuredLogEvent.context`; pass consistently across services.
+---
 
-## Help / CLI organization
+## P1 — Versioning & Config Behavior
 
-* [ ] Reorder options: group Output (`--payload`, `--emit`, `--format`, `--output`, `--quiet`) before Discovery/Filters (`--include`, `--max-depth`, `--add/remove-ignore`, etc.). Update help text accordingly.
+* [ ] **Version source labeling & fallback**
 
-## Tests (new/updated)
+  * **Files**: `src/grobl/__init__.py`, `src/grobl/cli/version.py`
+  * **Change**: Expose `__version_source__ = "distribution"|"pyproject"|"fallback"`. If `importlib.metadata` fails, parse `[project].version` from `pyproject.toml`. Print `"<version> (<source>)"` in `version` subcommand.
 
-* [ ] Summary-to-file regression: `scan --mode summary --output out.txt` writes non-empty file; nothing echoed unless stdout chosen.
-* [ ] `--quiet` + JSON: `scan --mode summary --format json --quiet` still prints JSON.
-* [ ] No-output combos: assert `EXIT_USAGE` and helpful message.
-* [ ] Version fallback: test `grobl version` prints with `(pyproject|distribution)` under source checkout vs installed wheel.
-* [ ] Include/depth: tests for `--include` narrowing and `--max-depth` limiting recursion.
-* [ ] Truncation flags: property tests that truncated outputs include deterministic `"truncated"` metadata.
-* [ ] ND-JSON: smoke test that records are well-formed and end with a summary record.
+* [ ] **Config precedence (legacy + modern)**
 
-## Documentation
+  * **Files**: `src/grobl/config.py`
+  * **Change**: If both `.grobl.config.toml` and `.grobl.toml` exist, load legacy first, then modern (modern overrides). Emit a single warning that legacy is present.
 
-* [ ] README: clarify defaults (summary-only), show `--payload all` + `--output` for large payloads.
-* [ ] README: add matrix table for `payload × emit` with sinks and expected behavior.
-* [ ] README: document heavy-dir prompt and escape hatches (`--yes`, keeps ignores).
-* [ ] Add JSON Schemas: `resources/summary.schema.json` and `resources/payload.schema.json`; link from README.
+---
 
-## Quick wins (small, high-value)
+## P2 — UX Simplifications (routing & defaults)
 
-* [ ] Implement sink routing for summaries (fixes `--output` + summary and “stdout flood”).
-* [ ] Prevent `--quiet` from muting JSON.
-* [ ] Version fallback to pyproject with annotated source.
-* [ ] Catch Click exceptions to avoid stack traces while preserving BrokenPipe handling.
+* [ ] **Unify routing model (one writer)**
 
-* [ ] Detect clipboard backend availability at startup; if unavailable, set `allow_clipboard=False` and emit one-line notice at `INFO` once.
-* [ ] Reduce clipboard retry logs to a single message; drop stack traces; keep bounded timeout.
-* [ ] Add `--clipboard {auto,always,never}` (and `GROBL_NO_CLIPBOARD`) wired to `clipboard_allowed()`.
+  * **Files**: CLI modules
+  * **Change**: Remove remaining direct `print` paths for summaries; use the same sink chain everywhere.
 
-* [ ] `init`: if `--path` is missing, either create it (default) or require `--mkdir`; document behavior.
-* [ ] `init`: when config exists, prompt “Overwrite? (y/N)” (respect `--yes`); keep `--force` as non-interactive override.
-* [ ] `init`: correct the overwrite message to reference the exact path; add tests.
+* [ ] **Validate “no output” combos as usage errors**
+
+  * **Files**: `src/grobl/cli/scan.py`
+  * **Change**: Treat `--mode summary --table none` (legacy) and future `--payload none --emit none` as usage errors with hints.
+
+* [ ] **Safer defaults**
+
+  * **Files**: `src/grobl/cli/root.py` or `scan.py`
+  * **Change**: On TTY with no flags, default to summary-only output (human). Keep current non-TTY behavior compact.
+
+* [ ] **Heavy-dir prompt text improvement**
+
+  * **Files**: `src/grobl/cli/common.py`
+  * **Change**: Mention `--yes`, keeping default ignores, and support `GROBL_ASSUME_YES=1`.
+
+*(Deferred interface renames kept for later: `--emit` / `--payload`.)*
+
+---
+
+## P3 — Tests (add/extend to lock behavior)
+
+* [ ] **Summary→file regression**
+
+  * Ensure `scan --mode summary --output out.txt` writes a non-empty file; stdout stays empty unless stdout is the chosen sink.
+
+* [ ] **`--quiet` + JSON**
+
+  * Ensure `scan --mode summary --format json --quiet` still emits JSON (stdout or file).
+
+* [ ] **Friendly errors**
+
+  * Invalid mode exits with code `2` and shows short Click message; assert no Python traceback text.
+
+* [ ] **Version source detection**
+
+  * Simulate `PackageNotFoundError` → `(pyproject)`; normal dist → `(distribution)`.
+
+* [ ] **Config precedence (legacy+modern)**
+
+  * With both files present, modern overrides legacy; capture a single warning with `caplog`.
+
+* [ ] **No-output combos**
+
+  * Asserting `EXIT_USAGE` and helpful message for forbidden combinations.
+
+---
+
+## P4 — Docs & Release Hygiene
+
+* [ ] **README updates**
+
+  * Document sink routing (file → clipboard → stdout), `--quiet` affecting human output only, and sample `grobl version` output with source.
+  * Note error behavior: usage errors exit with code `2` and show a short message (no tracebacks).
+
+* [ ] **Changelog & version bump**
+
+  * Bump `pyproject.toml` version to `0.7.5`.
+  * Add `## [0.7.5] - YYYY-MM-DD` with:
+
+    * **Fixed**: sink routing for summaries; JSON not muted by `--quiet`; friendly Click errors; config precedence warning.
+    * **Added**: version source annotation + `pyproject.toml` fallback.
+
+---
+
+## P5 — Nice-to-haves (defer until after P0–P4)
+
+* [ ] **(Optional) Preserve exact stdout newline semantics**
+
+  * **Files**: `src/grobl/output.py`
+  * **Change**: Use `sys.stdout.write(content)` instead of `print(content)` inside `StdoutOutput.write` to avoid extra newline.
+
+* [ ] **Clipboard robustness**
+
+  * Detect clipboard backend at startup; set `allow_clipboard=False` and log a single INFO line if unavailable; reduce retry logs to a single concise message.
+
+* [ ] **CLI switches (future)**
+
+  * Add `--emit {human,json,none}` and `--payload {all,tree,files,none}` (keep old names as hidden aliases); update help grouping accordingly.
+
+* [ ] **Discovery/perf controls (future)**
+
+  * `--include <glob>` (gitwildmatch); `--max-depth N`; payload governors in `TextFileHandler` (`--max-file-lines`, `--max-file-bytes`, `--max-total-bytes`) with `"truncated"` metadata.
+
+* [ ] **ND-JSON stream mode (future)**
+
+  * `--emit ndjson` that streams entries + final summary.
+
+* [ ] **Architecture polish (future)**
+
+  * Require precompiled `PathSpec` in `filter_items()` (update call sites).
+  * Authoritative `binary=True` flag set by `BinaryFileHandler`; drop heuristic in `summary._file_entries()`.
+  * Add `scan_id` and `root` to every `StructuredLogEvent.context`.
+
+* [ ] **Documentation extras (future)**
+
+  * JSON Schemas: `resources/summary.schema.json`, `resources/payload.schema.json`; link from README.
+
+---
+
+### Notes on deduplication
+
+* “Route summaries through the sink”, “Do not suppress machine output with `--quiet`”, “Implement sink routing for summaries”, and “Prevent `--quiet` from muting JSON” overlapped—kept once under **P0**.
+* Click error handling items merged into a single **P0** task.
+* Version labeling + CLI printing merged into one **P1** task.
+* Config precedence (legacy+modern) appears once under **P1**.
+* The optional stdout newline tweak is isolated under **P5**.
 
