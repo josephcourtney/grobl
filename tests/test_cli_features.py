@@ -28,6 +28,9 @@ def test_completions_command_outputs_script() -> None:
     res = runner.invoke(cli, ["completions", "--shell", "bash"])
     assert res.exit_code == 0
     assert "_GROBL_COMPLETE" in res.output
+    zsh_res = runner.invoke(cli, ["completions", "--shell", "zsh"])
+    assert zsh_res.exit_code == 0
+    assert 'eval "$(env _GROBL_COMPLETE=zsh_source grobl)"' in zsh_res.output
 
 
 def test_legacy_migration_renames_file(tmp_path: Path) -> None:
@@ -42,9 +45,11 @@ def test_legacy_migration_renames_file(tmp_path: Path) -> None:
 
 def test_interrupt_diagnostics_exit_code(tmp_path: Path) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(SystemExit) as excinfo:
         print_interrupt_diagnostics(tmp_path, {"exclude_tree": []}, builder)
-    assert e.value.code == EXIT_INTERRUPT
+    exc = excinfo.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == EXIT_INTERRUPT
 
 
 def test_non_tty_disables_clipboard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
