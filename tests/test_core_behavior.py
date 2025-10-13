@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from grobl.core import run_scan
 from grobl.directory import DirectoryTreeBuilder, traverse_dir
+from grobl.file_handling import (
+    BinaryFileHandler,
+    FileAnalysis,
+    FileHandlerRegistry,
+    FileProcessingContext,
+    ScanDependencies,
+)
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
@@ -104,3 +110,48 @@ def test_exclude_print_with_gitignore_semantics(tmp_path: Path) -> None:
     meta = dict(res.builder.metadata_items())
     assert meta["notes/readme.md"][2] is False
     assert meta["notes/keep.txt"][2] is True
+
+
+def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
+    sample = tmp_path / "note.txt"
+    sample.write_text("ignored", encoding="utf-8")
+
+    reads: list[Path] = []
+
+    def fake_read(path: Path) -> str:
+        reads.append(path)
+        return "hello"
+
+    deps = ScanDependencies(
+        text_detector=lambda _path: True,
+        text_reader=fake_read,
+        binary_probe=lambda _path: {"size_bytes": 0},
+    )
+
+    res = run_scan(paths=[tmp_path], cfg={}, dependencies=deps)
+    assert reads == [sample]
+    meta = dict(res.builder.metadata_items())
+    assert meta["note.txt"][0] == 1
+
+
+def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
+    binary = tmp_path / "blob.bin"
+    binary.write_bytes(b"abc")
+
+    class ZeroHandler(BinaryFileHandler):
+        def supports(self, *, path: Path, is_text_file: bool) -> bool:
+            return path.suffix == ".bin"
+
+        def _analyse(
+            self,
+            *,
+            path: Path,
+            context: FileProcessingContext,
+            is_text_file: bool,
+        ) -> FileAnalysis:
+            return FileAnalysis(lines=0, chars=0, include_content=False, binary_details={"size_bytes": 0})
+
+    handlers = FileHandlerRegistry.default().extend((ZeroHandler(),))
+    res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers)
+    meta = dict(res.builder.metadata_items())
+    assert meta["blob.bin"][1] == 0
