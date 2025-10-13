@@ -23,8 +23,6 @@
 * [ ] Avoid **mutable default arguments**; use `None` and set defaults inside.
 * [ ] Use **context managers** for files/locks/network connections.
 * [ ] Prefer stdlib/built-ins over new dependencies; remove unnecessary third-party libs.
-* [ ] Replace magic strings/ints with **Enums** or typed sentinels.
-* [ ] Prefer **immutable data** for shared state to avoid aliasing bugs.
 
 ## P7 — Logging, security, and reliability
 
@@ -41,7 +39,6 @@
 
 ## P9 — Testing depth & determinism
 
-* [ ] Add **unit tests** for core logic and **golden-path** integration tests.
 * [ ] Mock external dependencies via injected interfaces; avoid real network in unit tests.
 * [ ] Add **property-based tests** where pure functions have rich input spaces.
 * [ ] Ensure determinism (seed RNG, injectable clock); keep tests independent of system state/time.
