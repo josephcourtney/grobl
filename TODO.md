@@ -1,20 +1,3 @@
-## P4 — Design & architecture (apply pragmatically with YAGNI)
-
-* [ ] Enforce **Single Responsibility** where classes/modules span multiple concerns.
-* [ ] Use **Dependency Inversion/Injection** for I/O, clock, configuration, and output sinks (protocols + constructor injection).
-* [ ] Introduce **Strategy** only where real variation exists now (e.g., formatter selection); avoid speculative abstraction.
-* [ ] Consider **Factory** for constructing related objects (e.g., output sinks) without leaking creation logic.
-* [ ] Apply **Template Method** where a workflow is fixed and steps vary by subtype.
-* [ ] Ensure **Open/Closed**: extend via registration/composition, not by editing existing code paths.
-* [ ] Check **Liskov** and **Interface Segregation** when introducing/adjusting interfaces.
-
-## P5 — Code quality & consistency
-
-* [ ] Prefer **keyword arguments**; order consistently (inputs → options → dependencies).
-* [ ] Reduce **message chains** by introducing well-named locals/facades.
-* [ ] DRY up duplicate logic via shared helpers/utilities.
-* [ ] Remove unreachable code, unused functions/classes, and commented-out blocks.
-
 ## P6 — Types, style, and Python best practices
 
 * [ ] Add **type annotations** across public functions and critical internals; run a type checker (`ty`, `mypy`, or `pyright`).
