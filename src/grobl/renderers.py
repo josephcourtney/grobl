@@ -33,10 +33,10 @@ class DirectoryRenderer:
         raw_tree = b.tree_output()
 
         if not include_metadata:
-            return [b.base_path.name, *raw_tree]
+            return [f"{b.base_path.name}/", *raw_tree]
 
         if not raw_tree:
-            return [b.base_path.name]
+            return [f"{b.base_path.name}/"]
 
         def _column_widths() -> tuple[int, int, int, int]:
             name_w = max(len(line) for line in raw_tree)
@@ -51,7 +51,7 @@ class DirectoryRenderer:
         widths = _column_widths()
         name_w, line_w, char_w, mark_w = widths
         header = f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{mark_w}}"
-        output = [header, b.base_path.name]
+        output = [header, f"{b.base_path.name}/"]
 
         entry_map = dict(b.file_tree_entries())
         for idx, text in enumerate(raw_tree):
