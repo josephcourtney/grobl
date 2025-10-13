@@ -1,10 +1,22 @@
+"""CLI entrypoint for emitting shell completion scripts."""
+
 from __future__ import annotations
 
 import sys
+from typing import Final
 
 import click
 
 from grobl.constants import EXIT_USAGE
+
+COMPLETION_TEMPLATES: Final[dict[str, str]] = {
+    "bash": (
+        '_grobl_completion() {{ eval "$(env {var}=bash_source {prog} "$@")"; }}\n'
+        "complete -F _grobl_completion {prog}"
+    ),
+    "zsh": 'autoload -U compinit; compinit\neval "$(env {var}=zsh_source {prog})"',
+    "fish": "eval (env {var}=fish_source {prog})",
+}
 
 
 @click.command()
@@ -18,15 +30,9 @@ def completions(shell: str) -> None:
     """Print shell completion script for the given shell."""
     prog = "grobl"
     var = "_GROBL_COMPLETE"
-    if shell == "bash":
-        print(
-            f'_grobl_completion() {{ eval "$(env {var}=bash_source {prog} "$@")"; }}\n'
-            f"complete -F _grobl_completion {prog}"
-        )
-    elif shell == "zsh":
-        print(f'autoload -U compinit; compinit\neval "$(env {var}=zsh_source {prog})"')
-    elif shell == "fish":
-        print(f"eval (env {var}=fish_source {prog})")
-    else:  # pragma: no cover - defensive
+    try:
+        template = COMPLETION_TEMPLATES[shell]
+    except KeyError as err:  # pragma: no cover - defensive
         print(f"Unsupported shell: {shell}", file=sys.stderr)
-        raise SystemExit(EXIT_USAGE)
+        raise SystemExit(EXIT_USAGE) from err
+    print(template.format(var=var, prog=prog))

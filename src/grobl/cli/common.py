@@ -1,3 +1,5 @@
+"""Shared CLI helpers used by multiple subcommands."""
+
 from __future__ import annotations
 
 import logging
