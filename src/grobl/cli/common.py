@@ -17,6 +17,7 @@ from grobl.constants import (
     EXIT_USAGE,
     HEAVY_DIRS,
     OutputMode,
+    SummaryFormat,
     TableStyle,
 )
 from grobl.directory import DirectoryTreeBuilder
@@ -31,7 +32,7 @@ MAX_REF_PREVIEW = 50
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ScanParams:
     ignore_defaults: bool
     no_clipboard: bool
@@ -44,7 +45,7 @@ class ScanParams:
     table: TableStyle
     config_path: Path | None
     quiet: bool
-    fmt: str
+    fmt: SummaryFormat
     paths: tuple[Path, ...]
 
 
