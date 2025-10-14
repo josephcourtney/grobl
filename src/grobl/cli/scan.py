@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 import click
+from click.core import ParameterSource
 
 from grobl.config import load_and_adjust_config
 from grobl.constants import EXIT_CONFIG, OutputMode, SummaryFormat, TableStyle
 from grobl.errors import ConfigLoadError, PathNotFoundError
 from grobl.output import build_writer_from_config
-from grobl.tty import resolve_table_style
+from grobl.tty import resolve_table_style, stdout_is_tty
 from grobl.utils import find_common_ancestor
 
 from .common import (
@@ -21,6 +23,26 @@ from .common import (
     _maybe_offer_legacy_migration,
     _maybe_warn_on_common_heavy_dirs,
 )
+
+
+def _env_assume_yes() -> bool:
+    value = os.environ.get("GROBL_ASSUME_YES", "").strip().lower()
+    return value in {"1", "true", "yes"}
+
+
+def _parameter_source(ctx: click.Context, name: str) -> ParameterSource:
+    getter = getattr(ctx, "get_parameter_source", None)
+    if getter is None:
+        return ParameterSource.DEFAULT
+    source = getter(name)
+    return ParameterSource.DEFAULT if source is None else source
+
+
+def _should_default_to_summary(ctx: click.Context) -> bool:
+    if not stdout_is_tty():
+        return False
+    tracked = ("mode", "fmt", "table", "quiet", "output", "no_clipboard")
+    return all(_parameter_source(ctx, name) is ParameterSource.DEFAULT for name in tracked)
 
 
 @click.command()
@@ -71,7 +93,9 @@ from .common import (
     help="Summary table style (auto/full/compact/none)",
 )
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
+@click.pass_context
 def scan(
+    ctx: click.Context,
     *,
     ignore_defaults: bool,
     no_ignore: bool,
@@ -89,6 +113,15 @@ def scan(
     yes: bool,
 ) -> None:
     """Run a directory scan based on CLI flags and paths, then emit/copy output."""
+    assume_yes = yes or _env_assume_yes()
+
+    chosen_mode = OutputMode(mode)
+    chosen_fmt = SummaryFormat(fmt)
+    chosen_table = TableStyle(table)
+
+    if _should_default_to_summary(ctx):
+        chosen_mode = OutputMode.SUMMARY
+
     params = ScanParams(
         ignore_defaults=ignore_defaults,
         no_ignore=no_ignore,
@@ -97,18 +130,18 @@ def scan(
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
         add_ignore_file=ignore_file,
-        mode=OutputMode(mode),
-        table=TableStyle(table),
+        mode=chosen_mode,
+        table=chosen_table,
         config_path=config_path,
         quiet=quiet,
-        fmt=SummaryFormat(fmt),
+        fmt=chosen_fmt,
         paths=paths or (Path(),),
     )
 
     cwd = Path()
-    _maybe_offer_legacy_migration(cwd, assume_yes=yes)
+    _maybe_offer_legacy_migration(cwd, assume_yes=assume_yes)
     _maybe_warn_on_common_heavy_dirs(
-        paths=params.paths, ignore_defaults=params.ignore_defaults, assume_yes=yes
+        paths=params.paths, ignore_defaults=params.ignore_defaults, assume_yes=assume_yes
     )
 
     try:
@@ -133,13 +166,14 @@ def scan(
     write_fn = build_writer_from_config(cfg=cfg, no_clipboard_flag=params.no_clipboard, output=params.output)
     actual_table = resolve_table_style(params.table)
 
-    if (
-        params.fmt is SummaryFormat.HUMAN
-        and not params.quiet
-        and params.mode is OutputMode.SUMMARY
-        and actual_table is TableStyle.NONE
-    ):
-        print("warning: --mode summary with --table none produces no output", file=sys.stderr)
+    if params.mode is OutputMode.SUMMARY and actual_table is TableStyle.NONE:
+        msg = (
+            "No output would be produced."
+            " Avoid combinations like '--mode summary --table none'"
+            " (and future '--payload none --emit none')."
+            " Choose a visible summary table or emit JSON with --format json."
+        )
+        raise click.UsageError(msg)
 
     summary, summary_json = _execute_with_handling(
         params=params, cfg=cfg, cwd=cwd, write_fn=write_fn, table=actual_table

@@ -1,13 +1,20 @@
 ## [Unreleased]
 
+## [0.7.5] - 2025-10-13
+
 ### Added
-- add version source reporting with a pyproject.toml fallback and surface it in the `grobl version` CLI output
+- add version source annotations to `grobl version` and fall back to `pyproject.toml` when package metadata is missing
+
+### Changed
+- make interactive scans default to summary-only output while keeping non-TTY runs compact
+- clarify heavy directory prompts with `--yes` and `GROBL_ASSUME_YES=1` guidance
 
 ### Fixed
-- ensure scan summaries write through the configured sink and always emit JSON data even when `--quiet` is set
-- handle Click usage errors without tracebacks by showing the short message and exiting with the usage code
-- improve the "No common ancestor" error message when only the filesystem root is shared
-- load legacy `.grobl.config.toml` before `.grobl.toml` and warn once when both are present
+- fix sink routing for summaries so the configured writer captures them consistently
+- ensure JSON summaries still emit when `--quiet` is set
+- handle Click usage errors with concise messages instead of Python tracebacks
+- warn once when both legacy and modern configs are present while preferring the modern values
+- reject no-output summary/table combinations with a helpful usage error
 
 ## [0.7.4] - 2025-10-19
 
