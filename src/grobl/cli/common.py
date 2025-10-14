@@ -84,7 +84,11 @@ def _maybe_warn_on_common_heavy_dirs(
     if not found:
         return
     joined = ", ".join(sorted(found))
-    msg = f"Warning: this scan may include heavy directories: {joined}. Continue? (y/N): "
+    msg = (
+        "Warning: this scan may include heavy directories: "
+        f"{joined}. Continue? (y/N) [tip: keep default ignores or pass --yes or "
+        "set GROBL_ASSUME_YES=1]: "
+    )
     logger.warning("potential heavy scan; dirs=%s", joined)
     if not confirm(msg):
         raise SystemExit(EXIT_USAGE)

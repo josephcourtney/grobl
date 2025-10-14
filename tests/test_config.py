@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from grobl.config import load_and_adjust_config
+import pytest
+
+from grobl.config import LEGACY_TOML_CONFIG, TOML_CONFIG, load_and_adjust_config
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
@@ -102,3 +104,26 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
         remove_ignore=(),
     )
     assert cfg.get("exclude_tree") == ["from-base"]
+
+
+def test_modern_config_overrides_legacy_with_single_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    base = tmp_path
+    legacy = base / LEGACY_TOML_CONFIG
+    modern = base / TOML_CONFIG
+    legacy.write_text("exclude_tree=['legacy']\n", encoding="utf-8")
+    modern.write_text("exclude_tree=['modern']\n", encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        cfg = load_and_adjust_config(
+            base_path=base,
+            explicit_config=None,
+            ignore_defaults=True,
+            add_ignore=(),
+            remove_ignore=(),
+        )
+
+    assert cfg.get("exclude_tree") == ["modern"]
+    warnings = [r for r in caplog.records if "detected legacy config" in r.message]
+    assert len(warnings) == 1

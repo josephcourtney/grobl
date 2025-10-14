@@ -12,7 +12,7 @@ grobl is a command-line utility that condenses a directory into a concise contex
 - Scan current directory and copy payload to clipboard (TTY): `grobl`
 - Save payload to a file: `grobl --output context.txt`
 - Show only a summary table: `grobl --mode summary`
-- Suppress human summary (payload only): `grobl --quiet`
+- Suppress human summary (payload sinks still run): `grobl --quiet`
 
 ## Command Synopsis
 
@@ -50,13 +50,18 @@ Tag customization:
 
 ## Heavy Directory Warnings
 
-If default ignores are disabled or you explicitly target known heavy directories (e.g., `node_modules`, `.venv`), grobl will warn and ask to continue unless `--yes` is passed.
+If default ignores are disabled or you explicitly target known heavy directories (e.g., `node_modules`, `.venv`), grobl will warn and ask to continue unless `--yes` is passed or the environment variable `GROBL_ASSUME_YES=1` is set. Keeping the bundled default ignores avoids most prompts.
 
 ## Logging and Streams
 
-- Primary/structured outputs (payload, summaries) go to stdout.
+- Primary outputs (payloads and summaries) all route through the same sink chain: file → clipboard → stdout. Choosing `--output` writes both payloads and summaries to disk before falling back to interactive sinks.
 - Logs and diagnostics go to stderr.
-- Clipboard is auto-disabled when stdout is not a TTY. Output precedence: file → clipboard → stdout.
+- Clipboard is auto-disabled when stdout is not a TTY.
+- `--quiet` only hides the human summary; JSON summaries and payload sinks still run.
+
+### Version information
+
+- `grobl version` prints the installed version and its source, for example `0.7.5 (distribution)` when installed as a package or `0.7.5 (pyproject)` during development.
 
 ## Shell Completions
 
@@ -78,6 +83,8 @@ Generate and install completion scripts per shell:
 - 3: configuration load error
 - 4: invalid paths/no common ancestor
 - 130: interrupted by user (Ctrl-C)
+
+Usage errors exit with code `2` and show a concise Click message without a Python traceback.
 
 ## LLM Payload Format
 
