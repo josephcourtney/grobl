@@ -19,6 +19,19 @@ def test_usage_error_invalid_mode(tmp_path: Path) -> None:
     res = runner.invoke(cli, ["scan", str(tmp_path), "--mode", "bogus"])
     # Click treats invalid option values as usage error (SystemExit 2)
     assert res.exit_code == EXIT_USAGE
+    assert "Invalid value for '--mode'" in res.output
+    assert "Traceback" not in res.output
+
+
+def test_no_output_combo_is_usage_error(tmp_path: Path) -> None:
+    (tmp_path / "f.txt").write_text("x", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(
+        cli,
+        ["scan", str(tmp_path), "--mode", "summary", "--table", "none"],
+    )
+    assert res.exit_code == EXIT_USAGE
+    assert "No output would be produced" in res.output
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX-only path assumptions")

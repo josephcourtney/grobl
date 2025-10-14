@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import sys
 from typing import TYPE_CHECKING
 
@@ -15,12 +16,37 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_warn_on_summary_table_none(tmp_path: Path, monkeypatch: object) -> None:
+def test_summary_mode_writes_to_file(tmp_path: Path) -> None:
     (tmp_path / "a.txt").write_text("hello", encoding="utf-8")
+    out_path = tmp_path / "out.txt"
     runner = CliRunner()
-    result = runner.invoke(cli, ["scan", "--mode", "summary", "--table", "none", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        ["scan", "--mode", "summary", "--output", str(out_path), str(tmp_path)],
+    )
     assert result.exit_code == 0
-    assert "warning: --mode summary with --table none" in result.output
+    assert out_path.read_text(encoding="utf-8")
+    assert not result.output.strip()
+
+
+def test_quiet_json_summary_still_emits(tmp_path: Path) -> None:
+    (tmp_path / "b.txt").write_text("data", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "scan",
+            "--mode",
+            "summary",
+            "--format",
+            "json",
+            "--quiet",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["mode"] == "summary"
 
 
 def test_cli_scan_accepts_file_path(tmp_path: Path) -> None:

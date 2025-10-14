@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 from click.testing import CliRunner
 
+import grobl.cli.scan as scan_cmd
+import grobl.output as output_module
 from grobl import tty
 from grobl.cli import cli
 
@@ -24,6 +26,22 @@ def test_explicit_full_table_even_when_not_tty(tmp_path: Path, monkeypatch: pyte
     )
     assert res.exit_code == 0
     assert " Project Summary " in res.output
+
+
+def test_defaults_to_summary_on_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tty, "stdout_is_tty", lambda: True)
+    monkeypatch.setattr(scan_cmd, "stdout_is_tty", lambda: True)
+    monkeypatch.setattr(
+        output_module,
+        "clipboard_allowed",
+        lambda _cfg, *, no_clipboard_flag: False,
+    )
+    (tmp_path / "a.txt").write_text("data", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(cli, ["scan", str(tmp_path)])
+    assert res.exit_code == 0
+    assert " Project Summary " in res.output
+    assert "<directory" not in res.output
 
 
 def test_quiet_suppresses_summary_output(tmp_path: Path) -> None:
