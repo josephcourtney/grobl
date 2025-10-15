@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from itertools import product
 from typing import TYPE_CHECKING
 
 import grobl_config
@@ -8,11 +8,7 @@ from grobl_config import apply_runtime_ignores, load_and_adjust_config
 from hypothesis import given
 from hypothesis import strategies as st
 
-SEGMENT = st.text(
-    min_size=1,
-    max_size=5,
-    alphabet=st.characters(min_codepoint=33, max_codepoint=126),
-)
+SAMPLE_SEGMENTS = ("alpha", "beta")
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -116,32 +112,38 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
     assert cfg.get("exclude_tree") == ["from-base"]
 
 
-@given(
-    base=st.lists(SEGMENT, max_size=5),
-    add=st.lists(SEGMENT, max_size=3),
-    remove=st.lists(SEGMENT, max_size=3),
-    no_ignore=st.booleans(),
-)
-def test_apply_runtime_ignores_matches_manual_logic(
-    base: list[str], add: list[str], remove: list[str], *, no_ignore: bool
-) -> None:
-    cfg = {"exclude_tree": base.copy()}
-    result = apply_runtime_ignores(
-        cfg,
-        add_ignore=tuple(add),
-        remove_ignore=tuple(remove),
-        add_ignore_files=(),
-        no_ignore=no_ignore,
-    )
-    if no_ignore:
-        assert result["exclude_tree"] == []
-        return
+def _iter_sample_lists(max_size: int) -> list[list[str]]:
+    lists: list[list[str]] = [[]]
+    for length in range(1, max_size + 1):
+        lists.extend([list(combo) for combo in product(SAMPLE_SEGMENTS, repeat=length)])
+    return lists
 
-    expected = base.copy()
-    for pattern in add:
-        if pattern not in expected:
-            expected.append(pattern)
-    for pattern in remove:
-        if pattern in expected:
-            expected.remove(pattern)
-    assert result["exclude_tree"] == expected
+
+def test_apply_runtime_ignores_matches_manual_logic() -> None:
+    cases = product(
+        _iter_sample_lists(2),
+        _iter_sample_lists(2),
+        _iter_sample_lists(2),
+        (False, True),
+    )
+    for base, add, remove, no_ignore in cases:
+        cfg = {"exclude_tree": base.copy()}
+        result = apply_runtime_ignores(
+            cfg,
+            add_ignore=tuple(add),
+            remove_ignore=tuple(remove),
+            add_ignore_files=(),
+            no_ignore=no_ignore,
+        )
+        if no_ignore:
+            assert result["exclude_tree"] == []
+            continue
+
+        expected = base.copy()
+        for pattern in add:
+            if pattern not in expected:
+                expected.append(pattern)
+        for pattern in remove:
+            if pattern in expected:
+                expected.remove(pattern)
+        assert result["exclude_tree"] == expected

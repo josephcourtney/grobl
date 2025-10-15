@@ -70,6 +70,7 @@ class ScanCommandParams:
         chosen_mode = OutputMode(mode)
         chosen_fmt = SummaryFormat(fmt)
         chosen_table = TableStyle(table)
+        _ = ctx  # Click context reserved for future use; preserve signature parity.
         return cls(
             ignore_defaults=ignore_defaults,
             no_ignore=no_ignore,
