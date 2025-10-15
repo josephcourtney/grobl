@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -164,9 +165,7 @@ def scan(
         raise SystemExit(EXIT_CONFIG) from err
 
     allow_clipboard = clipboard_allowed(cfg, no_clipboard_flag=params.no_clipboard)
-    write_fn = build_writer_from_config(
-        cfg=cfg, no_clipboard_flag=params.no_clipboard, output=params.output
-    )
+    write_fn = build_writer_from_config(cfg=cfg, no_clipboard_flag=params.no_clipboard, output=params.output)
     actual_table = resolve_table_style(params.table)
 
     if params.mode is OutputMode.SUMMARY and actual_table is TableStyle.NONE:
@@ -197,10 +196,8 @@ def scan(
         if params.output:
             FileOutput(params.output).write(summary)
         if allow_clipboard:
-            try:
+            with contextlib.suppress(Exception):
                 ClipboardOutput.write(summary)
-            except Exception:
-                pass
         try:
             StdoutOutput.write(summary)
         except BrokenPipeError:

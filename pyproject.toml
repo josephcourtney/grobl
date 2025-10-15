@@ -20,7 +20,6 @@
     "click>=8.2.1",
     "pathspec>=0.12.1",
     "pyperclip",
-    "tomlkit>=0.13.2",
 ]
 
 
@@ -37,7 +36,7 @@
     "pytest-randomly>=3.16.0",
     "mutmut>=3.3.1",
     "hypothesis>=6.138.7",
-]
+  ]
 
 # =================================== build ====================================
 [build-system]
@@ -48,7 +47,7 @@
 
 # ==================================== lint ====================================
 [tool.ruff]
-  extend = "./ruff.toml"
+  extend = "./ruff.default.toml"
 
   [tool.ruff.lint]
     ignore = [
