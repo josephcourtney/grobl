@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import click
 
+from grobl.constants import OutputMode, SummaryFormat, TableStyle
 from grobl_cli.service.scan_runner import ScanCommandParams, run_scan_command
+from grobl_cli.tty import resolve_table_style, stdout_is_tty
 
 
 @click.command()
@@ -65,6 +68,15 @@ def scan(
     yes: bool,
 ) -> None:
     """Run a directory scan and emit the configured outputs."""
+    chosen_mode = OutputMode(mode)
+    chosen_table = TableStyle(table)
+    chosen_fmt = SummaryFormat(fmt)
+
+    actual_table = resolve_table_style(chosen_table)
+    if chosen_mode is OutputMode.SUMMARY and actual_table is TableStyle.NONE:
+        msg = "No output would be produced. Avoid combinations like '--mode summary --table none'"
+        raise click.UsageError(msg)
+
     params = ScanCommandParams.from_click(
         ctx=ctx,
         ignore_defaults=ignore_defaults,
@@ -74,12 +86,23 @@ def scan(
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
         ignore_file=ignore_file,
-        mode=mode,
-        table=table,
+        mode=chosen_mode.value,
+        table=chosen_table.value,
         config_path=config_path,
-        fmt=fmt,
+        fmt=chosen_fmt.value,
         quiet=quiet,
         paths=paths,
         yes=yes,
     )
-    run_scan_command(params)
+    result = run_scan_command(params)
+    if result and not params.quiet and params.fmt == SummaryFormat.HUMAN.value:
+        try:
+            click.echo(result)
+        except BrokenPipeError:
+            try:
+                sys.stdout.close()
+            finally:
+                raise SystemExit(0)
+
+
+scan.stdout_is_tty = stdout_is_tty
