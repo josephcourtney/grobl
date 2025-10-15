@@ -9,9 +9,6 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-import tomlkit
-from tomlkit.exceptions import TOMLKitError
-
 from grobl.errors import ConfigLoadError
 
 # Configuration filenames
@@ -78,8 +75,8 @@ def _load_with_extends(path: Path, *, _visited: set[Path] | None = None) -> dict
 
     raw = path.read_text(encoding="utf-8")
     try:
-        data = tomlkit.loads(raw)
-    except TOMLKitError as e:
+        data = tomllib.loads(raw)
+    except tomllib.TOMLDecodeError as e:
         msg = f"Error parsing {path.name}: {e}"
         raise ConfigLoadError(msg) from e
 
@@ -119,8 +116,8 @@ def _merge_pyproject_cfg(pyproject_path: Path, cfg: dict[str, Any]) -> dict[str,
     if not pyproject_path.exists():
         return cfg
     try:
-        data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))
-    except TOMLKitError as e:
+        data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
         msg = f"Error parsing pyproject.toml: {e}"
         raise ConfigLoadError(msg) from e
     tool = data.get("tool", {})
