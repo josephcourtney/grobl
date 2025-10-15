@@ -6,6 +6,10 @@ import xml.etree.ElementTree as ET  # noqa: S405 - coverage XML is locally gener
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from tests._workspace_path import ensure_workspace_packages_importable
+
+ensure_workspace_packages_importable()
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
