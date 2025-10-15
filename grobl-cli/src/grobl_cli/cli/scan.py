@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import click
-
 from grobl.constants import OutputMode, SummaryFormat, TableStyle
+
 from grobl_cli.service.scan_runner import ScanCommandParams, run_scan_command
 from grobl_cli.tty import resolve_table_style, stdout_is_tty
 

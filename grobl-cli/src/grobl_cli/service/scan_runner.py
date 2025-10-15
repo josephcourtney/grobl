@@ -6,8 +6,8 @@ import contextlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import click
 from grobl.constants import EXIT_CONFIG, EXIT_PATH, OutputMode, SummaryFormat, TableStyle
 from grobl.errors import PathNotFoundError, ScanInterrupted
 from grobl.services import ScanExecutor, ScanOptions
@@ -21,6 +21,9 @@ from grobl_cli.output import (
 )
 from grobl_cli.service.prompt import env_assume_yes, maybe_warn_on_common_heavy_dirs
 from grobl_cli.tty import clipboard_allowed, resolve_table_style
+
+if TYPE_CHECKING:
+    import click
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,10 +146,7 @@ def run_scan_command(params: ScanCommandParams) -> str:
         print("\nInterrupted by user during scan.", file=sys.stderr)
         raise SystemExit(130) from si
 
-    if isinstance(execution_result, tuple):
-        summary = execution_result[0]
-    else:
-        summary = execution_result
+    summary = execution_result[0] if isinstance(execution_result, tuple) else execution_result
 
     # Emit results according to output configuration
     if not params.quiet and params.fmt == SummaryFormat.HUMAN.value:
