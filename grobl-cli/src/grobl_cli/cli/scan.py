@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import click
 from grobl.constants import OutputMode, SummaryFormat, TableStyle
@@ -105,4 +106,5 @@ def scan(
                 raise SystemExit(0)
 
 
-scan.stdout_is_tty = stdout_is_tty
+scan_with_tty = cast("Any", scan)
+scan_with_tty.stdout_is_tty = stdout_is_tty

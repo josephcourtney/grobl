@@ -35,30 +35,36 @@ class DirectoryRenderer:
         self.builder = builder
 
     def tree_lines(self, *, include_metadata: bool = False) -> list[str]:
-        b = self.builder
-        raw_tree = b.tree_output()
+        raw_tree = self.builder.tree_output()
+        base_entry = f"{self.builder.base_path.name}/"
         if not include_metadata:
-            return [f"{b.base_path.name}/", *raw_tree]
+            return [base_entry, *raw_tree]
         if not raw_tree:
-            return [f"{b.base_path.name}/"]
-        name_w = max(len(line) for line in raw_tree) if raw_tree else len("lines")
-        meta_values = list(b.metadata_items())
-        max_line_digits = max((len(str(v[0])) for _, v in meta_values), default=1)
-        max_char_digits = max((len(str(v[1])) for _, v in meta_values), default=1)
-        line_w = max(max_line_digits, len("lines"))
-        char_w = max(max_char_digits, len("chars"))
-        marker_w = max(len("included"), 8)
-        header = f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{marker_w}}"
-        output = [header, f"{b.base_path.name}/"]
-        entry_map = dict(b.file_tree_entries())
+            return [base_entry]
+        return self._tree_lines_with_metadata(raw_tree, base_entry)
+
+    def _tree_lines_with_metadata(self, raw_tree: list[str], base_entry: str) -> list[str]:
+        builder = self.builder
+        name_w = max(max((len(line) for line in raw_tree), default=0), len("lines"))
+        line_digits = max((len(str(values[0])) for _, values in builder.metadata_items()), default=1)
+        char_digits = max((len(str(values[1])) for _, values in builder.metadata_items()), default=1)
+        line_w = max(line_digits, len("lines"))
+        char_w = max(char_digits, len("chars"))
+        marker_w = len("included")
+        output = [
+            f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{marker_w}}",
+            base_entry,
+        ]
+        entry_map = dict(builder.file_tree_entries())
         for idx, text in enumerate(raw_tree):
             rel = entry_map.get(idx)
             if rel is None:
                 output.append(text)
                 continue
-            ln, ch, included = b.get_metadata(str(rel)) or (0, 0, False)
-            marker = " " if included else "*"
-            output.append(f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {marker:>{marker_w}}")
+            ln, ch, included = builder.get_metadata(str(rel)) or (0, 0, False)
+            output.append(
+                f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {' ' if included else '*':>{marker_w}}"
+            )
         return output
 
 

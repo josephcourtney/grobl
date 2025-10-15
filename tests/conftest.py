@@ -4,11 +4,35 @@ import operator
 import re
 import xml.etree.ElementTree as ET  # noqa: S405 - coverage XML is locally generated and trusted
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
+
+import sys
+import types
 
 from ._workspace_path import ensure_workspace_packages_importable
 
 ensure_workspace_packages_importable()
+
+try:
+    import pyperclip  # noqa: F401  # pragma: no cover - exercised in unit tests
+except ModuleNotFoundError:
+    stub = types.ModuleType("pyperclip")
+    stub_mod = cast("Any", stub)
+
+    class PyperclipException(RuntimeError):
+        """Fallback exception matching the real pyperclip API."""
+
+    def copy(_: str) -> None:
+        msg = "pyperclip is not installed"
+        raise PyperclipException(msg)
+
+    def paste() -> str:
+        return ""
+
+    stub_mod.copy = copy
+    stub_mod.paste = paste
+    stub_mod.PyperclipException = PyperclipException
+    sys.modules.setdefault("pyperclip", stub)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -35,7 +59,9 @@ def _parse_condition_coverage(text: str) -> tuple[int, int] | None:
     return int(m[1]), int(m[2])
 
 
-def _iter_class_stats(root: ET.Element) -> Iterable[tuple[str, int, int, float, int, int, float]]:
+def _iter_class_stats(
+    root: ET.Element,
+) -> Iterable[tuple[str, int, int, float, int, int, float]]:
     """Yield per-class coverage statistics.
 
     (filename, statements, missed, line_rate, branch_total, branch_covered, branch_rate).
@@ -66,7 +92,15 @@ def _iter_class_stats(root: ET.Element) -> Iterable[tuple[str, int, int, float, 
                     branch_covered += covered
 
         branch_rate = (branch_covered / branch_total) if branch_total else 0.0
-        yield filename, statements, missed, line_rate, branch_total, branch_covered, branch_rate
+        yield (
+            filename,
+            statements,
+            missed,
+            line_rate,
+            branch_total,
+            branch_covered,
+            branch_rate,
+        )
 
 
 # --- Table formatting helpers -------------------------------------------------
@@ -75,7 +109,9 @@ def _normalize_headers(headers: Sequence[Sequence[str]]) -> list[tuple[str, ...]
     return [tuple(("",) * (max_depth - len(h)) + tuple(h)) for h in headers]
 
 
-def _compute_col_widths(headers: Sequence[Sequence[str]], rows: Sequence[Sequence[Any]]) -> list[int]:
+def _compute_col_widths(
+    headers: Sequence[Sequence[str]], rows: Sequence[Sequence[Any]]
+) -> list[int]:
     """Compute minimal column widths based on bottom header (leaf) and cell contents."""
     norm_headers = _normalize_headers(headers)
     ncols = len(headers)
@@ -88,7 +124,9 @@ def _compute_col_widths(headers: Sequence[Sequence[str]], rows: Sequence[Sequenc
     return widths
 
 
-def _adjust_widths_for_grouping(norm_headers: list[tuple[str, ...]], col_widths: list[int]) -> None:
+def _adjust_widths_for_grouping(
+    norm_headers: list[tuple[str, ...]], col_widths: list[int]
+) -> None:
     """Ensure group header labels fit into their spanned columns by expanding widths minimally."""
     if not norm_headers:
         return
@@ -105,7 +143,9 @@ def _adjust_widths_for_grouping(norm_headers: list[tuple[str, ...]], col_widths:
                 end += 1
             span = end - start
             if label.strip() and span > 0:
-                span_width = sum(col_widths[start:end]) + (span - 1) * 3  # account for " | "
+                span_width = (
+                    sum(col_widths[start:end]) + (span - 1) * 3
+                )  # account for " | "
                 label_len = len(label)
                 if label_len > span_width:
                     extra = label_len - span_width
@@ -134,7 +174,9 @@ def _render_header_level(level_values: Sequence[str], col_widths: Sequence[int])
 
 
 # --- Public function ---------------------------------------------------------
-def format_table(headers: Sequence[Sequence[str]], rows: Sequence[Sequence[Any]]) -> str:
+def format_table(
+    headers: Sequence[Sequence[str]], rows: Sequence[Sequence[Any]]
+) -> str:
     """Format a Markdown table with hierarchical headers, grouping parent headers.
 
     headers: sequence of column header tuples (from parent to child).
@@ -167,7 +209,9 @@ def format_table(headers: Sequence[Sequence[str]], rows: Sequence[Sequence[Any]]
     return "\n".join([*header_lines, sep_line, *data_lines])
 
 
-def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: Any) -> None:
+def pytest_terminal_summary(
+    terminalreporter: Any, exitstatus: int, config: Any
+) -> None:
     """Pytest hook that prints a grouped Markdown table of coverage for grobl files."""
     root = _read_coverage_xml()
     if root is None:
@@ -184,7 +228,11 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: Any)
             total_branches,
             covered_branches,
             total_branches - covered_branches,
-            (f"{(covered_branches / total_branches) * 100:.0f}%" if total_branches else "n/a"),
+            (
+                f"{(covered_branches / total_branches) * 100:.0f}%"
+                if total_branches
+                else "n/a"
+            ),
         )
         for (
             fname,

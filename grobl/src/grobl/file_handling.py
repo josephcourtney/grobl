@@ -113,8 +113,8 @@ class BinaryFileHandler(BaseFileHandler):
     @staticmethod
     def _analyse(
         *,
-        path: Path,
-        context: FileProcessingContext,
+        path: Path,  # noqa: ARG004 - template signature
+        context: FileProcessingContext,  # noqa: ARG004 - template signature
         is_text_file: bool,  # noqa: ARG004 - template signature
     ) -> FileAnalysis:
         return FileAnalysis(
