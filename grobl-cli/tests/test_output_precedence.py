@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+import io
+import sys
+from typing import TYPE_CHECKING
+
+import pyperclip
+
+from grobl_cli.output import build_writer_from_config
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pytest
+
+
+def test_output_goes_to_file_first(tmp_path: Path, monkeypatch: object) -> None:
+    out = tmp_path / "out.txt"
+    writer = build_writer_from_config(cfg={}, no_clipboard_flag=True, output=out)
+    writer("hello")
+    assert out.read_text(encoding="utf-8") == "hello"
+
+
+def test_clipboard_failure_falls_back_to_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Force TTY so clipboard_allowed() would return True
+    class DummyStdout(io.StringIO):
+        def isatty(self) -> bool:  # type: ignore[override]
+            return True
+
+    buf = DummyStdout()
+    monkeypatch.setattr(sys, "stdout", buf)
+
+    # Cause pyperclip to fail
+    def boom(_: str) -> None:
+        msg = "fail"
+        raise pyperclip.PyperclipException(msg)
+
+    monkeypatch.setattr(pyperclip, "copy", boom)
+    writer = build_writer_from_config(cfg={}, no_clipboard_flag=False, output=None)
+    writer("hi")
+    assert "hi" in buf.getvalue()
