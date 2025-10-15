@@ -1,7 +1,7 @@
 # =================================== project ====================================
 [project]
   name = "grobl-cli"
-  version = "0.7.5"
+  version = "0.8.0"
   description = "A tool to copy directory structure and file contents as a single string."
   readme = "README.md"
   authors = [
@@ -23,9 +23,6 @@
     "pathspec>=0.12.1",
     "pyperclip>=1.9.0",
   ]
-
-  [project.scripts]
-    grobl = "grobl_cli.cli:main"
 
 [dependency-groups]
   dev = [

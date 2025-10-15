@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .binary_probe import probe_binary_details
 from .utils import is_text, read_text
 
 if TYPE_CHECKING:
@@ -23,14 +22,12 @@ class ScanDependencies:
 
     text_detector: Callable[[Path], bool]
     text_reader: Callable[[Path], str]
-    binary_probe: Callable[[Path], dict[str, object]]
 
     @classmethod
     def default(cls) -> ScanDependencies:
         return cls(
             text_detector=is_text,
             text_reader=read_text,
-            binary_probe=probe_binary_details,
         )
 
 
@@ -123,14 +120,11 @@ class BinaryFileHandler(BaseFileHandler):
         context: FileProcessingContext,
         is_text_file: bool,  # noqa: ARG004 - template signature
     ) -> FileAnalysis:
-        deps = context.dependencies
-        details = deps.binary_probe(path)
         size = int(details.get("size_bytes", 0))
         return FileAnalysis(
             lines=0,
             chars=size,
             include_content=False,
-            binary_details=details,
         )
 
 
