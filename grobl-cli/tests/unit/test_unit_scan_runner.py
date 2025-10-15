@@ -1,3 +1,7 @@
+"""Unit tests for grobl_cli.service.scan_runner helpers."""
+
+from __future__ import annotations
+
 from pathlib import Path
 from unittest import mock
 
@@ -25,24 +29,24 @@ def minimal_params(tmp_path: Path) -> ScanCommandParams:
     )
 
 
-def test_run_scan_summary_none(tmp_path):
+def test_run_scan_summary_none(tmp_path: Path) -> None:
     params = minimal_params(tmp_path)
 
-    # Patch the ScanExecutor to return dummy summary
-    with mock.patch("grobl_cli.service.scan_runner.ScanExecutor") as MockExecutor:
-        instance = MockExecutor.return_value
+    with mock.patch("grobl_cli.service.scan_runner.ScanExecutor") as mock_executor:
+        instance = mock_executor.return_value
         instance.execute.return_value = "SUMMARY"
 
         result = run_scan_command(params)
 
-        assert result == "SUMMARY"
-        instance.execute.assert_called_once()
+    assert result == "SUMMARY"
+    instance.execute.assert_called_once()
 
 
-def test_run_scan_keyboard_interrupt(tmp_path):
+def test_run_scan_keyboard_interrupt(tmp_path: Path) -> None:
     params = minimal_params(tmp_path)
 
     with mock.patch("grobl_cli.service.scan_runner.ScanExecutor.execute", side_effect=KeyboardInterrupt):
         with pytest.raises(SystemExit) as excinfo:
             run_scan_command(params)
-        assert excinfo.value.code == 130
+
+    assert excinfo.value.code == 130
