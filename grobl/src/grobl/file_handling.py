@@ -49,7 +49,6 @@ class FileAnalysis:
     chars: int
     include_content: bool
     content: str | None = None
-    binary_details: dict[str, object] | None = None
 
 
 class BaseFileHandler:
@@ -65,8 +64,6 @@ class BaseFileHandler:
         builder.record_metadata(rel, analysis.lines, analysis.chars)
         if analysis.include_content and analysis.content is not None:
             builder.add_file(path, rel, analysis.lines, analysis.chars, analysis.content)
-        if analysis.binary_details:
-            builder.record_binary_details(rel, analysis.binary_details)
 
     def _analyse(
         self,
@@ -120,10 +117,9 @@ class BinaryFileHandler(BaseFileHandler):
         context: FileProcessingContext,
         is_text_file: bool,  # noqa: ARG004 - template signature
     ) -> FileAnalysis:
-        size = int(details.get("size_bytes", 0))
         return FileAnalysis(
             lines=0,
-            chars=size,
+            chars=-1,
             include_content=False,
         )
 
