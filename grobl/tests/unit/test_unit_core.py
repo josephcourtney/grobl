@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import grobl
 import pytest
-
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
+
+import grobl
 
 if TYPE_CHECKING:
     from pathlib import Path

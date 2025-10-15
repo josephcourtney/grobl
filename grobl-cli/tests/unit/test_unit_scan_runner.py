@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
-
 from grobl_cli.service.scan_runner import ScanCommandParams, run_scan_command
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def minimal_params(tmp_path: Path) -> ScanCommandParams:
