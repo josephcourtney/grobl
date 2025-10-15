@@ -1,17 +1,10 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-# ---- Python Config ----
-export PYTHON_PACKAGE := env("PYTHON_PACKAGE", "now_playable")
-export PY_TESTPATH := env("PY_TESTPATH", "tests")
-export PY_SRC := env("PY_SRC", "src")
-
-# ---- Help ----
-# default:
-#   @echo "Python recipes:"
-#   @echo "  check-tools  setup"
-#   @echo "  fmt  fmt-check  lint"
-#   @echo "  typecheck  test"
-#   @echo "  build  clean"
+# ---- Workspace layout (monorepo) ----
+# All paths are POSIX-style and deterministic.
+PKG_DIRS := "grobl grobl-cli grobl-config"
+SRC_DIRS := "src grobl/src grobl-cli/src grobl-config/src"
+TEST_DIRS := "tests grobl/tests grobl-cli/tests grobl-config/tests"
 
 # ---- Tooling ----
 check-tools:
@@ -22,14 +15,14 @@ setup:
 
 # ---- Format ----
 format:
-  uv run ruff format {{PY_SRC}} {{PY_TESTPATH}}
+  uv run ruff format {{SRC_DIRS}} {{TEST_DIRS}}
 
 format-check:
-  uv run ruff format --check {{PY_SRC}} {{PY_TESTPATH}}
+  uv run ruff format --check {{SRC_DIRS}} {{TEST_DIRS}}
 
 # ---- Lint ----
 lint:
-  uv run ruff check {{PY_SRC}} {{PY_TESTPATH}}
+  uv run ruff check {{SRC_DIRS}} {{TEST_DIRS}}
 
 # ---- Typecheck ----
 typecheck:
@@ -37,11 +30,22 @@ typecheck:
 
 # ---- Test ----
 test:
-  uv run pytest -q {{PY_TESTPATH}}
+  # Root pyproject config aggregates all testpaths across packages.
+  uv run pytest -q
+
+test-pkg pkg:
+  # Run tests for a single package (grobl|grobl-cli|grobl-config)
+  case "{{pkg}}" in \
+    grobl)         uv run pytest -q grobl/tests ;; \
+    grobl-cli)     uv run pytest -q grobl-cli/tests ;; \
+    grobl-config)  uv run pytest -q grobl-config/tests ;; \
+    *) echo "unknown package: {{pkg}} (expected: grobl|grobl-cli|grobl-config)" >&2; exit 2 ;; \
+  esac
 
 # ---- Build ----
-build:
-  uv build
+build-all:
+  # Build all member packages deterministically.
+  for d in {{PKG_DIRS}}; do (cd "$d" && uv build); done
 
 # ---- Clean ----
 clean:
@@ -49,5 +53,7 @@ clean:
   rm -rf .pytest_cache .ruff_cache .coverage .coverage.* coverage.xml
   uv cache prune || true
   rm -rf dist build
+  for d in {{PKG_DIRS}}; do rm -rf "$d/dist" "$d/build"; done
 
-qa: setup lint typecheck format test
+qa: setup format lint typecheck test
+
