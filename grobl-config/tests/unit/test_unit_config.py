@@ -3,11 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from hypothesis import given
-from hypothesis import strategies as st
-
 import grobl_config
 from grobl_config import apply_runtime_ignores, load_and_adjust_config
+from hypothesis import given
+from hypothesis import strategies as st
 
 SEGMENT = st.text(
     min_size=1,

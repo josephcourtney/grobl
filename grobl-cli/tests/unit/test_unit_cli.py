@@ -7,7 +7,6 @@ from unittest import mock
 
 import pytest
 from click.testing import CliRunner
-
 from grobl_cli.cli.scan import scan
 
 if TYPE_CHECKING:

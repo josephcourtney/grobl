@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import click
+
 from grobl import __version__, __version_source__
 
 

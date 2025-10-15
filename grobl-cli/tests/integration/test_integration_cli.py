@@ -6,16 +6,16 @@ import io
 import sys
 from typing import TYPE_CHECKING
 
-import pytest
-from click.testing import CliRunner
-
 import grobl_cli.output as output_module
+from click.testing import CliRunner
 from grobl_cli import tty
 from grobl_cli.cli import cli
 from grobl_cli.cli.scan import scan as scan_cmd
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
 
 def test_summary_mode_writes_to_file(tmp_path: Path) -> None:

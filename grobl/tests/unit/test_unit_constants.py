@@ -4,6 +4,7 @@ from importlib.metadata import PackageNotFoundError
 from typing import TYPE_CHECKING
 
 import grobl.__init__ as grobl_init
+
 from grobl import constants
 
 if TYPE_CHECKING:

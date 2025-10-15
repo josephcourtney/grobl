@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from grobl.errors import PathNotFoundError
 from grobl.utils import find_common_ancestor, is_text
 

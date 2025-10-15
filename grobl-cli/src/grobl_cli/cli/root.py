@@ -6,8 +6,9 @@ import logging
 import sys
 
 import click
-from grobl import __version__
 from grobl.constants import EXIT_USAGE
+
+from grobl import __version__
 
 # Threshold for -vv to map to DEBUG
 VERBOSE_DEBUG_THRESHOLD = 2
