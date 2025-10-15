@@ -3,8 +3,7 @@
 # ============================================
 exclude_tree = [
   # ---------------- project-specific ----------------
-  "./best practices - automated testing.md",
-  "./best practices - command line interfaces.md",
+  "notes",
 
   # ---------------- grobl-specific ----------------
   ".grobl.toml",

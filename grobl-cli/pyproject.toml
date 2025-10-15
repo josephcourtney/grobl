@@ -1,0 +1,112 @@
+# =================================== project ====================================
+[project]
+  name = "grobl-cli"
+  version = "0.7.5"
+  description = "A tool to copy directory structure and file contents as a single string."
+  readme = "README.md"
+  authors = [
+    { name = "Joseph M Courtney", email = "Joseph.M.Courtney@gmail.com" },
+  ]
+  urls = { "Homepage" = "https://github.com/josephcourtney/grobl-cli", "Bug Tracker" = "https://github.com/josephcourtney/grobl-cli/issues" }
+  license = { text = "GPL-3.0-only" }
+  classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+  ]
+  requires-python = ">=3.12"
+  dependencies = [
+    "click>=8.2.1",
+    "grobl",
+    "grobl-config",
+    "pathspec>=0.12.1",
+    "pyperclip>=1.9.0",
+  ]
+
+  [project.scripts]
+    grobl = "grobl_cli.cli:main"
+
+[dependency-groups]
+  dev = [
+    "coverage>=7.8.0",
+    "hypothesis>=6.138.7",
+    "mutmut>=3.3.1",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+    "pytest-randomly>=3.16.0",
+    "ruff>=0.11.7",
+    "ty>=0.0.1a22",
+  ]
+
+# =================================== build ====================================
+[build-system]
+  requires      = ["uv_build>=0.9,<0.10"]
+  build-backend = "uv_build"
+
+[tool.uv.sources]
+  grobl-cli-config = { workspace = true }
+  grobl            = { workspace = true }
+  grobl-config     = { workspace = true }
+
+# ==================================== lint ====================================
+[tool.ruff]
+  extend = "./ruff.default.toml"
+
+  [tool.ruff.lint]
+    ignore = [
+      # "TD002",  # Missing author in TODO; try: `# TODO(<author_name>): ...` or `# TODO @<author_name>: ...`
+      # "TD003",  # Missing issue link for this TODO
+      # "FIX002", # Line contains TODO, consider resolving the issue
+    ]
+
+# =================================== test ===================================
+[tool.pytest.ini_options]
+  addopts = [
+    "--cov-branch",
+    "--cov=grobl_cli",
+    "--cov-report=xml",
+  ]
+  testpaths = ["tests"]
+  markers = [
+    "perf: performance tests",
+  ]
+
+# =================================== test:coverage ===================================
+[tool.coverage.run]
+  source   = ["src/grobl_cli"]
+  branch   = true
+  parallel = true
+
+[tool.coverage.report]
+  show_missing = false
+  skip_covered = true
+  # Regexes for lines to exclude from consideration
+  exclude_also = [
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+    "if self\\.debug",
+
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+  ]
+  ignore_errors = true
+
+[tool.coverage.xml]
+  output = ".coverage.xml"
+
+
+[tool.ty.environment]
+  root = [
+    "src",                 # this package
+    "../grobl/src",        # CLI (imports grobl and config)
+    "../grobl-config/src", # config lib
+  ]
