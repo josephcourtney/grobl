@@ -30,17 +30,10 @@ typecheck:
 
 # ---- Test ----
 test:
-  # Root pyproject config aggregates all testpaths across packages.
-  uv run pytest -q
-
-test-pkg pkg:
-  # Run tests for a single package (grobl|grobl-cli|grobl-config)
-  case "{{pkg}}" in \
-    grobl)         uv run pytest -q grobl/tests ;; \
-    grobl-cli)     uv run pytest -q grobl-cli/tests ;; \
-    grobl-config)  uv run pytest -q grobl-config/tests ;; \
-    *) echo "unknown package: {{pkg}} (expected: grobl|grobl-cli|grobl-config)" >&2; exit 2 ;; \
-  esac
+  uv run pytest --cov=grobl-config ./grobl-config/tests
+  uv run pytest --cov=grobl ./grobl/tests 
+  uv run pytest --cov=grobl-cli ./grobl-cli/tests
+  # uv run pytest --cov=grobl-workspace ./tests
 
 # ---- Build ----
 build-all:
@@ -51,6 +44,7 @@ build-all:
 clean:
   rm -rf **/__pycache__
   rm -rf .pytest_cache .ruff_cache .coverage .coverage.* coverage.xml
+  for d in {{PKG_DIRS}}; do rm -rf "$d/.pytest_cache" "$d/.ruff_cache" "$d/.coverage" "$d/.coverage.*" "$d/coverage.xml"; done
   uv cache prune || true
   rm -rf dist build
   for d in {{PKG_DIRS}}; do rm -rf "$d/dist" "$d/build"; done

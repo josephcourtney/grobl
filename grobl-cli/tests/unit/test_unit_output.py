@@ -7,7 +7,6 @@ import sys
 from typing import TYPE_CHECKING
 
 import pyperclip
-
 from grobl_cli.output import build_writer_from_config
 
 if TYPE_CHECKING:
