@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import click
-from grobl.constants import EXIT_CONFIG, OutputMode, SummaryFormat, TableStyle
+from grobl.constants import EXIT_CONFIG, EXIT_PATH, OutputMode, SummaryFormat, TableStyle
 from grobl.errors import PathNotFoundError, ScanInterrupted
 from grobl.services import ScanExecutor, ScanOptions
 from grobl.utils import find_common_ancestor
@@ -17,7 +17,6 @@ from grobl_config import ConfigLoadError, load_and_adjust_config
 from grobl_cli.output import (
     ClipboardOutput,
     FileOutput,
-    StdoutOutput,
     build_writer_from_config,
 )
 from grobl_cli.service.prompt import env_assume_yes, maybe_warn_on_common_heavy_dirs
@@ -125,14 +124,10 @@ def run_scan_command(params: ScanCommandParams) -> str:
     )
     actual_table = resolve_table_style(TableStyle(params.table))
 
-    if params.mode == OutputMode.SUMMARY.value and actual_table is TableStyle.NONE:
-        msg = "No output would be produced. Avoid combinations like '--mode summary --table none'"
-        raise click.UsageError(msg)
-
     executor = ScanExecutor(sink=write_fn)
 
     try:
-        summary = executor.execute(
+        execution_result = executor.execute(
             paths=list(params.paths),
             cfg=cfg,
             options=ScanOptions(
@@ -141,9 +136,17 @@ def run_scan_command(params: ScanCommandParams) -> str:
                 fmt=SummaryFormat(params.fmt),
             ),
         )
-    except ScanInterrupted as si:
+    except PathNotFoundError as err:
+        print(err, file=sys.stderr)
+        raise SystemExit(EXIT_PATH) from err
+    except (ScanInterrupted, KeyboardInterrupt) as si:
         print("\nInterrupted by user during scan.", file=sys.stderr)
         raise SystemExit(130) from si
+
+    if isinstance(execution_result, tuple):
+        summary = execution_result[0]
+    else:
+        summary = execution_result
 
     # Emit results according to output configuration
     if not params.quiet and params.fmt == SummaryFormat.HUMAN.value:
@@ -152,12 +155,5 @@ def run_scan_command(params: ScanCommandParams) -> str:
         if allow_clipboard:
             with contextlib.suppress(Exception):
                 ClipboardOutput.write(summary)
-        try:
-            StdoutOutput.write(summary)
-        except BrokenPipeError:
-            try:
-                sys.stdout.close()
-            finally:
-                raise SystemExit(0)
 
     return summary
