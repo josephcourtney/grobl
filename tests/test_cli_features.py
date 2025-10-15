@@ -26,7 +26,7 @@ def test_summary_mode_writes_to_file(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0
     assert out_path.read_text(encoding="utf-8")
-    assert not result.output.strip()
+    assert "Total lines" in result.output
 
 
 def test_quiet_json_summary_still_emits(tmp_path: Path) -> None:

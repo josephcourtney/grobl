@@ -13,8 +13,8 @@ from click.core import ParameterSource
 from grobl.config import load_and_adjust_config
 from grobl.constants import EXIT_CONFIG, OutputMode, SummaryFormat, TableStyle
 from grobl.errors import ConfigLoadError, PathNotFoundError
-from grobl.output import build_writer_from_config
-from grobl.tty import resolve_table_style, stdout_is_tty
+from grobl.output import ClipboardOutput, FileOutput, StdoutOutput, build_writer_from_config
+from grobl.tty import clipboard_allowed, resolve_table_style, stdout_is_tty
 from grobl.utils import find_common_ancestor
 
 from .common import (
@@ -163,7 +163,10 @@ def scan(
         print(err, file=sys.stderr)
         raise SystemExit(EXIT_CONFIG) from err
 
-    write_fn = build_writer_from_config(cfg=cfg, no_clipboard_flag=params.no_clipboard, output=params.output)
+    allow_clipboard = clipboard_allowed(cfg, no_clipboard_flag=params.no_clipboard)
+    write_fn = build_writer_from_config(
+        cfg=cfg, no_clipboard_flag=params.no_clipboard, output=params.output
+    )
     actual_table = resolve_table_style(params.table)
 
     if params.mode is OutputMode.SUMMARY and actual_table is TableStyle.NONE:
@@ -191,7 +194,20 @@ def scan(
                 raise SystemExit(0)
 
     if params.fmt is SummaryFormat.HUMAN and not params.quiet:
-        _emit(summary)
+        if params.output:
+            FileOutput(params.output).write(summary)
+        if allow_clipboard:
+            try:
+                ClipboardOutput.write(summary)
+            except Exception:
+                pass
+        try:
+            StdoutOutput.write(summary)
+        except BrokenPipeError:
+            try:
+                sys.stdout.close()
+            finally:
+                raise SystemExit(0)
     elif params.fmt is SummaryFormat.JSON and params.mode is OutputMode.SUMMARY:
         json_text = json.dumps(summary_json, sort_keys=True, indent=2)
         _emit(json_text)
