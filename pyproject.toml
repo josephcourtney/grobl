@@ -1,10 +1,15 @@
 [project]
   name = "grobl-workspace"
-  version = "0.0.0"
+  version = "0.8.0"
   requires-python = ">=3.12"
   dependencies = [
     "grobl",
+    "grobl-config",
+    "grobl-cli",
   ]
+
+  [project.scripts]
+    grobl = "grobl_cli.cli:main"
 
 [tool.uv.workspace]
   members = [
