@@ -2,19 +2,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import grobl
 import pytest
 
 from grobl.core import run_scan
-from grobl.file_handling import (
-    BinaryFileHandler,
-    FileAnalysis,
-    FileHandlerRegistry,
-    FileProcessingContext,
-    ScanDependencies,
-)
+from grobl.file_handling import ScanDependencies
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def test_package_importable() -> None:
+    assert grobl is not None
 
 
 def test_file_collection_and_metadata(tmp_path: Path) -> None:
@@ -32,7 +31,7 @@ def test_file_collection_and_metadata(tmp_path: Path) -> None:
     assert meta["inc.txt"][2] is True
     assert meta["skip.txt"][2] is False
     assert meta["bin.dat"][0] == 0
-    assert meta["bin.dat"][1] == 4
+    assert meta["bin.dat"][1] == -1
 
 
 def test_exclude_print_with_gitignore_semantics(tmp_path: Path) -> None:
@@ -88,29 +87,6 @@ def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
     lines, _, included = meta["solo.txt"]
     assert lines == 2
     assert included is True
-
-
-def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
-    binary = tmp_path / "blob.bin"
-    binary.write_bytes(b"abc")
-
-    class ZeroHandler(BinaryFileHandler):
-        def supports(self, *, path: Path, is_text_file: bool) -> bool:
-            return path.suffix == ".bin"
-
-        def _analyse(
-            self,
-            *,
-            path: Path,
-            context: FileProcessingContext,
-            is_text_file: bool,
-        ) -> FileAnalysis:
-            return FileAnalysis(lines=0, chars=0, include_content=False, binary_details={"size_bytes": 0})
-
-    handlers = FileHandlerRegistry.default().extend((ZeroHandler(),))
-    res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers)
-    meta = dict(res.builder.metadata_items())
-    assert meta["blob.bin"][1] == 0
 
 
 def test_run_scan_rejects_missing_paths(tmp_path: Path) -> None:

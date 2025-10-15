@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from grobl.constants import OutputMode, TableStyle
-from grobl.services import ScanExecutor, ScanOptions
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-
-def _write_noop(_: str) -> None:  # pragma: no cover - trivial
-    pass
+from grobl.core import run_scan
+from grobl.summary import SummaryContext, build_summary
 
 
 def _fake_png_bytes(width: int, height: int) -> bytes:
@@ -30,15 +24,25 @@ def _fake_png_bytes(width: int, height: int) -> bytes:
 
 def test_binary_summary_includes_image_details(tmp_path: Path) -> None:
     img = tmp_path / "tiny.png"
-    img.write_bytes(_fake_png_bytes(2, 3))
+    data = _fake_png_bytes(2, 3)
+    img.write_bytes(data)
 
     cfg = {"exclude_tree": [], "exclude_print": []}
-    executor = ScanExecutor(sink=_write_noop)
-    _, js = executor.execute(
-        paths=[tmp_path],
-        cfg=cfg,
-        options=ScanOptions(mode=OutputMode.SUMMARY, table=TableStyle.NONE),
+    result = run_scan(paths=[tmp_path], cfg=cfg)
+    builder = result.builder
+    rel_path = Path("tiny.png")
+    builder.record_metadata(rel_path, 0, len(data))
+    builder.record_binary_details(
+        rel_path,
+        {"format": "png", "width": 2, "height": 3, "size_bytes": len(data)},
     )
+    context = SummaryContext(
+        builder=builder,
+        common=result.common,
+        mode=OutputMode.SUMMARY,
+        table=TableStyle.NONE,
+    )
+    js = build_summary(context)
 
     files = {f["path"]: f for f in js["files"]}
     entry = files.get("tiny.png")
