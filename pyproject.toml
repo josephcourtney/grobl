@@ -60,8 +60,10 @@
 # ---------------- ty (static type checker) ----------------
 [tool.ty.environment]
   root = [
+    ".",               # repository root for top-level packages like `tests`
     "src",              # root-level (if any)
     "grobl/src",        # grobl package
     "grobl-cli/src",    # CLI package
     "grobl-config/src", # config helpers
+    "tests",            # shared test utilities
   ]

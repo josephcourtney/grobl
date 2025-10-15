@@ -15,13 +15,11 @@ from .constants import (
     TableStyle,
 )
 from .core import ScanResult, run_scan
-from .summary import build_summary
+from .summary import SummaryContext, build_summary
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
-
-    from grobl.summary import SummaryContext
 
     from .directory import DirectoryTreeBuilder
 
@@ -155,8 +153,8 @@ class ScanExecutor:
         paths: list[Path],
         cfg: dict[str, object],
         options: ScanOptions,
-    ) -> str:
-        """Return human summary; emit XML payload to sink if requested."""
+    ) -> tuple[str, dict[str, Any]]:
+        """Return both the human summary text and the machine summary payload."""
         logger.info(
             "executor start (paths=%d, mode=%s, format=%s)", len(paths), options.mode.value, options.fmt.value
         )
@@ -177,6 +175,14 @@ class ScanExecutor:
             table=options.table.value,
         )
 
+        summary_context = SummaryContext(
+            builder=builder,
+            common=result.common,
+            mode=options.mode,
+            table=options.table,
+        )
+        summary_payload = self._deps.summary_builder(summary_context)
+
         # Emit XML payload (tree/files) via sink when mode requests it.
         payload = self._deps.payload_builder(
             builder=builder,
@@ -193,4 +199,4 @@ class ScanExecutor:
             builder.total_lines,
             builder.total_characters,
         )
-        return human
+        return human, summary_payload
