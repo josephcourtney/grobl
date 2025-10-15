@@ -1,3 +1,5 @@
+"""Unit tests for grobl_cli.output helpers."""
+
 from __future__ import annotations
 
 import io
@@ -14,7 +16,7 @@ if TYPE_CHECKING:
     import pytest
 
 
-def test_output_goes_to_file_first(tmp_path: Path, monkeypatch: object) -> None:
+def test_output_goes_to_file_first(tmp_path: Path) -> None:
     out = tmp_path / "out.txt"
     writer = build_writer_from_config(cfg={}, no_clipboard_flag=True, output=out)
     writer("hello")

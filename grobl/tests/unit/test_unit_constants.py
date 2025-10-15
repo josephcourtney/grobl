@@ -4,9 +4,27 @@ from importlib.metadata import PackageNotFoundError
 from typing import TYPE_CHECKING
 
 import grobl.__init__ as grobl_init
+from grobl import constants
 
 if TYPE_CHECKING:
     import pytest
+
+
+def test_output_mode_values() -> None:
+    assert {mode.value for mode in constants.OutputMode} == {"all", "tree", "files", "summary"}
+
+
+def test_default_tags_and_keys() -> None:
+    assert constants.CONFIG_EXCLUDE_TREE == "exclude_tree"
+    assert constants.CONFIG_EXCLUDE_PRINT == "exclude_print"
+    assert constants.CONFIG_INCLUDE_TREE_TAGS == "include_tree_tags"
+    assert constants.CONFIG_INCLUDE_FILE_TAGS == "include_file_tags"
+    assert constants.DEFAULT_TREE_TAG == "directory"
+    assert constants.DEFAULT_FILE_TAG == "file"
+
+
+def test_heavy_dir_set_includes_common_entries() -> None:
+    assert {"node_modules", ".venv"}.issubset(constants.HEAVY_DIRS)
 
 
 def test_distribution_version_source(monkeypatch: pytest.MonkeyPatch) -> None:
