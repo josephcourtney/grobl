@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest import mock
 
 import pytest
@@ -48,7 +48,8 @@ def test_run_scan_keyboard_interrupt(tmp_path: Path) -> None:
     params = minimal_params(tmp_path)
 
     with mock.patch("grobl_cli.service.scan_runner.ScanExecutor.execute", side_effect=KeyboardInterrupt):
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(SystemExit) as excinfo_raw:
             run_scan_command(params)
 
+    excinfo = cast(pytest.ExceptionInfo[SystemExit], excinfo_raw)
     assert excinfo.value.code == 130
