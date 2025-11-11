@@ -116,7 +116,7 @@ wheels = [
 
 [[package]]
 name = "grobl"
-version = "0.8.0"
+version = "0.8.2"
 source = { editable = "grobl" }
 dependencies = [
     { name = "grobl-config" },
@@ -155,7 +155,7 @@ dev = [
 
 [[package]]
 name = "grobl-cli"
-version = "0.8.0"
+version = "0.8.2"
 source = { editable = "grobl-cli" }
 dependencies = [
     { name = "click" },
@@ -200,7 +200,7 @@ dev = [
 
 [[package]]
 name = "grobl-config"
-version = "0.8.0"
+version = "0.8.2"
 source = { editable = "grobl-config" }
 dependencies = [
     { name = "click" },
