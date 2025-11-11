@@ -241,7 +241,7 @@ dev = [
 
 [[package]]
 name = "grobl-workspace"
-version = "0.8.1"
+version = "0.8.2"
 source = { editable = "." }
 dependencies = [
     { name = "grobl" },
