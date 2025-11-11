@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 from .constants import (
     CONFIG_INCLUDE_FILE_TAGS,
     CONFIG_INCLUDE_TREE_TAGS,
+    DEFAULT_FILE_TAG,
+    DEFAULT_TREE_TAG,
     OutputMode,
     SummaryFormat,
     TableStyle,
@@ -166,8 +168,8 @@ class ScanExecutor:
         )
         result = self._deps.scan(paths=paths, cfg=cfg)
 
-        ttag = str(cfg.get(CONFIG_INCLUDE_TREE_TAGS, "directory"))
-        ftag = str(cfg.get(CONFIG_INCLUDE_FILE_TAGS, "file"))
+        ttag = str(cfg.get(CONFIG_INCLUDE_TREE_TAGS, DEFAULT_TREE_TAG))
+        ftag = str(cfg.get(CONFIG_INCLUDE_FILE_TAGS, DEFAULT_FILE_TAG))
 
         builder = result.builder
 

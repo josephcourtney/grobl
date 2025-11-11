@@ -68,10 +68,13 @@ def run_scan(
     print_spec = PathSpec.from_lines("gitwildmatch", excl_print)
 
     logger.info(
-        "starting directory traversal (paths=%d, exclude_tree=%d, exclude_print=%d)",
-        len(resolved),
-        len(excl_tree),
-        len(excl_print),
+        "scan_start",
+        extra={
+            "event": "scan_start",
+            "paths": len(resolved),
+            "exclude_tree": len(excl_tree),
+            "exclude_print": len(excl_print),
+        },
     )
 
     builder = DirectoryTreeBuilder(base_path=common, exclude_patterns=excl_tree)
@@ -103,10 +106,13 @@ def run_scan(
 
     duration = perf_counter() - start
     logger.info(
-        "completed directory traversal (duration=%.3fs, files=%d, tree_lines=%d)",
-        duration,
-        len(builder.file_tree_entries()),
-        len(builder.tree_output()),
+        "scan_complete",
+        extra={
+            "event": "scan_complete",
+            "duration_s": round(duration, 3),
+            "files": len(builder.file_tree_entries()),
+            "tree_lines": len(builder.tree_output()),
+        },
     )
 
     return ScanResult(

@@ -24,7 +24,7 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
         def supports(self, *, path: Path, is_text_file: bool) -> bool:
             return path.suffix == ".bin"
 
-        def _analyse(
+        def _analyze(
             self,
             *,
             path: Path,
