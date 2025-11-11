@@ -2,10 +2,6 @@
 # Files/folders whose *presence* isn't helpful
 # ============================================
 exclude_tree = [
-  "uv.lock",
-  "ruff.default.toml",
-  "AGENTS.md",
-  "src",
 
   # ---------------- project-specific ----------------
   "notes",

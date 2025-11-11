@@ -59,13 +59,13 @@ class BaseFileHandler:
 
     def process(self, *, path: Path, context: FileProcessingContext, is_text_file: bool) -> None:
         rel = path.relative_to(context.common)
-        analysis = self._analyse(path=path, context=context, is_text_file=is_text_file)
+        analysis = self._analyze(path=path, context=context, is_text_file=is_text_file)
         builder = context.builder
         builder.record_metadata(rel, analysis.lines, analysis.chars)
         if analysis.include_content and analysis.content is not None:
             builder.add_file(path, rel, analysis.lines, analysis.chars, analysis.content)
 
-    def _analyse(
+    def _analyze(
         self,
         *,
         path: Path,
@@ -83,7 +83,7 @@ class TextFileHandler(BaseFileHandler):
         return is_text_file
 
     @staticmethod
-    def _analyse(
+    def _analyze(
         *,
         path: Path,
         context: FileProcessingContext,
@@ -110,16 +110,23 @@ class BinaryFileHandler(BaseFileHandler):
     def supports(*, path: Path, is_text_file: bool) -> bool:  # noqa: ARG004 - `path` unused
         return not is_text_file
 
-    @staticmethod
-    def _analyse(
+    def _analyze(
         *,
-        path: Path,  # noqa: ARG004 - template signature
-        context: FileProcessingContext,  # noqa: ARG004 - template signature
-        is_text_file: bool,  # noqa: ARG004 - template signature
+        path: Path,
+        context: FileProcessingContext,
+        is_text_file: bool,
     ) -> FileAnalysis:
+        # Use file size to populate "chars" so summaries can identify binaries.
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = 0
+        rel = path.relative_to(context.common)
+        # Record minimal binary details; handlers can extend this.
+        context.builder.record_binary_details(rel, {"size_bytes": size})
         return FileAnalysis(
             lines=0,
-            chars=-1,
+            chars=size,
             include_content=False,
         )
 

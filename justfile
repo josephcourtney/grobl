@@ -30,24 +30,17 @@ typecheck:
 
 # ---- Test ----
 test:
-  uv run pytest --cov=grobl-config ./grobl-config/tests
-  uv run pytest --cov=grobl ./grobl/tests 
-  uv run pytest --cov=grobl-cli ./grobl-cli/tests
-  # uv run pytest --cov=grobl-workspace ./tests
-
-# ---- Build ----
-build-all:
-  # Build all member packages deterministically.
-  for d in {{PKG_DIRS}}; do (cd "$d" && uv build); done
+  uv run pytest
 
 # ---- Clean ----
 clean:
   rm -rf **/__pycache__
-  rm -rf .pytest_cache .ruff_cache .coverage .coverage.* coverage.xml
-  for d in {{PKG_DIRS}}; do rm -rf "$d/.pytest_cache" "$d/.ruff_cache" "$d/.coverage" "$d/.coverage.*" "$d/coverage.xml"; done
+  rm -rf ./**/.pytest_cache ./**/.ruff_cache ./**/.coverage ./**/.coverage.* ./**/coverage.xml
   uv cache prune || true
-  rm -rf dist build
-  for d in {{PKG_DIRS}}; do rm -rf "$d/dist" "$d/build"; done
+  rm -rf ./**/dist ./**/build
+
+coverage-report:
+  uv run python scripts/report_coverage.py
 
 qa: setup format lint typecheck test
 

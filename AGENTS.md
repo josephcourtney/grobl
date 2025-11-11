@@ -32,16 +32,16 @@ If any command fails due to missing executables or environment configuration, em
 
 ### Linting
 
-* Command: `.venv/bin/ruff check src/ tests/`
+* Command: `uv run just lint`
 * Rules: Defined in `pyproject.toml` and any referenced config files
 
 ### Formatting
 
-* Command: `.venv/bin/ruff format src/ tests/`
+* Command: `uv run just format`
 
 ### Static Typing
 
-* Command: `.venv/bin/ty check src/ tests/`
+* Command: `uv run just typecheck`
 * Syntax: Use Python 3.13–compatible type annotations
 * Constraints: Must follow `pyproject.toml` settings
 
@@ -49,12 +49,12 @@ If any command fails due to missing executables or environment configuration, em
 
 ### Testing
 
-* Command: `.venv/bin/pytest`
+* Command: `uv run just test`
 * Coverage: Add tests for new features and regression paths
 * Constraints:
   * Use deterministic data
   * Avoid system-dependent values (e.g., timestamps, user paths)
-  * Use `.venv/bin/pytest` to generate coverage
+  * Coverage should
 
 > If coverage decreases from the baseline in `coverage.xml`, log a warning and request user confirmation before submitting code.
 

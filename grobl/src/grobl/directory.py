@@ -11,7 +11,7 @@ from pathspec import PathSpec
 # consistent across the codebase and the tests that assert on them.
 LAST_CONNECTOR = "└── "
 BRANCH_CONNECTOR = "├── "
-CONFIG_WITHOUT_SPEC_LENGTH = 3
+CONFIG_WITHOUT_SPEC_LENGTH = 3  # ("paths", "patterns", "base")
 
 
 class TreeCallback(Protocol):
@@ -188,8 +188,9 @@ class DirectoryTreeBuilder:
     ) -> None:
         """Record line/char counts for a file and update ALL-file totals."""
         self.files.record_metadata(rel, lines, chars)
-        self.all_total_lines += lines
-        self.all_total_characters += chars
+        self.all_total_lines += max(0, lines)
+        # Defensive clamp to avoid negative totals if a handler misbehaves.
+        self.all_total_characters += max(0, chars)
 
     def add_file(
         self,
