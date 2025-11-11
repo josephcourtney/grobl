@@ -27,8 +27,11 @@ env:
   @echo "SHOWCOV={{SHOWCOV}}"
 
 # Config (overridable via env/.env)
-export PYTHON_PACKAGE := env("PYTHON_PACKAGE", "kwisatz")
-export PY_TESTPATH    := env("PY_TESTPATH", "tests")
+export PYTHON_PACKAGE := env("PYTHON_PACKAGE", "grobl")
+export PY_TESTPATH    := env(
+  "PY_TESTPATH",
+  "tests grobl-config/tests grobl-cli/tests grobl/tests",
+)
 export PY_SRC         := env("PY_SRC", "src")
 export VERBOSE        := env("VERBOSE", "0")
 
@@ -57,7 +60,7 @@ check-tools:
 
 # Bootstrap: set up venv and update versions
 setup: check-tools
-  {{UV}} sync
+  {{UV}} sync --dev
 
 # Bootstrap: setu up venv obeying lockfile
 setup-frozen: check-tools
@@ -85,7 +88,7 @@ typecheck *ARGS:
 
 # Test
 test *ARGS:
-  @{{PYTEST}} -q {{PY_TESTPATH}} {{ARGS}} || true
+  @{{PYTEST}} || true
 
 # Show coverage summary
 cov-summary *ARGS:
@@ -115,10 +118,23 @@ clean:
   @rm -rf dist build
   @{{UV}} cache prune || true
 
+[private]
+stash-untracked:
+  @set -euo pipefail
+  @ts="$(date -u +%Y%m%dT%H%M%SZ)"; \
+   msg="scour:untracked:$ts"; \
+   paths="$(git ls-files -z --others --exclude-standard)"; \
+   if [ -n "$paths" ]; then \
+     printf '%s' "$paths" \
+       | xargs -0 git stash push -m "$msg" -u -- >/dev/null; \
+     echo "Stashed untracked (non-ignored) files as: $msg"; \
+   else \
+     echo "No untracked (non-ignored) paths to stash."; \
+   fi
+
 # Remove all files and directories that are ignored by git, except .venv
-scour: guard-force
-  @just clean
-  @git clean -ffdX
+scour: clean stash-untracked
+  @git clean -ffd
 
 # Pipelines
 # Validate rule compliance but make no changes
