@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from click.testing import CliRunner
 
 from grobl.cli import cli
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def test_readme_scan_quick_start(tmp_path: Path) -> None:
@@ -57,3 +54,14 @@ def test_readme_init(tmp_path: Path) -> None:
     res = runner.invoke(cli, ["init", "--path", str(tmp_path), "--force"])
     assert res.exit_code in {0, 1}  # force may be redundant but should succeed or assert existing
     assert (tmp_path / ".grobl.toml").exists()
+
+
+def test_readme_documents_scan_flags() -> None:
+    text = Path("README.md").read_text(encoding="utf-8")
+    assert "--scope {all,tree,files}" in text
+    assert "--payload {llm,json,none}" in text
+    assert "--summary {human,json,none}" in text
+    assert "--summary-style {auto,full,compact,none}" in text
+    assert "--sink {auto,clipboard,stdout,file}" in text
+    assert "--output PATH" in text
+    assert "--mode" not in text

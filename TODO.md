@@ -137,16 +137,16 @@
     - [x] Expect a config load error when `--config` path is missing
     - [x] Continue to allow `$GROBL_CONFIG_PATH` to be ignored when missing
 
-- [ ] Update documentation and README
-  - [ ] Rewrite the “Commands” and “grobl scan” sections in `README.md` to match the new spec:
-    - [ ] Document `--scope`, `--payload`, `--summary`, `--summary-style`, `--sink`, `--output`
-    - [ ] Remove references to `--mode`, `--format`, `--table`, `--quiet`, `--no-clipboard`
-    - [ ] Update examples to use the new flags (clipboard workflow, JSON payload, summary-only, etc.)
-  - [ ] Ensure the configuration precedence description still matches runtime behavior
-  - [ ] Update any narrative that mentions “mode summary” or conflates summary with mode
-  - [ ] Update `AGENTS.md` if it references specific CLI flags or behaviors
+- [x] Update documentation and README
+  - [x] Rewrite the “Commands” and “grobl scan” sections in `README.md` to match the new spec:
+    - [x] Document `--scope`, `--payload`, `--summary`, `--summary-style`, `--sink`, `--output`
+    - [x] Remove references to `--mode`, `--format`, `--table`, `--quiet`, `--no-clipboard`
+    - [x] Update examples to use the new flags (clipboard workflow, JSON payload, summary-only, etc.)
+  - [x] Ensure the configuration precedence description still matches runtime behavior
+  - [x] Update any narrative that mentions “mode summary” or conflates summary with mode
+  - [x] Update `AGENTS.md` if it references specific CLI flags or behaviors
 
-- [ ] Update system and component tests
+- [x] Update system and component tests
   - [x] Rewrite `tests/system/test_cli.py` to:
     - [x] Use `--scope` instead of `--mode`
     - [x] Use `--payload` and `--summary` instead of `--format`/`--quiet`
@@ -155,29 +155,29 @@
   - [x] Update `tests/system/test_readme_smoke.py` to:
     - [x] Match the new README examples and flag names
     - [x] Verify that the quick-start `grobl scan` commands still succeed
-  - [ ] Update component CLI tests (`tests/component/cli/*.py`) for:
-    - [ ] JSON summary vs JSON payload semantics
-    - [ ] Summary suppression via `--summary none`
-    - [ ] New sink behavior when stdout is/ isn’t a TTY
+  - [x] Update component CLI tests (`tests/component/cli/*.py`) for:
+    - [x] JSON summary vs JSON payload semantics
+    - [x] Summary suppression via `--summary none`
+    - [x] New sink behavior when stdout is/ isn’t a TTY
 
-- [ ] Clean up legacy code paths and dead tests
-  - [ ] Remove any code branches that special-case `OutputMode.SUMMARY`
-  - [ ] Remove tests specifically checking the old `--mode summary --table none` warning behavior
-  - [ ] Remove or adapt tests relying on `--quiet` and `--no-clipboard`
-  - [ ] Run `uv run ruff check` and clean up unused imports / constants introduced by the refactor
+- [x] Clean up legacy code paths and dead tests
+  - [x] Remove any code branches that special-case `OutputMode.SUMMARY`
+  - [x] Remove tests specifically checking the old `--mode summary --table none` warning behavior
+  - [x] Remove or adapt tests relying on `--quiet` and `--no-clipboard`
+  - [x] Run `uv run ruff check` and clean up unused imports / constants introduced by the refactor
 
-- [ ] Versioning and changelog
-  - [ ] Bump `project.version` in `pyproject.toml` to the next major version (breaking CLI changes)
-  - [ ] Add a new section to `CHANGELOG.md`:
-    - [ ] Document the new CLI flags and semantics
-    - [ ] Note removal of `--mode`, `--format`, `--quiet`, `--no-clipboard`, and `--table` for JSON
-  - [ ] Ensure previous changelog entries remain untouched
+- [x] Versioning and changelog
+  - [x] Bump `project.version` in `pyproject.toml` for the next release (patched to 1.0.8 per user instructions)
+  - [x] Add a new section to `CHANGELOG.md`:
+    - [x] Document the new CLI flags and semantics
+    - [x] Note removal of `--mode`, `--format`, `--quiet`, `--no-clipboard`, and `--table` for JSON
+  - [x] Ensure previous changelog entries remain untouched
 
-- [ ] Final validation
-  - [ ] Run `uv run ruff format src tests`
-  - [ ] Run `uv run ruff check src tests`
-  - [ ] Run `uv run ty check src tests`
-  - [ ] Run `uv run pytest`
-  - [ ] Confirm that:
-    - [ ] Default `grobl` / `grobl scan` behavior matches the new spec
-    - [ ] Each documented example in `README.md` is covered by at least one test
+- [x] Final validation
+  - [x] Run `uv run ruff format src tests`
+  - [x] Run `uv run ruff check src tests`
+  - [x] Run `uv run ty check src tests`
+  - [x] Run `uv run pytest`
+  - [x] Confirm that:
+    - [x] Default `grobl` / `grobl scan` behavior matches the new spec
+    - [x] Each documented example in `README.md` is covered by at least one test

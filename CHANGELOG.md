@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+## [1.0.8] - 2025-11-13
+
+### Added
+- add component CLI tests for JSON summary/payload interactions, summary suppression, and clipboard sink routing
+
+### Changed
+- update the README scan documentation and add a regression test to ensure the new CLI flags stay documented
+
+### Removed
+- remove the legacy `OutputMode` enum to finish deleting the old summary-only code path
+
 ## [1.0.7] - 2025-11-12
 
 ### Added
