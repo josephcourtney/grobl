@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from grobl.config import load_and_adjust_config
+from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def write_toml(p: Path, content: str) -> None:
@@ -102,3 +103,31 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
         remove_ignore=(),
     )
     assert cfg.get("exclude_tree") == ["from-base"]
+
+
+def test_missing_explicit_config_raises(tmp_path: Path) -> None:
+    missing = tmp_path / "does-not-exist.toml"
+
+    with pytest.raises(ConfigLoadError):
+        load_and_adjust_config(
+            base_path=tmp_path,
+            explicit_config=missing,
+            ignore_defaults=True,
+            add_ignore=(),
+            remove_ignore=(),
+        )
+
+
+def test_missing_env_config_is_ignored(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    missing = tmp_path / "env-missing.toml"
+    monkeypatch.setenv("GROBL_CONFIG_PATH", str(missing))
+
+    cfg = load_and_adjust_config(
+        base_path=tmp_path,
+        explicit_config=None,
+        ignore_defaults=True,
+        add_ignore=(),
+        remove_ignore=(),
+    )
+
+    assert isinstance(cfg, dict)

@@ -164,7 +164,10 @@ def read_config(
             cfg |= load_toml_config(p)
 
     # 6) explicit path override
-    if explicit_config and explicit_config.exists():
+    if explicit_config:
+        if not explicit_config.exists():
+            msg = f"Explicit config file not found: {explicit_config}"
+            raise ConfigLoadError(msg)
         cfg |= load_toml_config(explicit_config)
 
     return cfg

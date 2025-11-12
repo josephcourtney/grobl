@@ -32,6 +32,8 @@ def test_cli_json_tree_payload(tmp_path: Path) -> None:
 def test_cli_json_files_payload(tmp_path: Path) -> None:
     (tmp_path / "inc.txt").write_text("hello", encoding="utf-8")
     (tmp_path / "skip.txt").write_text("skip", encoding="utf-8")
+    cfg = tmp_path / "explicit.toml"
+    cfg.write_text("", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
@@ -45,7 +47,7 @@ def test_cli_json_files_payload(tmp_path: Path) -> None:
             "--table",
             "none",
             "--config",
-            str(tmp_path / "nonexistent.toml"),  # ensure no extra excludes
+            str(cfg),
         ],
     )
     assert res.exit_code == 0
