@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Changed
+- route bare `grobl` invocations through the `scan` command using Click's default dispatch
+
 ## [1.0.3] - 2025-10-20
 
 ### Fixed
