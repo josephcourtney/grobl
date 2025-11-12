@@ -8,21 +8,43 @@ from pathlib import Path
 from typing import Any, cast
 
 import click
-from grobl.config import load_and_adjust_config
 from grobl.constants import EXIT_CONFIG, OutputMode, SummaryFormat, TableStyle
-from grobl.errors import ConfigLoadError, PathNotFoundError
-from grobl.output import build_writer_from_config
-from grobl.tty import resolve_table_style
+from grobl.errors import PathNotFoundError
 from grobl.utils import find_common_ancestor
+from grobl_config import ConfigLoadError, load_and_adjust_config
 
+from grobl_cli.output import build_writer_from_config
 from grobl_cli.service.scan_runner import ScanCommandParams
 from grobl_cli.tty import resolve_table_style, stdout_is_tty
 
-from .common import (
-    _execute_with_handling,
-    _maybe_offer_legacy_migration,
-    _maybe_warn_on_common_heavy_dirs,
-)
+
+def _execute_with_handling(
+    *,
+    params: ScanParams,
+    cfg: dict[str, Any],
+    cwd: Path,
+    write_fn: Callable[[str], None],
+    table: TableStyle,
+) -> tuple[str, dict[str, Any]]:
+    try:
+        executor = ScanExecutor(sink=write_fn)
+        return executor.execute(
+            paths=list(params.paths),
+            cfg=cfg,
+            options=ScanOptions(mode=params.mode, table=table, fmt=params.fmt),
+        )
+    except PathNotFoundError as e:
+        print(e, file=sys.stderr)
+        raise SystemExit(EXIT_PATH) from e
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        raise SystemExit(EXIT_USAGE) from e
+    except ScanInterrupted as si:
+        print_interrupt_diagnostics(si.common, cfg, si.builder)
+        raise
+    except KeyboardInterrupt:
+        print_interrupt_diagnostics(cwd, cfg, DirectoryTreeBuilder(base_path=cwd, exclude_patterns=[]))
+        raise
 
 
 @click.command()
@@ -117,10 +139,6 @@ def scan(
     )
 
     cwd = Path()
-    _maybe_offer_legacy_migration(cwd, assume_yes=yes)
-    _maybe_warn_on_common_heavy_dirs(
-        paths=params.paths, ignore_defaults=params.ignore_defaults, assume_yes=yes
-    )
 
     try:
         common_base = find_common_ancestor(list(params.paths) or [cwd])
