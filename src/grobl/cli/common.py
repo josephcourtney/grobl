@@ -14,7 +14,9 @@ from grobl.constants import (
     EXIT_INTERRUPT,
     EXIT_PATH,
     EXIT_USAGE,
-    OutputMode,
+    ContentScope,
+    PayloadFormat,
+    PayloadSink,
     SummaryFormat,
     TableStyle,
 )
@@ -34,17 +36,17 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True, slots=True)
 class ScanParams:
     ignore_defaults: bool
-    no_clipboard: bool
     output: Path | None
     add_ignore: tuple[str, ...]
     remove_ignore: tuple[str, ...]
     add_ignore_file: tuple[Path, ...]
     no_ignore: bool
-    mode: OutputMode
-    table: TableStyle
+    scope: ContentScope
+    summary_style: TableStyle
     config_path: Path | None
-    quiet: bool
-    fmt: SummaryFormat
+    payload: PayloadFormat
+    summary: SummaryFormat
+    sink: PayloadSink
     paths: tuple[Path, ...]
 
 
@@ -88,14 +90,19 @@ def _execute_with_handling(
     cfg: dict[str, Any],
     cwd: Path,
     write_fn: Callable[[str], None],
-    table: TableStyle,
+    summary_style: TableStyle,
 ) -> tuple[str, dict[str, Any]]:
     try:
         executor = ScanExecutor(sink=write_fn)
         return executor.execute(
             paths=list(params.paths),
             cfg=cfg,
-            options=ScanOptions(mode=params.mode, table=table, fmt=params.fmt),
+            options=ScanOptions(
+                scope=params.scope,
+                payload_format=params.payload,
+                summary_format=params.summary,
+                summary_style=summary_style,
+            ),
         )
     except PathNotFoundError as e:
         print(e, file=sys.stderr)

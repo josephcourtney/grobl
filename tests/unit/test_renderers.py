@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from grobl.constants import ContentScope
 from grobl.directory import DirectoryTreeBuilder
-from grobl.renderers import DirectoryRenderer
+from grobl.renderers import DirectoryRenderer, build_llm_payload
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -44,3 +45,50 @@ def test_files_payload_contains_file_content_block(tmp_path: Path) -> None:
     payload = DirectoryRenderer(builder).files_payload()
     assert '<file:content name="doc.md"' in payload
     assert r"\`\`\`" in payload  # escaped backticks
+
+
+def test_build_llm_payload_respects_scope(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    subdir = tmp_path / "pkg"
+    subdir.mkdir()
+    builder.add_directory(subdir, "", is_last=False)
+    file_path = tmp_path / "pkg" / "module.py"
+    file_path.write_text("print('hi')\n", encoding="utf-8")
+    builder.add_file_to_tree(file_path, "pkg", is_last=True)
+    builder.add_file(
+        file_path,
+        file_path.relative_to(tmp_path),
+        lines=1,
+        chars=len("print('hi')\n"),
+        content="print('hi')\n",
+    )
+
+    payload_all = build_llm_payload(
+        builder=builder,
+        common=tmp_path,
+        scope=ContentScope.ALL,
+        tree_tag="directory",
+        file_tag="file",
+    )
+    assert "<directory" in payload_all
+    assert "<file" in payload_all
+
+    payload_tree = build_llm_payload(
+        builder=builder,
+        common=tmp_path,
+        scope=ContentScope.TREE,
+        tree_tag="directory",
+        file_tag="file",
+    )
+    assert "<directory" in payload_tree
+    assert "<file" not in payload_tree
+
+    payload_files = build_llm_payload(
+        builder=builder,
+        common=tmp_path,
+        scope=ContentScope.FILES,
+        tree_tag="directory",
+        file_tag="file",
+    )
+    assert "<directory" not in payload_files
+    assert "<file" in payload_files

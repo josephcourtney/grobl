@@ -22,25 +22,32 @@ def test_cli_format_json_pretty_and_schema(tmp_path: Path) -> None:
         [
             "scan",
             str(tmp_path),
-            "--mode",
-            "summary",
-            "--format",
+            "--payload",
             "json",
+            "--summary",
+            "json",
+            "--summary-style",
+            "none",
+            "--sink",
+            "stdout",
         ],
     )
     assert res.exit_code == 0
     out = res.output.strip()
-    # pretty printed: indented and multi-line
-    assert out.startswith("{\n  ")
-    assert '\n  "files": [' in out
-
-    data = json.loads(out)
+    decoder = json.JSONDecoder()
+    data, index = decoder.raw_decode(out)
+    remainder = out[index:].strip()
+    if remainder:
+        summary, _ = decoder.raw_decode(remainder)
+    else:
+        summary = data["summary"]
     # schema basics
-    assert set(data.keys()) == {"root", "mode", "table", "totals", "files"}
+    assert set(data.keys()) == {"root", "scope", "summary", "tree", "files"}
     assert isinstance(data["files"], list)
+    assert summary["style"] == "none"
     # determinism: keys in entries are stable
     for entry in data["files"]:
-        assert "path" in entry
+        assert "name" in entry
         assert "lines" in entry
         assert "chars" in entry
-        assert "included" in entry
+        assert "content" in entry

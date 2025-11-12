@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .constants import OutputMode
+from .constants import ContentScope
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -85,14 +85,13 @@ def _build_files_payload(builder: DirectoryTreeBuilder, common: Path, *, ftag: s
     return f'<{ftag} root="{common.name}">\n{files_xml}\n</{ftag}>'
 
 
-MODE_HANDLERS: dict[OutputMode, Callable[[DirectoryTreeBuilder, Path, str, str], list[str]]] = {
-    OutputMode.ALL: lambda b, c, ttag, ftag: [
+MODE_HANDLERS: dict[ContentScope, Callable[[DirectoryTreeBuilder, Path, str, str], list[str]]] = {
+    ContentScope.ALL: lambda b, c, ttag, ftag: [
         _build_tree_payload(b, c, ttag=ttag),
         _build_files_payload(b, c, ftag=ftag),
     ],
-    OutputMode.TREE: lambda b, c, ttag, ftag: [_build_tree_payload(b, c, ttag=ttag)],  # noqa: ARG005
-    OutputMode.FILES: lambda b, c, ttag, ftag: [_build_files_payload(b, c, ftag=ftag)],  # noqa: ARG005
-    OutputMode.SUMMARY: lambda b, c, ttag, ftag: [],  # summary-only: no LLM payload  # noqa: ARG005
+    ContentScope.TREE: lambda b, c, ttag, ftag: [_build_tree_payload(b, c, ttag=ttag)],  # noqa: ARG005
+    ContentScope.FILES: lambda b, c, ttag, ftag: [_build_files_payload(b, c, ftag=ftag)],  # noqa: ARG005
 }
 
 
@@ -100,11 +99,11 @@ def build_llm_payload(
     *,
     builder: DirectoryTreeBuilder,
     common: Path,
-    mode: OutputMode,
+    scope: ContentScope,
     tree_tag: str,
     file_tag: str,
 ) -> str:
-    """Assemble the final LLM payload based on mode and tag names."""
-    handler = MODE_HANDLERS.get(mode, MODE_HANDLERS[OutputMode.ALL])
+    """Assemble the final LLM payload based on scope and tag names."""
+    handler = MODE_HANDLERS.get(scope, MODE_HANDLERS[ContentScope.ALL])
     parts = handler(builder, common, tree_tag, file_tag)
     return "\n".join(parts)
