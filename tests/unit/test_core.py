@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+from grobl.core import run_scan
+from grobl.file_handling import (
+    BinaryFileHandler,
+    FileAnalysis,
+    FileHandlerRegistry,
+    FileProcessingContext,
+    ScanDependencies,
+)
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+def test_file_collection_and_metadata(tmp_path: Path) -> None:
+    # text file included; another text file excluded by exclude_print; one binary
+    (tmp_path / "inc.txt").write_text("hello\nworld\n", encoding="utf-8")
+    (tmp_path / "skip.txt").write_text("skip\n", encoding="utf-8")
+    (tmp_path / "bin.dat").write_bytes(b"\x00\x01\x02\x03")
+
+    cfg = {"exclude_tree": [], "exclude_print": ["skip.txt"]}
+    res = run_scan(paths=[tmp_path], cfg=cfg)
+    b = res.builder
+    meta = dict(b.metadata_items())
+
+    assert meta["inc.txt"][0] == 2
+    assert meta["inc.txt"][2] is True
+    assert meta["skip.txt"][2] is False
+    assert meta["bin.dat"][0] == 0
+    assert meta["bin.dat"][1] == 4
+
+
+def test_exclude_print_with_gitignore_semantics(tmp_path: Path) -> None:
+    # ensure **/*.md prevents content from being included
+    (tmp_path / "notes").mkdir()
+    md = tmp_path / "notes" / "readme.md"
+    md.write_text("# hi\n", encoding="utf-8")
+    txt = tmp_path / "notes" / "keep.txt"
+    txt.write_text("ok\n", encoding="utf-8")
+
+    from grobl.core import run_scan
+
+    cfg = {"exclude_tree": [], "exclude_print": ["**/*.md"]}
+    res = run_scan(paths=[tmp_path], cfg=cfg)
+    # The .md file should have included=False in metadata
+    meta = dict(res.builder.metadata_items())
+    assert meta["notes/readme.md"][2] is False
+    assert meta["notes/keep.txt"][2] is True
+
+
+def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
+    target = tmp_path / "solo.txt"
+    target.write_text("line1\nline2\n", encoding="utf-8")
+
+    res = run_scan(paths=[target], cfg={})
+
+    assert res.common == tmp_path
+    tree = res.builder.tree_output()
+    assert any("solo.txt" in line for line in tree)
+    meta = dict(res.builder.metadata_items())
+    assert "solo.txt" in meta
+    lines, _, included = meta["solo.txt"]
+    assert lines == 2
+    assert included is True
+
+
+def test_run_scan_rejects_missing_paths(tmp_path: Path) -> None:
+    missing = tmp_path / "does-not-exist"
+    with pytest.raises(ValueError, match="scan paths do not exist"):
+        run_scan(paths=[missing], cfg={})
+
+
+def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
+    sample = tmp_path / "note.txt"
+    sample.write_text("ignored", encoding="utf-8")
+
+    reads: list[Path] = []
+
+    def fake_read(path: Path) -> str:
+        reads.append(path)
+        return "hello"
+
+    deps = ScanDependencies(
+        text_detector=lambda _path: True,
+        text_reader=fake_read,
+        binary_probe=lambda _path: {"size_bytes": 0},
+    )
+
+    res = run_scan(paths=[tmp_path], cfg={}, dependencies=deps)
+    assert reads == [sample]
+    meta = dict(res.builder.metadata_items())
+    assert meta["note.txt"][0] == 1
+
+
+def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
+    binary = tmp_path / "blob.bin"
+    binary.write_bytes(b"abc")
+
+    class ZeroHandler(BinaryFileHandler):
+        def supports(self, *, path: Path, is_text_file: bool) -> bool:
+            return path.suffix == ".bin"
+
+        def _analyse(
+            self,
+            *,
+            path: Path,
+            context: FileProcessingContext,
+            is_text_file: bool,
+        ) -> FileAnalysis:
+            return FileAnalysis(lines=0, chars=0, include_content=False, binary_details={"size_bytes": 0})
+
+    handlers = FileHandlerRegistry.default().extend((ZeroHandler(),))
+    res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers)
+    meta = dict(res.builder.metadata_items())
+    assert meta["blob.bin"][1] == 0
