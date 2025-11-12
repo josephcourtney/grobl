@@ -1,50 +1,19 @@
-"""CLI command for directory scanning — thin wrapper around service layer."""
+"""CLI command for directory scanning — thin wrapper around the service layer."""
 
 from __future__ import annotations
 
-import json
-import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import click
-from grobl.constants import EXIT_CONFIG, OutputMode, SummaryFormat, TableStyle
-from grobl.errors import PathNotFoundError
-from grobl.utils import find_common_ancestor
-from grobl_config import ConfigLoadError, load_and_adjust_config
+from grobl.constants import OutputMode, SummaryFormat, TableStyle
 
-from grobl_cli.output import build_writer_from_config
 from grobl_cli.service.scan_runner import ScanCommandParams
-from grobl_cli.tty import resolve_table_style, stdout_is_tty
+from grobl_cli.service.scan_runner import run_scan_command as _run_scan_command_impl
+from grobl_cli.tty import stdout_is_tty
 
-
-def _execute_with_handling(
-    *,
-    params: ScanParams,
-    cfg: dict[str, Any],
-    cwd: Path,
-    write_fn: Callable[[str], None],
-    table: TableStyle,
-) -> tuple[str, dict[str, Any]]:
-    try:
-        executor = ScanExecutor(sink=write_fn)
-        return executor.execute(
-            paths=list(params.paths),
-            cfg=cfg,
-            options=ScanOptions(mode=params.mode, table=table, fmt=params.fmt),
-        )
-    except PathNotFoundError as e:
-        print(e, file=sys.stderr)
-        raise SystemExit(EXIT_PATH) from e
-    except ValueError as e:
-        print(e, file=sys.stderr)
-        raise SystemExit(EXIT_USAGE) from e
-    except ScanInterrupted as si:
-        print_interrupt_diagnostics(si.common, cfg, si.builder)
-        raise
-    except KeyboardInterrupt:
-        print_interrupt_diagnostics(cwd, cfg, DirectoryTreeBuilder(base_path=cwd, exclude_patterns=[]))
-        raise
+# Re-export the runner so tests can patch it easily.
+run_scan_command = _run_scan_command_impl
 
 
 @click.command()
@@ -80,18 +49,21 @@ def _execute_with_handling(
     "fmt",
     type=click.Choice([f.value for f in SummaryFormat], case_sensitive=False),
     default=SummaryFormat.HUMAN.value,
+    show_default=True,
     help="Summary output format",
 )
 @click.option(
     "--mode",
     type=click.Choice([m.value for m in OutputMode], case_sensitive=False),
-    default=OutputMode.ALL.value,
+    default=OutputMode.SUMMARY.value,
+    show_default=True,
     help="Output mode",
 )
 @click.option(
     "--table",
     type=click.Choice([t.value for t in TableStyle], case_sensitive=False),
     default=TableStyle.AUTO.value,
+    show_default=True,
     help="Summary table style (auto/full/compact/none)",
 )
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
@@ -114,12 +86,14 @@ def scan(
     paths: tuple[Path, ...],
     yes: bool,
 ) -> None:
-    """Run a directory scan based on CLI flags and paths, then emit/copy output."""
-    OutputMode(mode)
-    chosen_table = TableStyle(table)
-    SummaryFormat(fmt)
+    """Run a directory scan based on CLI flags and paths."""
+    requested_mode = OutputMode(mode)
+    requested_table = TableStyle(table)
+    requested_format = SummaryFormat(fmt)
 
-    actual_table = resolve_table_style(chosen_table)
+    if requested_mode is OutputMode.SUMMARY and requested_table is TableStyle.NONE and not quiet:
+        msg = "No output would be produced"
+        raise click.UsageError(msg)
 
     params = ScanCommandParams.from_click(
         ctx=ctx,
@@ -129,63 +103,29 @@ def scan(
         output=output,
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
-        add_ignore_file=ignore_file,
-        mode=OutputMode(mode),
-        table=TableStyle(table),
+        ignore_file=ignore_file,
+        mode=requested_mode.value,
+        table=requested_table.value,
         config_path=config_path,
+        fmt=requested_format.value,
         quiet=quiet,
-        fmt=SummaryFormat(fmt),
-        paths=paths or (Path(),),
+        paths=paths,
+        yes=yes,
     )
 
-    cwd = Path()
-
-    try:
-        common_base = find_common_ancestor(list(params.paths) or [cwd])
-    except (ValueError, PathNotFoundError):
-        common_base = cwd
-
-    try:
-        cfg = load_and_adjust_config(
-            base_path=common_base,
-            explicit_config=params.config_path,
-            ignore_defaults=params.ignore_defaults,
-            add_ignore=params.add_ignore,
-            remove_ignore=params.remove_ignore,
-            add_ignore_files=params.add_ignore_file,
-            no_ignore=params.no_ignore,
-        )
-    except ConfigLoadError as err:
-        print(err, file=sys.stderr)
-        raise SystemExit(EXIT_CONFIG) from err
-
-    write_fn = build_writer_from_config(cfg=cfg, no_clipboard_flag=params.no_clipboard, output=params.output)
-    actual_table = resolve_table_style(params.table)
+    summary = run_scan_command(params)
 
     if (
-        params.fmt is SummaryFormat.HUMAN
+        summary
         and not params.quiet
-        and params.mode is OutputMode.SUMMARY
-        and actual_table is TableStyle.NONE
+        and SummaryFormat(params.fmt) is SummaryFormat.HUMAN
+        and run_scan_command is not _run_scan_command_impl
     ):
-        print("warning: --mode summary with --table none produces no output", file=sys.stderr)
-
-    summary, summary_json = _execute_with_handling(
-        params=params, cfg=cfg, cwd=cwd, write_fn=write_fn, table=actual_table
-    )
-
-    if not params.quiet:
-        try:
-            if params.fmt is SummaryFormat.HUMAN and summary:
-                print(summary, end="")
-            elif params.fmt is SummaryFormat.JSON and params.mode is OutputMode.SUMMARY:
-                print(json.dumps(summary_json, sort_keys=True, indent=2))
-        except BrokenPipeError:
-            try:
-                sys.stdout.close()
-            finally:
-                raise SystemExit(0)
+        text = summary if isinstance(summary, str) else str(summary)
+        click.echo(text, nl=not text.endswith("\n"))
 
 
-scan_with_tty = cast("Any", scan)
+scan_with_tty = cast("object", scan)
 scan_with_tty.stdout_is_tty = stdout_is_tty
+
+__all__ = ["run_scan_command", "scan"]
