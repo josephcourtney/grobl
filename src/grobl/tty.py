@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from typing import Any
 
 from .constants import TableStyle
 
@@ -22,9 +21,3 @@ def resolve_table_style(requested: TableStyle) -> TableStyle:
     if requested is TableStyle.AUTO:
         return TableStyle.FULL if stdout_is_tty() else TableStyle.COMPACT
     return requested
-
-
-def clipboard_allowed(cfg: dict[str, Any], *, no_clipboard_flag: bool) -> bool:
-    """Return True if clipboard usage is allowed under current conditions."""
-    # Disable clipboard if stdout is not a TTY or if disabled via flag/config
-    return stdout_is_tty() and not (no_clipboard_flag or bool(cfg.get("no_clipboard")))

@@ -91,33 +91,33 @@
     - [x] If `summary_format is JSON`, pretty-print the JSON summary to stdout
     - [x] Handle `BrokenPipeError` as before (clean exit 0)
 
-- [ ] Redesign output sink handling
-  - [ ] Replace `clipboard_allowed`-only logic with explicit sink selection in `src/grobl/output.py`
-    - [ ] Introduce a `PayloadSink`-aware decision function:
-      - [ ] `auto`:
-        - [ ] Use `FileOutput` if `output_file` is set
-        - [ ] Else, if `stdout_is_tty()`, prefer clipboard
-        - [ ] Else, use stdout
-      - [ ] `clipboard`:
-        - [ ] Use `ClipboardOutput` and fall back to stdout on failure
-      - [ ] `stdout`:
-        - [ ] Use `StdoutOutput`
-      - [ ] `file`:
-        - [ ] Require `output_file` and use `FileOutput`
-  - [ ] Redefine `OutputPreferences` to include `sink: PayloadSink` instead of `allow_clipboard`
-  - [ ] Update `compose_output_strategy` / `build_writer_from_config` to:
-    - [ ] Accept `sink: PayloadSink`
-    - [ ] Accept `output: Path | None`
-    - [ ] Build a `StrategyChain` appropriate for the selected sink
-  - [ ] Update `src/grobl/tty.py`:
-    - [ ] Keep `stdout_is_tty`
-    - [ ] Restrict `resolve_table_style` to operate only on `TableStyle`
-    - [ ] Remove or simplify `clipboard_allowed` if no longer needed
-  - [ ] Update `tests/unit/test_output.py` to:
-    - [ ] Cover `sink=auto` behavior (file vs clipboard vs stdout)
-    - [ ] Cover explicit `sink=stdout` and `sink=file`
-    - [ ] Cover clipboard failure fallback semantics with the new sink model
-  - [ ] Update `tests/component/cli/test_cli_features.py` and related tests that assume the old `--no-clipboard` semantics
+- [x] Redesign output sink handling
+  - [x] Replace `clipboard_allowed`-only logic with explicit sink selection in `src/grobl/output.py`
+    - [x] Introduce a `PayloadSink`-aware decision function:
+      - [x] `auto`:
+        - [x] Use `FileOutput` if `output_file` is set
+        - [x] Else, if `stdout_is_tty()`, prefer clipboard
+        - [x] Else, use stdout
+      - [x] `clipboard`:
+        - [x] Use `ClipboardOutput` and fall back to stdout on failure
+      - [x] `stdout`:
+        - [x] Use `StdoutOutput`
+      - [x] `file`:
+        - [x] Require `output_file` and use `FileOutput`
+  - [x] Redefine `OutputPreferences` to include `sink: PayloadSink` instead of `allow_clipboard`
+  - [x] Update `compose_output_strategy` / `build_writer_from_config` to:
+    - [x] Accept `sink: PayloadSink`
+    - [x] Accept `output: Path | None`
+    - [x] Build a `StrategyChain` appropriate for the selected sink
+  - [x] Update `src/grobl/tty.py`:
+    - [x] Keep `stdout_is_tty`
+    - [x] Restrict `resolve_table_style` to operate only on `TableStyle`
+    - [x] Remove or simplify `clipboard_allowed` if no longer needed
+  - [x] Update `tests/unit/test_output.py` to:
+    - [x] Cover `sink=auto` behavior (file vs clipboard vs stdout)
+    - [x] Cover explicit `sink=stdout` and `sink=file`
+    - [x] Cover clipboard failure fallback semantics with the new sink model
+  - [x] Update `tests/component/cli/test_cli_features.py` and related tests that assume the old `--no-clipboard` semantics
 
 - [x] Update CLI root wiring and help behavior
   - [x] Refactor `src/grobl/cli/root.py` to use Click’s `invoke_without_command=True` on `cli`:
@@ -147,14 +147,14 @@
   - [ ] Update `AGENTS.md` if it references specific CLI flags or behaviors
 
 - [ ] Update system and component tests
-  - [ ] Rewrite `tests/system/test_cli.py` to:
-    - [ ] Use `--scope` instead of `--mode`
-    - [ ] Use `--payload` and `--summary` instead of `--format`/`--quiet`
-    - [ ] Assert that `grobl scan` without explicit formats behaves as per the new defaults
-    - [ ] Add tests for “no-op” combinations (and ensure they fail with usage errors)
-  - [ ] Update `tests/system/test_readme_smoke.py` to:
-    - [ ] Match the new README examples and flag names
-    - [ ] Verify that the quick-start `grobl scan` commands still succeed
+  - [x] Rewrite `tests/system/test_cli.py` to:
+    - [x] Use `--scope` instead of `--mode`
+    - [x] Use `--payload` and `--summary` instead of `--format`/`--quiet`
+    - [x] Assert that `grobl scan` without explicit formats behaves as per the new defaults
+    - [x] Add tests for “no-op” combinations (and ensure they fail with usage errors)
+  - [x] Update `tests/system/test_readme_smoke.py` to:
+    - [x] Match the new README examples and flag names
+    - [x] Verify that the quick-start `grobl scan` commands still succeed
   - [ ] Update component CLI tests (`tests/component/cli/*.py`) for:
     - [ ] JSON summary vs JSON payload semantics
     - [ ] Summary suppression via `--summary none`
