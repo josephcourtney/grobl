@@ -110,12 +110,11 @@ class BinaryFileHandler(BaseFileHandler):
     def supports(*, path: Path, is_text_file: bool) -> bool:  # noqa: ARG004 - `path` unused
         return not is_text_file
 
-    @staticmethod
     def _analyze(
         *,
         path: Path,
         context: FileProcessingContext,
-        is_text_file: bool,  # noqa: ARG004 - template signature
+        is_text_file: bool,
     ) -> FileAnalysis:
         # Use file size to populate "chars" so summaries can identify binaries.
         try:
@@ -127,7 +126,7 @@ class BinaryFileHandler(BaseFileHandler):
         context.builder.record_binary_details(rel, {"size_bytes": size})
         return FileAnalysis(
             lines=0,
-            chars=-1,
+            chars=size,
             include_content=False,
         )
 
