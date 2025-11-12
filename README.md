@@ -193,7 +193,7 @@ The payload is always written to the **payload sink** (see below), not to stderr
 
 ```bash
 --summary {human,json,none}
---summary-style {auto,full,compact}
+--summary-style {auto,full,compact,none}
 ```
 
 * `--summary human` (default): print a human-readable summary to **stdout**
@@ -204,6 +204,7 @@ The payload is always written to the **payload sink** (see below), not to stderr
     * `compact` otherwise
   * `--summary-style full`: directory tree + table with totals
   * `--summary-style compact`: totals only (`Total lines: ...`)
+  * `--summary-style none`: suppress the human summary table entirely
 * `--summary json`: print a JSON summary to stdout (schema described below)
 
   * `--summary-style` is recorded as a `"style"` field but does not change the JSON structure.
