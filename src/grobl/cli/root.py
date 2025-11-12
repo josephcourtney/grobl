@@ -8,7 +8,6 @@ import sys
 import click
 
 from grobl import __version__
-from grobl.constants import EXIT_USAGE
 
 # Threshold for -vv to map to DEBUG
 VERBOSE_DEBUG_THRESHOLD = 2
@@ -77,6 +76,3 @@ def main(argv: list[str] | None = None) -> None:
             sys.stdout.close()
         finally:
             raise SystemExit(0)
-    except (click.UsageError, click.ClickException) as err:
-        err.show()
-        raise SystemExit(EXIT_USAGE) from err

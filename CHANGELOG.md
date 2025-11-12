@@ -1,14 +1,5 @@
 ## [Unreleased]
 
-### Added
-- add version source reporting with a pyproject.toml fallback and surface it in the `grobl version` CLI output
-
-### Fixed
-- ensure scan summaries write through the configured sink and always emit JSON data even when `--quiet` is set
-- handle Click usage errors without tracebacks by showing the short message and exiting with the usage code
-- improve the "No common ancestor" error message when only the filesystem root is shared
-- load legacy `.grobl.config.toml` before `.grobl.toml` and warn once when both are present
-
 ## [0.7.4] - 2025-10-19
 
 ### Fixed

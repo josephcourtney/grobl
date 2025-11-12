@@ -145,19 +145,14 @@ def scan(
         params=params, cfg=cfg, cwd=cwd, write_fn=write_fn, table=actual_table
     )
 
-    def _emit(content: str) -> None:
-        if not content:
-            return
+    if not params.quiet:
         try:
-            write_fn(content)
+            if params.fmt is SummaryFormat.HUMAN and summary:
+                print(summary, end="")
+            elif params.fmt is SummaryFormat.JSON and params.mode is OutputMode.SUMMARY:
+                print(json.dumps(summary_json, sort_keys=True, indent=2))
         except BrokenPipeError:
             try:
                 sys.stdout.close()
             finally:
                 raise SystemExit(0)
-
-    if params.fmt is SummaryFormat.HUMAN and not params.quiet:
-        _emit(summary)
-    elif params.fmt is SummaryFormat.JSON and params.mode is OutputMode.SUMMARY:
-        json_text = json.dumps(summary_json, sort_keys=True, indent=2)
-        _emit(json_text)
