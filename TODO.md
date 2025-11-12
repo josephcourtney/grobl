@@ -1,3 +1,42 @@
+## P0 — Correctness & Crash Prevention (ship first)
+
+* [ ] **Route *all* summaries through the sink (no direct `print`)**
+
+  * **Files**: `src/grobl/cli/scan.py`
+  * **Change**: Send both human and JSON summaries via `write_fn(...)`.
+  * **Notes**: Human summary respects `--quiet`; JSON summary is **never** suppressed by `--quiet`.
+
+* [ ] **`--quiet` must not suppress machine output**
+
+  * **Files**: `src/grobl/cli/scan.py`
+  * **Change**: Ensure JSON summary in `--mode summary --format json` always emits via sink.
+
+* [ ] **Friendly Click errors (no tracebacks)**
+
+  * **Files**: `src/grobl/cli/root.py`
+  * **Change**: Wrap `cli.main(..., standalone_mode=False)` with `try/except` for `click.UsageError` / `ClickException`, call `.show()`, exit with `EXIT_USAGE`.
+
+* [ ] **Improve “No common ancestor” message**
+
+  * **Files**: likely `src/grobl/utils.py` (where `PathNotFoundError` is raised) and CLI edge handling
+  * **Change**: When only filesystem root is shared, provide an actionable error (e.g., “No common ancestor (only `/` shared). Choose paths under a common project dir.”).
+
+---
+
+## P1 — Versioning & Config Behavior
+
+* [ ] **Version source labeling & fallback**
+
+  * **Files**: `src/grobl/__init__.py`, `src/grobl/cli/version.py`
+  * **Change**: Expose `__version_source__ = "distribution"|"pyproject"|"fallback"`. If `importlib.metadata` fails, parse `[project].version` from `pyproject.toml`. Print `"<version> (<source>)"` in `version` subcommand.
+
+* [ ] **Config precedence (legacy + modern)**
+
+  * **Files**: `src/grobl/config.py`
+  * **Change**: If both `.grobl.config.toml` and `.grobl.toml` exist, load legacy first, then modern (modern overrides). Emit a single warning that legacy is present.
+
+---
+
 ## P2 — UX Simplifications (routing & defaults)
 
 * [ ] **Unify routing model (one writer)**
