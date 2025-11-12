@@ -46,3 +46,11 @@ def test_config_load_error_bad_pyproject(tmp_path: Path) -> None:
     runner = CliRunner()
     res = runner.invoke(cli, ["scan", str(base)])
     assert res.exit_code == EXIT_CONFIG
+
+
+def test_config_load_error_missing_explicit_config(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.toml"
+    runner = CliRunner()
+    res = runner.invoke(cli, ["scan", str(tmp_path), "--config", str(missing)])
+    assert res.exit_code == EXIT_CONFIG
+    assert "missing.toml" in res.output
