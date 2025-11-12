@@ -32,7 +32,7 @@ export PY_TESTPATH    := env(
   "PY_TESTPATH",
   "tests grobl-config/tests grobl-cli/tests grobl/tests",
 )
-export PY_SRC         := env("PY_SRC", "src")
+export PY_SRC         := env("PY_SRC", "src grobl-config/src grobl-cli/src grobl/src")
 export VERBOSE        := env("VERBOSE", "0")
 
 # Tool wrappers

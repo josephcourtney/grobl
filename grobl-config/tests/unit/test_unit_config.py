@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 
 import grobl_config
 from grobl_config import apply_runtime_ignores, load_and_adjust_config
-from hypothesis import given
-from hypothesis import strategies as st
 
 SAMPLE_SEGMENTS = ("alpha", "beta")
 

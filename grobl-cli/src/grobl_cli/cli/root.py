@@ -6,7 +6,6 @@ import logging
 import sys
 
 import click
-from grobl.constants import EXIT_USAGE
 
 from grobl import __version__
 

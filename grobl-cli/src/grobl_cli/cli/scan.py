@@ -15,11 +15,10 @@ from grobl.output import build_writer_from_config
 from grobl.tty import resolve_table_style
 from grobl.utils import find_common_ancestor
 
-from grobl_cli.service.scan_runner import ScanCommandParams, run_scan_command
+from grobl_cli.service.scan_runner import ScanCommandParams
 from grobl_cli.tty import resolve_table_style, stdout_is_tty
 
 from .common import (
-    ScanParams,
     _execute_with_handling,
     _maybe_offer_legacy_migration,
     _maybe_warn_on_common_heavy_dirs,
@@ -94,9 +93,9 @@ def scan(
     yes: bool,
 ) -> None:
     """Run a directory scan based on CLI flags and paths, then emit/copy output."""
-    chosen_mode = OutputMode(mode)
+    OutputMode(mode)
     chosen_table = TableStyle(table)
-    chosen_fmt = SummaryFormat(fmt)
+    SummaryFormat(fmt)
 
     actual_table = resolve_table_style(chosen_table)
 
