@@ -5,6 +5,11 @@
 
 ### Changed
 - route bare `grobl` invocations through the `scan` command using Click's default dispatch
+- remove legacy `summary` output mode handling and reject the old CLI flag
+- update summary context JSON to emit `scope`/`style` fields and embed the summary in payloads
+- drive LLM payload assembly through `ContentScope` and scoped unit tests
+- redesign scan options/executor to use scope-aware payload and summary formats
+- redesign the `grobl scan` CLI to expose scope/payload/summary/sink switches with usage validation
 
 ## [1.0.3] - 2025-10-20
 

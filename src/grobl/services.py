@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Any
 from .constants import (
     CONFIG_INCLUDE_FILE_TAGS,
     CONFIG_INCLUDE_TREE_TAGS,
-    OutputMode,
+    ContentScope,
+    PayloadFormat,
     SummaryFormat,
     TableStyle,
 )
@@ -29,9 +30,10 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class ScanOptions:
-    mode: OutputMode
-    table: TableStyle
-    fmt: SummaryFormat = SummaryFormat.HUMAN
+    scope: ContentScope
+    payload_format: PayloadFormat
+    summary_format: SummaryFormat
+    summary_style: TableStyle
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +73,7 @@ class ScanExecutor:
 
     @staticmethod
     def _should_emit_json_payload(options: ScanOptions) -> bool:
-        return options.fmt is SummaryFormat.JSON and options.mode is not OutputMode.SUMMARY
+        return options.payload_format is PayloadFormat.JSON
 
     def execute(
         self,
@@ -88,8 +90,9 @@ class ScanExecutor:
                 message="starting scan executor",
                 context={
                     "path_count": len(paths),
-                    "mode": options.mode.value,
-                    "format": options.fmt.value,
+                    "scope": options.scope.value,
+                    "payload_format": options.payload_format.value,
+                    "summary_format": options.summary_format.value,
                 },
             ),
         )
@@ -100,23 +103,27 @@ class ScanExecutor:
 
         builder = result.builder
         context = SummaryContext(
-            builder=builder, common=result.common, mode=options.mode, table=options.table
+            builder=builder,
+            common=result.common,
+            scope=options.scope,
+            style=options.summary_style,
         )
 
         renderer = self._deps.renderer_factory(builder)
-        tree_lines = renderer.tree_lines(include_metadata=True)
 
-        human = self._deps.human_formatter(
-            tree_lines=tree_lines,
-            total_lines=builder.total_lines,
-            total_chars=builder.total_characters,
-            table=options.table.value,
-        )
+        human_summary_text = ""
+        if options.summary_format is SummaryFormat.HUMAN:
+            tree_lines = renderer.tree_lines(include_metadata=True)
+            human_summary_text = self._deps.human_formatter(
+                tree_lines=tree_lines,
+                total_lines=builder.total_lines,
+                total_chars=builder.total_characters,
+                table=options.summary_style.value,
+            )
 
         if self._should_emit_json_payload(options):
             payload_json = self._deps.sink_payload_builder(context)
             self._sink(_json.dumps(payload_json, sort_keys=True, indent=2))
-            json_summary = self._deps.summary_builder(context)
             log_event(
                 self._logger,
                 StructuredLogEvent(
@@ -128,20 +135,34 @@ class ScanExecutor:
                     },
                 ),
             )
-            return human, json_summary
+        elif options.payload_format is PayloadFormat.LLM:
+            payload = self._deps.payload_builder(
+                builder=builder,
+                common=result.common,
+                scope=options.scope,
+                tree_tag=ttag,
+                file_tag=ftag,
+            )
+            if payload:
+                self._sink(payload)
 
-        payload = self._deps.payload_builder(
-            builder=builder,
-            common=result.common,
-            mode=options.mode,
-            tree_tag=ttag,
-            file_tag=ftag,
-        )
-        if payload:
-            self._sink(payload)
+        base_summary = self._deps.summary_builder(context)
 
-        # Build a machine-readable summary structure (for SUMMARY mode printing)
-        json_summary = self._deps.summary_builder(context)
+        if options.summary_format is SummaryFormat.NONE:
+            summary_dict = {
+                "root": base_summary["root"],
+                "scope": base_summary["scope"],
+                "style": base_summary["style"],
+                "totals": base_summary["totals"],
+                "files": [],
+            }
+            human_summary_text = ""
+        elif options.summary_format is SummaryFormat.JSON:
+            summary_dict = base_summary
+            human_summary_text = ""
+        else:
+            summary_dict = base_summary
+
         log_event(
             self._logger,
             StructuredLogEvent(
@@ -153,4 +174,4 @@ class ScanExecutor:
                 },
             ),
         )
-        return human, json_summary
+        return human_summary_text, summary_dict

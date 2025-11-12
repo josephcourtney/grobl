@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .constants import OutputMode, TableStyle
+from .constants import ContentScope, TableStyle
 
 if TYPE_CHECKING:  # resolve types for static checkers without runtime imports
     from pathlib import Path
@@ -19,8 +19,8 @@ class SummaryContext:
 
     builder: DirectoryTreeBuilder
     common: Path
-    mode: OutputMode
-    table: TableStyle
+    scope: ContentScope
+    style: TableStyle
 
 
 def _file_entries(builder: DirectoryTreeBuilder) -> list[dict[str, Any]]:
@@ -45,19 +45,19 @@ def _totals(builder: DirectoryTreeBuilder) -> dict[str, int]:
 
 
 def build_summary(context: SummaryContext) -> dict[str, Any]:
-    """Build a machine-readable summary for SUMMARY mode printing."""
+    """Build a machine-readable summary from collected scan data."""
     builder = context.builder
     return {
         "root": str(context.common),
-        "mode": context.mode.value,
-        "table": context.table.value,
+        "scope": context.scope.value,
+        "style": context.style.value,
         "totals": _totals(builder),
         "files": _file_entries(builder),
     }
 
 
 def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
-    """Build the JSON payload written to the sink for non-summary JSON mode.
+    """Build the JSON payload written to the sink for JSON format runs.
 
     Structure is preserved for backward compatibility with existing behavior:
     {
@@ -71,17 +71,13 @@ def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
     builder = context.builder
     payload: dict[str, Any] = {
         "root": str(context.common),
-        "mode": context.mode.value,
+        "scope": context.scope.value,
     }
-    if context.mode in {OutputMode.ALL, OutputMode.TREE}:
+    if context.scope in {ContentScope.ALL, ContentScope.TREE}:
         entries = [{"type": typ, "path": str(rel)} for typ, rel in builder.ordered_entries()]
         payload["tree"] = entries
-    if context.mode in {OutputMode.ALL, OutputMode.FILES}:
+    if context.scope in {ContentScope.ALL, ContentScope.FILES}:
         payload["files"] = builder.files_json()
 
-    payload["summary"] = {
-        "table": context.table.value,
-        "totals": _totals(builder),
-        "files": _file_entries(builder),
-    }
+    payload["summary"] = build_summary(context)
     return payload
