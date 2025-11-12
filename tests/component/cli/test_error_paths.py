@@ -13,10 +13,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_usage_error_invalid_mode(tmp_path: Path) -> None:
+def test_usage_error_invalid_scope(tmp_path: Path) -> None:
     (tmp_path / "f.txt").write_text("x", encoding="utf-8")
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path), "--mode", "bogus"])
+    res = runner.invoke(cli, ["scan", str(tmp_path), "--scope", "bogus"])
     # Click treats invalid option values as usage error (SystemExit 2)
     assert res.exit_code == EXIT_USAGE
 

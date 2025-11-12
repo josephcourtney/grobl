@@ -19,7 +19,6 @@ class OutputMode(StrEnum):
     ALL = "all"
     TREE = "tree"
     FILES = "files"
-    SUMMARY = "summary"
 
 
 class PayloadFormat(StrEnum):
