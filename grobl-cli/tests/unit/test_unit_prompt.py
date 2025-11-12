@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 from unittest import mock
 
 import pytest
@@ -34,14 +35,15 @@ def test_warn_skipped_if_assume_yes(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_warn_shown_and_aborted(monkeypatch: pytest.MonkeyPatch) -> None:
     paths = (Path(),)
     with mock.patch("grobl_cli.service.prompt._detect_heavy_dirs", return_value={"node_modules"}):
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(SystemExit) as excinfo_raw:
             prompt.maybe_warn_on_common_heavy_dirs(
                 paths=paths,
                 ignore_defaults=True,
                 assume_yes=False,
                 confirm=lambda _: False,  # User says "no"
             )
-        assert excinfo.value.code == 2
+    excinfo = cast(pytest.ExceptionInfo[SystemExit], excinfo_raw)
+    assert excinfo.value.code == 2
 
 
 def test_warn_shown_and_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
