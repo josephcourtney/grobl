@@ -1,44 +1,259 @@
-from grobl.cli.common import (
-    _default_confirm,
-    _detect_heavy_dirs,
-    _execute_with_handling,
-    _maybe_offer_legacy_migration,
-    _maybe_warn_on_common_heavy_dirs,
-    _scan_for_legacy_references,
-    iter_legacy_references,
-    print_interrupt_diagnostics,
+from __future__ import annotations
+
+import builtins
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+import grobl.cli.common as ccommon
+from grobl.constants import (
+    EXIT_INTERRUPT,
+    EXIT_PATH,
+    EXIT_USAGE,
+    OutputMode,
+    SummaryFormat,
+    TableStyle,
 )
+from grobl.directory import DirectoryTreeBuilder
+from grobl.errors import PathNotFoundError, ScanInterrupted
 
-# TODO: write real unit tests
-
-
-def test__default_confirm():
-    assert _default_confirm
-
-
-def test__detect_heavy_dirs():
-    assert _detect_heavy_dirs
+if TYPE_CHECKING:
+    from typing import Any
 
 
-def test__maybe_warn_on_common_heavy_dirs():
-    assert _maybe_warn_on_common_heavy_dirs
+# ------------------------------ _default_confirm ------------------------------
+def test__default_confirm_yes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(builtins, "input", lambda _msg: "  Y  ")
+    assert ccommon._default_confirm("q?") is True
 
 
-def test_iter_legacy_references():
-    assert iter_legacy_references
+def test__default_confirm_no(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(builtins, "input", lambda _msg: "n")
+    assert ccommon._default_confirm("q?") is False
 
 
-def test__scan_for_legacy_references():
-    assert _scan_for_legacy_references
+# ------------------------------ _detect_heavy_dirs ----------------------------
+def test__detect_heavy_dirs_finds_present(tmp_path: Path) -> None:
+    # Create common heavy dirs under the scanned base
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / ".venv").mkdir()
+    found = ccommon._detect_heavy_dirs((tmp_path,))
+    assert {"node_modules", ".venv"}.issubset(found)
 
 
-def test__maybe_offer_legacy_migration():
-    assert _maybe_offer_legacy_migration
+# --------------------- _maybe_warn_on_common_heavy_dirs -----------------------
+def test__maybe_warn_on_heavy_dirs_confirms_and_aborts(tmp_path: Path) -> None:
+    # With ignore_defaults=True and heavy dirs present, a "no" confirmation should abort.
+    (tmp_path / "node_modules").mkdir()
+    with pytest.raises(SystemExit) as exc:
+        ccommon._maybe_warn_on_common_heavy_dirs(
+            paths=(tmp_path,),
+            ignore_defaults=True,
+            assume_yes=False,
+            confirm=lambda _msg: False,
+        )
+    e = exc.value
+    assert isinstance(e, SystemExit)
+    assert e.code == EXIT_USAGE
 
 
-def test_print_interrupt_diagnostics():
-    assert print_interrupt_diagnostics
+def test__maybe_warn_on_heavy_dirs_assume_yes_skips_prompt(tmp_path: Path) -> None:
+    (tmp_path / "node_modules").mkdir()
+    # Should not raise even if confirm would return False because assume_yes=True.
+    ccommon._maybe_warn_on_common_heavy_dirs(
+        paths=(tmp_path,),
+        ignore_defaults=True,
+        assume_yes=True,
+        confirm=lambda _msg: False,
+    )
 
 
-def test__execute_with_handling():
-    assert _execute_with_handling
+def test__maybe_warn_on_heavy_dirs_no_warning_when_defaults_used(tmp_path: Path) -> None:
+    # ignore_defaults=False and not explicitly targeting a heavy dir -> no prompt
+    (tmp_path / "node_modules").mkdir()
+    ccommon._maybe_warn_on_common_heavy_dirs(
+        paths=(tmp_path,),
+        ignore_defaults=False,
+        assume_yes=False,
+        confirm=lambda _msg: False,
+    )
+
+
+# ------------------ iter_legacy_references / _scan_for_legacy -----------------
+def test_iter_and_scan_legacy_references(tmp_path: Path) -> None:
+    # Create files that do and don't contain the legacy name
+    (tmp_path / "README.md").write_text("see .grobl.config.toml here", encoding="utf-8")
+    (tmp_path / "note.txt").write_text("nothing to see", encoding="utf-8")
+    hits = list(ccommon.iter_legacy_references(tmp_path))
+    assert hits, "expected at least one legacy reference"
+    # _scan_for_legacy_references returns the same results as a list
+    scanned = ccommon._scan_for_legacy_references(tmp_path)
+    assert scanned == hits
+    # Spot check tuple structure: (Path, line_number, text)
+    p, ln, text = hits[0]
+    assert isinstance(p, Path)
+    assert isinstance(ln, int)
+    assert ".grobl.config.toml" in text
+
+
+# ----------------------- _maybe_offer_legacy_migration ------------------------
+def test__maybe_offer_legacy_migration_renames_when_yes(tmp_path: Path) -> None:
+    legacy = tmp_path / ".grobl.config.toml"
+    legacy.write_text("exclude_tree=[]\n", encoding="utf-8")
+    ccommon._maybe_offer_legacy_migration(tmp_path, assume_yes=True)
+    assert not legacy.exists()
+    assert (tmp_path / ".grobl.toml").exists()
+
+
+def test__maybe_offer_legacy_migration_noop_when_new_exists(tmp_path: Path) -> None:
+    legacy = tmp_path / ".grobl.config.toml"
+    new = tmp_path / ".grobl.toml"
+    legacy.write_text("x=1\n", encoding="utf-8")
+    new.write_text("y=2\n", encoding="utf-8")
+    ccommon._maybe_offer_legacy_migration(tmp_path, assume_yes=True)
+    # Both remain; function only prints a note.
+    assert legacy.exists()
+    assert new.exists()
+
+
+# --------------------------- print_interrupt_diagnostics ----------------------
+def test_print_interrupt_diagnostics_exits_with_interrupt(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    with pytest.raises(SystemExit) as exc:
+        ccommon.print_interrupt_diagnostics(tmp_path, {"exclude_tree": []}, builder)
+    e = exc.value
+    assert isinstance(e, SystemExit)
+    assert e.code == EXIT_INTERRUPT
+
+
+# ---------------------------- _execute_with_handling --------------------------
+class _DummyExecOK:
+    def __init__(self, *, sink: object) -> None:
+        self.sink = sink
+
+    def execute(self, *, paths: list[Path], cfg: dict[str, Any], options: object) -> tuple[str, dict]:
+        # basic sanity: got paths and cfg
+        assert isinstance(paths, list)
+        assert isinstance(cfg, dict)
+        return "human", {"ok": 1}
+
+
+class _DummyExecRaises:
+    def __init__(self, *, sink: object) -> None:
+        self.exc: BaseException | None = None
+
+    def execute(self, *, paths: list[Path], cfg: dict[str, Any], options: object) -> tuple[str, dict]:
+        assert paths or cfg or options is not None  # touch args
+        assert self.exc is not None
+        raise self.exc
+
+
+def _params_for(tmp_path: Path) -> ccommon.ScanParams:
+    return ccommon.ScanParams(
+        ignore_defaults=False,
+        no_clipboard=True,
+        output=None,
+        add_ignore=(),
+        remove_ignore=(),
+        add_ignore_file=(),
+        no_ignore=False,
+        mode=OutputMode.SUMMARY,
+        table=TableStyle.COMPACT,
+        config_path=None,
+        quiet=False,
+        fmt=SummaryFormat.HUMAN,
+        paths=(tmp_path,),
+    )
+
+
+def test__execute_with_handling_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(ccommon, "ScanExecutor", _DummyExecOK)
+    writes: list[str] = []
+    human, js = ccommon._execute_with_handling(
+        params=_params_for(tmp_path),
+        cfg={},
+        cwd=tmp_path,
+        write_fn=writes.append,
+        table=TableStyle.COMPACT,
+    )
+    assert human == "human"
+    assert js == {"ok": 1}
+
+
+def test__execute_with_handling_path_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    dummy = _DummyExecRaises(sink=None)
+    dummy.exc = PathNotFoundError("No common ancestor")
+    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
+    with pytest.raises(SystemExit) as exc:
+        ccommon._execute_with_handling(
+            params=_params_for(tmp_path),
+            cfg={},
+            cwd=tmp_path,
+            write_fn=lambda _: None,
+            table=TableStyle.COMPACT,
+        )
+    e = exc.value
+    assert isinstance(e, SystemExit)
+    assert e.code == EXIT_PATH
+
+
+def test__execute_with_handling_usage_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    dummy = _DummyExecRaises(sink=None)
+    dummy.exc = ValueError("bad")
+    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
+    with pytest.raises(SystemExit) as exc:
+        ccommon._execute_with_handling(
+            params=_params_for(tmp_path),
+            cfg={},
+            cwd=tmp_path,
+            write_fn=lambda _: None,
+            table=TableStyle.COMPACT,
+        )
+    e = exc.value
+    assert isinstance(e, SystemExit)
+    assert e.code == EXIT_USAGE
+
+
+def test__execute_with_handling_scan_interrupted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # Make the executor raise ScanInterrupted and ensure we turn it into EXIT_INTERRUPT via diagnostics.
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    interrupted = ScanInterrupted(builder, tmp_path)
+    dummy = _DummyExecRaises(sink=None)
+    dummy.exc = interrupted
+    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
+    # Avoid printing by replacing diagnostics with a minimal stub that raises the expected SystemExit.
+    monkeypatch.setattr(
+        ccommon, "print_interrupt_diagnostics", lambda *_: (_ for _ in ()).throw(SystemExit(EXIT_INTERRUPT))
+    )  # type: ignore[assignment]
+    with pytest.raises(SystemExit) as exc:
+        ccommon._execute_with_handling(
+            params=_params_for(tmp_path),
+            cfg={"exclude_tree": []},
+            cwd=tmp_path,
+            write_fn=lambda _: None,
+            table=TableStyle.FULL,
+        )
+    e = exc.value
+    assert isinstance(e, SystemExit)
+    assert e.code == EXIT_INTERRUPT
+
+
+def test__execute_with_handling_keyboard_interrupt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    dummy = _DummyExecRaises(sink=None)
+    dummy.exc = KeyboardInterrupt()
+    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
+    monkeypatch.setattr(
+        ccommon, "print_interrupt_diagnostics", lambda *_: (_ for _ in ()).throw(SystemExit(EXIT_INTERRUPT))
+    )  # type: ignore[assignment]
+    with pytest.raises(SystemExit) as exc:
+        ccommon._execute_with_handling(
+            params=_params_for(tmp_path),
+            cfg={"exclude_tree": []},
+            cwd=tmp_path,
+            write_fn=lambda _: None,
+            table=TableStyle.FULL,
+        )
+    e = exc.value
+    assert isinstance(e, SystemExit)
+    assert e.code == EXIT_INTERRUPT
