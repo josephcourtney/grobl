@@ -2,12 +2,12 @@
 - [ ] Redesign CLI primitives and enums
   - [ ] Introduce a new `ContentScope` enum (or rename `OutputMode`) with values `all`, `tree`, `files`
     - [ ] Remove the existing `SUMMARY` value and any logic that treats “summary” as a mode
-  - [ ] Introduce a new `PayloadFormat` enum with values `llm`, `json`, `none`
-  - [ ] Extend or replace `SummaryFormat` with values `human`, `json`, `none`
-  - [ ] Keep `TableStyle` as-is (`auto`, `full`, `compact`, `none`)
-  - [ ] Add a `PayloadSink` enum with values `auto`, `clipboard`, `stdout`, `file`
-  - [ ] Update `src/grobl/constants.py` to expose these enums and remove now-unused constants
-  - [ ] Update `tests/unit/test_constants.py` to assert the new enum values and remove references to `OutputMode.SUMMARY`
+  - [x] Introduce a new `PayloadFormat` enum with values `llm`, `json`, `none`
+  - [x] Extend or replace `SummaryFormat` with values `human`, `json`, `none`
+  - [x] Keep `TableStyle` as-is (`auto`, `full`, `compact`, `none`)
+  - [x] Add a `PayloadSink` enum with values `auto`, `clipboard`, `stdout`, `file`
+  - [x] Update `src/grobl/constants.py` to expose these enums and remove now-unused constants
+  - [x] Update `tests/unit/test_constants.py` to assert the new enum values and remove references to `OutputMode.SUMMARY`
 
 - [ ] Update core summary and payload context types
   - [ ] Update `SummaryContext` in `src/grobl/summary.py` to use `ContentScope` instead of `OutputMode`
