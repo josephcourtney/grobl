@@ -30,9 +30,9 @@ env:
 export PYTHON_PACKAGE := env("PYTHON_PACKAGE", "grobl")
 export PY_TESTPATH    := env(
   "PY_TESTPATH",
-  "tests grobl-config/tests grobl-cli/tests grobl/tests",
+  "tests",
 )
-export PY_SRC         := env("PY_SRC", "src grobl-config/src grobl-cli/src grobl/src")
+export PY_SRC         := env("PY_SRC", "src")
 export VERBOSE        := env("VERBOSE", "0")
 
 # Tool wrappers
@@ -138,8 +138,8 @@ scour: clean stash-untracked
 
 # Pipelines
 # Validate rule compliance but make no changes
-check: setup-frozen lint-no-fix typecheck format-no-fix test
+check: setup-frozen lint-no-fix typecheck format-no-fix test cov-summary
 
 # Fix all auto-fixable linting and formatting errors, check types, and run tests
-fix: setup lint format typecheck test
+fix: setup lint format typecheck test cov-summary
 
