@@ -22,8 +22,36 @@ def test_cli_help_and_scan_help() -> None:
     scan_help = runner.invoke(cli, ["scan", "--help"])
     assert scan_help.exit_code == 0
     # Spot-check that key options are documented
-    assert "--mode" in scan_help.output
-    assert "--format" in scan_help.output
+    assert "--scope" in scan_help.output
+    assert "--payload" in scan_help.output
+    assert "--summary" in scan_help.output
+
+
+def test_cli_default_scan_outputs_summary_and_payload(tmp_path: Path) -> None:
+    (tmp_path / "sample.txt").write_text("content\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(cli, ["scan", str(tmp_path)])
+    assert result.exit_code == 0
+    assert "<directory" in result.output
+    assert "Total lines" in result.output
+
+
+def test_cli_scan_rejects_payload_and_summary_none(tmp_path: Path) -> None:
+    (tmp_path / "sample.txt").write_text("content\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "scan",
+            str(tmp_path),
+            "--payload",
+            "none",
+            "--summary",
+            "none",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "payload and summary" in result.output
 
 
 def test_cli_multiple_paths_uses_common_ancestor_in_json_root(tmp_path: Path) -> None:
@@ -42,10 +70,10 @@ def test_cli_multiple_paths_uses_common_ancestor_in_json_root(tmp_path: Path) ->
             "scan",
             str(a_dir),
             str(b_dir),
-            "--mode",
-            "summary",
-            "--format",
+            "--summary",
             "json",
+            "--payload",
+            "none",
         ],
     )
     assert result.exit_code == 0
@@ -70,27 +98,28 @@ def test_cli_modes_human_payload_variants(
     common_args = [
         "scan",
         str(base),
-        "--table",
+        "--sink",
+        "stdout",
+        "--summary",
         "none",
-        "--no-clipboard",
     ]
 
     # mode=all → tree + files payload
-    res_all = runner.invoke(cli, [*common_args, "--mode", "all"])
+    res_all = runner.invoke(cli, [*common_args, "--scope", "all"])
     assert res_all.exit_code == 0
     out_all = res_all.output
     assert "<directory" in out_all
     assert "<file" in out_all
 
     # mode=tree → only tree payload
-    res_tree = runner.invoke(cli, [*common_args, "--mode", "tree"])
+    res_tree = runner.invoke(cli, [*common_args, "--scope", "tree"])
     assert res_tree.exit_code == 0
     out_tree = res_tree.output
     assert "<directory" in out_tree
     assert "<file" not in out_tree
 
     # mode=files → only file payload
-    res_files = runner.invoke(cli, [*common_args, "--mode", "files"])
+    res_files = runner.invoke(cli, [*common_args, "--scope", "files"])
     assert res_files.exit_code == 0
     out_files = res_files.output
     assert "<file" in out_files
@@ -121,14 +150,15 @@ def test_cli_ignore_file_hides_matching_entries(
         [
             "scan",
             str(base),
-            "--mode",
+            "--scope",
             "tree",
-            "--table",
-            "compact",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
             "--ignore-defaults",
             "--ignore-file",
             str(ignore_file),
-            "--no-clipboard",
         ],
     )
     assert result.exit_code == 0
@@ -160,14 +190,15 @@ def test_cli_add_and_remove_ignore_roundtrip(
         [
             "scan",
             str(base),
-            "--mode",
+            "--scope",
             "tree",
-            "--table",
-            "compact",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
             "--ignore-defaults",
             "--add-ignore",
             "dir/ignore.*",
-            "--no-clipboard",
         ],
     )
     assert res_add.exit_code == 0
@@ -181,16 +212,17 @@ def test_cli_add_and_remove_ignore_roundtrip(
         [
             "scan",
             str(base),
-            "--mode",
+            "--scope",
             "tree",
-            "--table",
-            "compact",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
             "--ignore-defaults",
             "--add-ignore",
             "dir/ignore.*",
             "--remove-ignore",
             "dir/ignore.*",
-            "--no-clipboard",
         ],
     )
     assert res_roundtrip.exit_code == 0
@@ -220,11 +252,12 @@ def test_cli_no_ignore_includes_default_excluded_dir(
         [
             "scan",
             str(base),
-            "--mode",
+            "--scope",
             "tree",
-            "--table",
-            "compact",
-            "--no-clipboard",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
         ],
     )
     assert res_default.exit_code == 0
@@ -237,11 +270,12 @@ def test_cli_no_ignore_includes_default_excluded_dir(
         [
             "scan",
             str(base),
-            "--mode",
+            "--scope",
             "tree",
-            "--table",
-            "compact",
-            "--no-clipboard",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
             "--no-ignore",
         ],
     )
@@ -274,11 +308,12 @@ def test_cli_config_tag_customisation_applies_to_llm_payload(
         [
             "scan",
             str(base),
-            "--mode",
+            "--scope",
             "all",
-            "--table",
+            "--summary",
             "none",
-            "--no-clipboard",
+            "--sink",
+            "stdout",
         ],
     )
     assert result.exit_code == 0
@@ -313,11 +348,12 @@ def test_cli_exclude_print_hides_contents_but_keeps_metadata(
         [
             "scan",
             str(base),
-            "--mode",
+            "--scope",
             "all",
-            "--table",
-            "compact",
-            "--no-clipboard",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
         ],
     )
     assert result.exit_code == 0
@@ -350,10 +386,10 @@ def test_cli_binary_file_summary_marks_binary_flag(
         [
             "scan",
             str(base),
-            "--mode",
-            "summary",
-            "--format",
+            "--summary",
             "json",
+            "--payload",
+            "none",
         ],
     )
     assert result.exit_code == 0
@@ -382,9 +418,10 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
             "-v",
             "scan",
             str(tmp_path),
-            "--mode",
-            "summary",
-            "--no-clipboard",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
         ],
     )
     assert res_verbose.exit_code == 0
@@ -396,9 +433,10 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
             "DEBUG",
             "scan",
             str(tmp_path),
-            "--mode",
-            "summary",
-            "--no-clipboard",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
         ],
     )
     assert res_debug.exit_code == 0

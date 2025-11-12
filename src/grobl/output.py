@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING, Protocol
 
 import pyperclip
 
+from grobl.constants import PayloadSink
 from grobl.logging_utils import StructuredLogEvent, get_logger, log_event
 
-from .tty import clipboard_allowed
+from .tty import stdout_is_tty
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -124,7 +125,7 @@ class OutputPreferences:
     """Collected CLI/config preferences for output selection."""
 
     output_file: Path | None
-    allow_clipboard: bool
+    sink: PayloadSink
 
 
 @dataclass(slots=True)
@@ -138,11 +139,31 @@ class OutputStrategyFactory:
         stdout_strategy = self.stdout_strategy or StdoutOutput()
         clipboard_strategy = self.clipboard_strategy or ClipboardOutput()
         links: list[StrategyLink] = []
-        if preferences.output_file:
+        sink = preferences.sink
+        if sink is PayloadSink.AUTO:
+            if preferences.output_file is not None:
+                links.append(StrategyLink(strategy=FileOutput(preferences.output_file)))
+            else:
+                if stdout_is_tty():
+                    links.append(StrategyLink(strategy=clipboard_strategy, suppress_errors=True))
+                links.append(StrategyLink(strategy=stdout_strategy))
+        elif sink is PayloadSink.CLIPBOARD:
+            clipboard_link = StrategyLink(
+                strategy=clipboard_strategy,
+                suppress_errors=True,
+            )
+            stdout_link = StrategyLink(strategy=stdout_strategy)
+            links.extend((clipboard_link, stdout_link))
+        elif sink is PayloadSink.STDOUT:
+            links.append(StrategyLink(strategy=stdout_strategy))
+        elif sink is PayloadSink.FILE:
+            if preferences.output_file is None:
+                msg = "file sink requires an output path"
+                raise ValueError(msg)
             links.append(StrategyLink(strategy=FileOutput(preferences.output_file)))
-        if preferences.allow_clipboard:
-            links.append(StrategyLink(strategy=clipboard_strategy, suppress_errors=True))
-        links.append(StrategyLink(strategy=stdout_strategy))
+        else:  # pragma: no cover - defensive programming
+            msg = f"unsupported sink: {sink}"
+            raise ValueError(msg)
         return StrategyChain(tuple(links))
 
 
@@ -159,20 +180,18 @@ class OutputSinkAdapter:
         self(content)
 
 
-def compose_output_strategy(*, output_file: Path | None, allow_clipboard: bool) -> OutputSinkAdapter:
-    """Build a writer with precedence: file → clipboard (optional) → stdout."""
+def compose_output_strategy(*, output_file: Path | None, sink: PayloadSink) -> OutputSinkAdapter:
+    """Build a writer chain driven by the requested sink preferences."""
     factory = OutputStrategyFactory()
-    preferences = OutputPreferences(output_file=output_file, allow_clipboard=allow_clipboard)
+    preferences = OutputPreferences(output_file=output_file, sink=sink)
     chain = factory.create(preferences=preferences)
     return OutputSinkAdapter(write_fn=chain.write)
 
 
 def build_writer_from_config(
     *,
-    cfg: dict[str, object],
-    no_clipboard_flag: bool,
+    sink: PayloadSink,
     output: Path | None,
 ) -> Callable[[str], None]:
     """Centralize writer creation based on config and CLI flags."""
-    allow_clipboard = clipboard_allowed(cfg, no_clipboard_flag=no_clipboard_flag)
-    return compose_output_strategy(output_file=output, allow_clipboard=allow_clipboard)
+    return compose_output_strategy(output_file=output, sink=sink)

@@ -112,10 +112,12 @@ def scan(
     )
 
     if params.payload is PayloadFormat.NONE and params.summary is SummaryFormat.NONE:
-        raise click.UsageError("payload and summary cannot both be 'none'", ctx=ctx)
+        msg = "payload and summary cannot both be 'none'"
+        raise click.UsageError(msg, ctx=ctx)
 
     if params.sink is PayloadSink.FILE and params.output is None:
-        raise click.UsageError("--sink file requires --output to be provided", ctx=ctx)
+        msg = "--sink file requires --output to be provided"
+        raise click.UsageError(msg, ctx=ctx)
 
     cwd = Path()
 
@@ -138,10 +140,8 @@ def scan(
         print(err, file=sys.stderr)
         raise SystemExit(EXIT_CONFIG) from err
 
-    no_clipboard_flag = params.sink in {PayloadSink.STDOUT, PayloadSink.FILE}
     write_fn = build_writer_from_config(
-        cfg=cfg,
-        no_clipboard_flag=no_clipboard_flag,
+        sink=params.sink,
         output=params.output,
     )
     actual_table = resolve_table_style(params.summary_style)

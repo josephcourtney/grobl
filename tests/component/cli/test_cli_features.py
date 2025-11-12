@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import io
-import sys
 from typing import TYPE_CHECKING
 
 from click.testing import CliRunner
@@ -53,18 +51,32 @@ def test_interrupt_diagnostics_prints_debug_info(tmp_path: Path, capsys: pytest.
     assert "DirectoryTreeBuilder(" in out
 
 
-def test_non_tty_disables_clipboard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Force non-tty for stdout
-    class DummyStdout(io.StringIO):
-        def isatty(self) -> bool:  # type: ignore[override]
-            return False
+def test_non_tty_auto_sink_prefers_stdout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from grobl import output as output_mod
 
-    monkeypatch.setattr(sys, "stdout", DummyStdout())
+    monkeypatch.setattr(output_mod, "stdout_is_tty", lambda: False, raising=True)
+
+    def explode(_: str) -> None:
+        msg = "clipboard should not be used when stdout is not a TTY"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(output_mod.pyperclip, "copy", explode, raising=True)
+
     (tmp_path / "f.txt").write_text("data", encoding="utf-8")
     runner = CliRunner()
-    # If clipboard were used, we'd not see output; ensure command still succeeds.
-    res = runner.invoke(cli, ["scan", str(tmp_path)])
+    res = runner.invoke(
+        cli,
+        [
+            "scan",
+            str(tmp_path),
+            "--summary",
+            "none",
+            "--payload",
+            "json",
+        ],
+    )
     assert res.exit_code == 0
+    assert res.output.strip().startswith("{")
 
 
 def test_auto_table_compact_when_not_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
