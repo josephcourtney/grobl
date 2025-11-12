@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [1.0.7] - 2025-11-12
+
 ### Added
 - add new CLI enum definitions (`ContentScope`, `PayloadFormat`, `PayloadSink`) and extend summary format options
 
@@ -10,6 +12,8 @@
 - drive LLM payload assembly through `ContentScope` and scoped unit tests
 - redesign scan options/executor to use scope-aware payload and summary formats
 - redesign the `grobl scan` CLI to expose scope/payload/summary/sink switches with usage validation
+- replace clipboard heuristics with explicit payload sink selection for auto/stdout/file/clipboard targets
+- rewrite CLI system/readme smoke tests around the new scope/payload/summary defaults
 
 ## [1.0.3] - 2025-10-20
 
