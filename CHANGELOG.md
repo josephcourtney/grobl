@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.3] - 2025-10-20
+
+### Fixed
+- raise a config load error when an explicit --config path does not exist
+
 ## [0.7.4] - 2025-10-19
 
 ### Fixed

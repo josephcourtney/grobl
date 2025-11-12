@@ -129,13 +129,13 @@
     - [ ] Remove the `version` subcommand and update tests accordingly
   - [ ] Update `tests/unit/test___main__.py` to assert the new argument injection behavior and to remove expectations tied to manual `scan` insertion
 
-- [ ] Tighten config error handling for `--config`
-  - [ ] In `src/grobl/config.py`’s `read_config`, change behavior so that:
-    - [ ] If `explicit_config` is provided and does not exist, raise `ConfigLoadError`
-  - [ ] Update `src/grobl/cli/scan.py` to catch this and exit with `EXIT_CONFIG`
-  - [ ] Adjust `tests/component/cli/test_error_paths.py` and config-related tests to:
-    - [ ] Expect a config load error when `--config` path is missing
-    - [ ] Continue to allow `$GROBL_CONFIG_PATH` to be ignored when missing
+- [x] Tighten config error handling for `--config`
+  - [x] In `src/grobl/config.py`’s `read_config`, change behavior so that:
+    - [x] If `explicit_config` is provided and does not exist, raise `ConfigLoadError`
+  - [x] Update `src/grobl/cli/scan.py` to catch this and exit with `EXIT_CONFIG`
+  - [x] Adjust `tests/component/cli/test_error_paths.py` and config-related tests to:
+    - [x] Expect a config load error when `--config` path is missing
+    - [x] Continue to allow `$GROBL_CONFIG_PATH` to be ignored when missing
 
 - [ ] Update documentation and README
   - [ ] Rewrite the “Commands” and “grobl scan” sections in `README.md` to match the new spec:
