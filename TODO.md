@@ -1,0 +1,183 @@
+
+- [ ] Redesign CLI primitives and enums
+  - [ ] Introduce a new `ContentScope` enum (or rename `OutputMode`) with values `all`, `tree`, `files`
+    - [ ] Remove the existing `SUMMARY` value and any logic that treats “summary” as a mode
+  - [ ] Introduce a new `PayloadFormat` enum with values `llm`, `json`, `none`
+  - [ ] Extend or replace `SummaryFormat` with values `human`, `json`, `none`
+  - [ ] Keep `TableStyle` as-is (`auto`, `full`, `compact`, `none`)
+  - [ ] Add a `PayloadSink` enum with values `auto`, `clipboard`, `stdout`, `file`
+  - [ ] Update `src/grobl/constants.py` to expose these enums and remove now-unused constants
+  - [ ] Update `tests/unit/test_constants.py` to assert the new enum values and remove references to `OutputMode.SUMMARY`
+
+- [ ] Update core summary and payload context types
+  - [ ] Update `SummaryContext` in `src/grobl/summary.py` to use `ContentScope` instead of `OutputMode`
+  - [ ] Ensure `build_summary` returns a structure matching the new spec:
+    - [ ] Keys: `root`, `scope`, `style`, `totals`, `files`
+    - [ ] `scope` uses `ContentScope.value`
+    - [ ] `style` uses `TableStyle.value` (even for JSON summaries)
+  - [ ] Update `build_sink_payload_json` to:
+    - [ ] Use `scope` instead of `mode` in the root object
+    - [ ] Include `tree` only when scope includes tree
+    - [ ] Include `files` only when scope includes files
+    - [ ] Embed a `summary` object matching `build_summary`
+  - [ ] Update `tests/unit/test_summary.py` to assert on `scope` and `style` fields instead of `mode`/`table`
+
+- [ ] Update LLM payload rendering to be scope-aware
+  - [ ] Replace `MODE_HANDLERS` in `src/grobl/renderers.py` to dispatch on `ContentScope` instead of `OutputMode`
+    - [ ] `all` → tree + files payload
+    - [ ] `tree` → tree payload only
+    - [ ] `files` → files payload only
+  - [ ] Adjust `build_llm_payload` signature and callers to take `scope: ContentScope` rather than `mode: OutputMode`
+  - [ ] Update tests under `tests/unit/test_renderers.py` and any system/component tests that assert `<directory` / `<file` presence by `mode`
+
+- [ ] Redesign `ScanOptions` and `ScanExecutor`
+  - [ ] Change `ScanOptions` in `src/grobl/services.py` to carry:
+    - [ ] `scope: ContentScope`
+    - [ ] `payload_format: PayloadFormat`
+    - [ ] `summary_format: SummaryFormat`
+    - [ ] `summary_style: TableStyle`
+  - [ ] Remove the old `mode` and `fmt` fields from `ScanOptions`
+  - [ ] Update `ScanExecutorDependencies` to keep existing responsibilities but work with the new enums
+  - [ ] Rework `ScanExecutor._should_emit_json_payload` into a simple predicate on `payload_format`
+  - [ ] Reimplement `ScanExecutor.execute`:
+    - [ ] Always call `scan()` to get `ScanResult`
+    - [ ] Build a `SummaryContext` with `scope` and `summary_style`
+    - [ ] Build a `DirectoryRenderer` for tree lines where needed
+    - [ ] **Payload path:**
+      - [ ] If `payload_format is PayloadFormat.NONE`, skip payload generation entirely
+      - [ ] If `payload_format is PayloadFormat.JSON`:
+        - [ ] Call `sink_payload_builder(context)` to get the payload JSON structure
+        - [ ] Dump it to JSON and pass to the sink
+      - [ ] If `payload_format is PayloadFormat.LLM`:
+        - [ ] Call `payload_builder(builder=..., common=..., scope=..., tree_tag=..., file_tag=...)`
+        - [ ] Pass the resulting string to the sink
+    - [ ] **Summary path:**
+      - [ ] If `summary_format is SummaryFormat.NONE`, return an empty summary string and minimal JSON summary
+      - [ ] If `summary_format is SummaryFormat.HUMAN`:
+        - [ ] Use `human_summary(...)` with `summary_style.value`
+        - [ ] Return the human summary string and machine-readable summary dict
+      - [ ] If `summary_format is SummaryFormat.JSON`:
+        - [ ] Call `summary_builder(context)` to build the JSON summary
+        - [ ] Return an empty human string and the JSON summary dict
+    - [ ] Ensure `ScanExecutor` no longer infers JSON payload conditions from `SummaryFormat`
+  - [ ] Update `tests/unit/test_services.py` to:
+    - [ ] Use the new `ScanOptions` fields
+    - [ ] Assert the correct behavior for `payload_format=json` and `summary_format=json|none`
+
+- [ ] Redesign the CLI `scan` command
+  - [ ] In `src/grobl/cli/scan.py`, remove old options:
+    - [ ] `--mode`
+    - [ ] `--format`
+    - [ ] `--table`
+    - [ ] `--quiet`
+    - [ ] `--no-clipboard`
+  - [ ] Add new options with Click:
+    - [ ] `--scope` → `ContentScope` (`all`, `tree`, `files`) with default `all`
+    - [ ] `--payload` → `PayloadFormat` (`llm`, `json`, `none`) with default `llm`
+    - [ ] `--summary` → `SummaryFormat` (`human`, `json`, `none`) with default `human`
+    - [ ] `--summary-style` → `TableStyle` (`auto`, `full`, `compact`, `none`) with default `auto`
+    - [ ] `--sink` → `PayloadSink` (`auto`, `clipboard`, `stdout`, `file`) with default `auto`
+    - [ ] `--output PATH` (kept; interpreted according to `sink`)
+  - [ ] Implement validation in `scan`:
+    - [ ] If `payload == none` and `summary == none`, print a clear error and exit with usage code
+    - [ ] If `sink == file` and `--output` is missing, print a clear error and exit with usage code
+  - [ ] Replace `ScanParams` in `src/grobl/cli/common.py` with fields matching the new CLI:
+    - [ ] Keep ignore/config fields (`ignore_defaults`, `no_ignore`, `add_ignore`, `remove_ignore`, `add_ignore_file`, `config_path`)
+    - [ ] Replace `mode`, `table`, `fmt`, `no_clipboard`, `quiet` with `scope`, `payload`, `summary`, `summary_style`, `sink`
+  - [ ] Adjust `_execute_with_handling` signature and call-site:
+    - [ ] Pass `scope`, `payload_format`, `summary_format`, and `summary_style` into `ScanOptions`
+  - [ ] In `scan`, after `ScanExecutor.execute`:
+    - [ ] If `summary_format is HUMAN` and the returned human summary string is non-empty, print it to stdout
+    - [ ] If `summary_format is JSON`, pretty-print the JSON summary to stdout
+    - [ ] Handle `BrokenPipeError` as before (clean exit 0)
+
+- [ ] Redesign output sink handling
+  - [ ] Replace `clipboard_allowed`-only logic with explicit sink selection in `src/grobl/output.py`
+    - [ ] Introduce a `PayloadSink`-aware decision function:
+      - [ ] `auto`:
+        - [ ] Use `FileOutput` if `output_file` is set
+        - [ ] Else, if `stdout_is_tty()`, prefer clipboard
+        - [ ] Else, use stdout
+      - [ ] `clipboard`:
+        - [ ] Use `ClipboardOutput` and fall back to stdout on failure
+      - [ ] `stdout`:
+        - [ ] Use `StdoutOutput`
+      - [ ] `file`:
+        - [ ] Require `output_file` and use `FileOutput`
+  - [ ] Redefine `OutputPreferences` to include `sink: PayloadSink` instead of `allow_clipboard`
+  - [ ] Update `compose_output_strategy` / `build_writer_from_config` to:
+    - [ ] Accept `sink: PayloadSink`
+    - [ ] Accept `output: Path | None`
+    - [ ] Build a `StrategyChain` appropriate for the selected sink
+  - [ ] Update `src/grobl/tty.py`:
+    - [ ] Keep `stdout_is_tty`
+    - [ ] Restrict `resolve_table_style` to operate only on `TableStyle`
+    - [ ] Remove or simplify `clipboard_allowed` if no longer needed
+  - [ ] Update `tests/unit/test_output.py` to:
+    - [ ] Cover `sink=auto` behavior (file vs clipboard vs stdout)
+    - [ ] Cover explicit `sink=stdout` and `sink=file`
+    - [ ] Cover clipboard failure fallback semantics with the new sink model
+  - [ ] Update `tests/component/cli/test_cli_features.py` and related tests that assume the old `--no-clipboard` semantics
+
+- [ ] Update CLI root wiring and help behavior
+  - [ ] Refactor `src/grobl/cli/root.py` to use Click’s `invoke_without_command=True` on `cli`:
+    - [ ] If no subcommand is given, call `scan` directly
+    - [ ] Remove manual argv manipulation logic in `main()`
+  - [ ] Keep global flags (`-v`, `--log-level`, `-V`, `--version`) unchanged
+  - [ ] Decide whether to keep the `version` subcommand:
+    - [ ] Either wire `version` to print the same info as `--version`, or
+    - [ ] Remove the `version` subcommand and update tests accordingly
+  - [ ] Update `tests/unit/test___main__.py` to assert the new argument injection behavior and to remove expectations tied to manual `scan` insertion
+
+- [ ] Tighten config error handling for `--config`
+  - [ ] In `src/grobl/config.py`’s `read_config`, change behavior so that:
+    - [ ] If `explicit_config` is provided and does not exist, raise `ConfigLoadError`
+  - [ ] Update `src/grobl/cli/scan.py` to catch this and exit with `EXIT_CONFIG`
+  - [ ] Adjust `tests/component/cli/test_error_paths.py` and config-related tests to:
+    - [ ] Expect a config load error when `--config` path is missing
+    - [ ] Continue to allow `$GROBL_CONFIG_PATH` to be ignored when missing
+
+- [ ] Update documentation and README
+  - [ ] Rewrite the “Commands” and “grobl scan” sections in `README.md` to match the new spec:
+    - [ ] Document `--scope`, `--payload`, `--summary`, `--summary-style`, `--sink`, `--output`
+    - [ ] Remove references to `--mode`, `--format`, `--table`, `--quiet`, `--no-clipboard`
+    - [ ] Update examples to use the new flags (clipboard workflow, JSON payload, summary-only, etc.)
+  - [ ] Ensure the configuration precedence description still matches runtime behavior
+  - [ ] Update any narrative that mentions “mode summary” or conflates summary with mode
+  - [ ] Update `AGENTS.md` if it references specific CLI flags or behaviors
+
+- [ ] Update system and component tests
+  - [ ] Rewrite `tests/system/test_cli.py` to:
+    - [ ] Use `--scope` instead of `--mode`
+    - [ ] Use `--payload` and `--summary` instead of `--format`/`--quiet`
+    - [ ] Assert that `grobl scan` without explicit formats behaves as per the new defaults
+    - [ ] Add tests for “no-op” combinations (and ensure they fail with usage errors)
+  - [ ] Update `tests/system/test_readme_smoke.py` to:
+    - [ ] Match the new README examples and flag names
+    - [ ] Verify that the quick-start `grobl scan` commands still succeed
+  - [ ] Update component CLI tests (`tests/component/cli/*.py`) for:
+    - [ ] JSON summary vs JSON payload semantics
+    - [ ] Summary suppression via `--summary none`
+    - [ ] New sink behavior when stdout is/ isn’t a TTY
+
+- [ ] Clean up legacy code paths and dead tests
+  - [ ] Remove any code branches that special-case `OutputMode.SUMMARY`
+  - [ ] Remove tests specifically checking the old `--mode summary --table none` warning behavior
+  - [ ] Remove or adapt tests relying on `--quiet` and `--no-clipboard`
+  - [ ] Run `uv run ruff check` and clean up unused imports / constants introduced by the refactor
+
+- [ ] Versioning and changelog
+  - [ ] Bump `project.version` in `pyproject.toml` to the next major version (breaking CLI changes)
+  - [ ] Add a new section to `CHANGELOG.md`:
+    - [ ] Document the new CLI flags and semantics
+    - [ ] Note removal of `--mode`, `--format`, `--quiet`, `--no-clipboard`, and `--table` for JSON
+  - [ ] Ensure previous changelog entries remain untouched
+
+- [ ] Final validation
+  - [ ] Run `uv run ruff format src tests`
+  - [ ] Run `uv run ruff check src tests`
+  - [ ] Run `uv run ty check src tests`
+  - [ ] Run `uv run pytest`
+  - [ ] Confirm that:
+    - [ ] Default `grobl` / `grobl scan` behavior matches the new spec
+    - [ ] Each documented example in `README.md` is covered by at least one test
