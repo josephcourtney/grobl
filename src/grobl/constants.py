@@ -5,13 +5,29 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class ContentScope(StrEnum):
+    """Available content scopes for scan outputs."""
+
+    ALL = "all"
+    TREE = "tree"
+    FILES = "files"
+
+
 class OutputMode(StrEnum):
-    """Valid output modes for scanning."""
+    """Legacy output modes preserved for backward compatibility."""
 
     ALL = "all"
     TREE = "tree"
     FILES = "files"
     SUMMARY = "summary"
+
+
+class PayloadFormat(StrEnum):
+    """Payload output formats."""
+
+    LLM = "llm"
+    JSON = "json"
+    NONE = "none"
 
 
 class TableStyle(StrEnum):
@@ -28,6 +44,16 @@ class SummaryFormat(StrEnum):
 
     HUMAN = "human"
     JSON = "json"
+    NONE = "none"
+
+
+class PayloadSink(StrEnum):
+    """Destinations for payload output."""
+
+    AUTO = "auto"
+    CLIPBOARD = "clipboard"
+    STDOUT = "stdout"
+    FILE = "file"
 
 
 # Add these constants:
