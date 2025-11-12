@@ -26,11 +26,7 @@ def find_common_ancestor(paths: list[Path]) -> Path:
         raise PathNotFoundError(msg) from e
     # Treat “only the filesystem root” as no real common ancestor.
     if root == Path(root.anchor):
-        anchor = root.anchor or "/"
-        msg = (
-            f"No common ancestor found (only '{anchor}' shared). "
-            "Choose paths under a common project directory."
-        )
+        msg = ERROR_MSG_NO_COMMON_ANCESTOR
         raise PathNotFoundError(msg)
     return root
 

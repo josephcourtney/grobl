@@ -77,6 +77,3 @@ def main(argv: list[str] | None = None) -> None:
             sys.stdout.close()
         finally:
             raise SystemExit(0)
-    except (click.UsageError, click.ClickException) as err:
-        err.show()
-        raise SystemExit(EXIT_USAGE) from err
