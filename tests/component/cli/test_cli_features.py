@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
 from click.testing import CliRunner
@@ -79,6 +80,29 @@ def test_non_tty_auto_sink_prefers_stdout(tmp_path: Path, monkeypatch: pytest.Mo
     assert res.output.strip().startswith("{")
 
 
+def test_tty_auto_sink_prefers_clipboard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from grobl import output as output_mod
+
+    (tmp_path / "payload.txt").write_text("payload", encoding="utf-8")
+    monkeypatch.setattr(output_mod, "stdout_is_tty", lambda: True, raising=True)
+
+    captured: list[str] = []
+
+    def fake_copy(text: str) -> None:
+        captured.append(text)
+
+    monkeypatch.setattr(output_mod.pyperclip, "copy", fake_copy, raising=True)
+
+    runner = CliRunner()
+    res = runner.invoke(cli, ["scan", str(tmp_path)])
+
+    assert res.exit_code == 0
+    assert captured, "clipboard copy should be used when stdout is a TTY"
+    # Payload should not leak to stdout when clipboard succeeds.
+    assert "<directory" not in res.output
+    assert "Total lines" in res.output
+
+
 def test_auto_table_compact_when_not_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Force TTY helper to return False regardless of Click's runner internals
     from grobl import tty
@@ -153,3 +177,55 @@ def test_cli_sink_file_requires_output(tmp_path: Path) -> None:
     )
     assert res.exit_code != 0
     assert "--output" in res.output
+
+
+def test_cli_summary_json_printed_when_payload_saved(tmp_path: Path) -> None:
+    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
+    payload_file = tmp_path / "payload.json"
+    runner = CliRunner()
+    res = runner.invoke(
+        cli,
+        [
+            "scan",
+            str(tmp_path),
+            "--payload",
+            "json",
+            "--summary",
+            "json",
+            "--summary-style",
+            "full",
+            "--sink",
+            "file",
+            "--output",
+            str(payload_file),
+        ],
+    )
+    assert res.exit_code == 0
+    assert payload_file.exists()
+    payload = json.loads(payload_file.read_text(encoding="utf-8"))
+    assert payload["scope"] == "all"
+    summary = json.loads(res.output.strip())
+    assert summary["root"] == str(tmp_path)
+    assert summary["style"] == "full"
+
+
+def test_cli_summary_none_suppresses_summary(tmp_path: Path) -> None:
+    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(
+        cli,
+        [
+            "scan",
+            str(tmp_path),
+            "--payload",
+            "json",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
+        ],
+    )
+    assert res.exit_code == 0
+    data = json.loads(res.output)
+    assert data["scope"] == "all"
+    assert "Total lines" not in res.output

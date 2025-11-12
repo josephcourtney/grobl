@@ -13,14 +13,6 @@ class ContentScope(StrEnum):
     FILES = "files"
 
 
-class OutputMode(StrEnum):
-    """Legacy output modes preserved for backward compatibility."""
-
-    ALL = "all"
-    TREE = "tree"
-    FILES = "files"
-
-
 class PayloadFormat(StrEnum):
     """Payload output formats."""
 
