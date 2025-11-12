@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- add new CLI enum definitions (`ContentScope`, `PayloadFormat`, `PayloadSink`) and extend summary format options
+
 ### Changed
 - route bare `grobl` invocations through the `scan` command using Click's default dispatch
 
