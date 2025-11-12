@@ -80,7 +80,6 @@ def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: Dire
     print(f"    total_characters  = {builder.total_characters}")
     print(f"    exclude_patterns  = {builder.exclude_patterns}")
     print(")")
-    raise SystemExit(EXIT_INTERRUPT)
 
 
 def _execute_with_handling(
@@ -106,7 +105,7 @@ def _execute_with_handling(
         raise SystemExit(EXIT_USAGE) from e
     except ScanInterrupted as si:
         print_interrupt_diagnostics(si.common, cfg, si.builder)
-        raise
-    except KeyboardInterrupt:
+        raise SystemExit(EXIT_INTERRUPT) from si
+    except KeyboardInterrupt as ki:
         print_interrupt_diagnostics(cwd, cfg, DirectoryTreeBuilder(base_path=cwd, exclude_patterns=[]))
-        raise
+        raise SystemExit(EXIT_INTERRUPT) from ki

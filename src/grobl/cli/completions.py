@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Final
 
 import click
-
-from grobl.constants import EXIT_USAGE
 
 COMPLETION_TEMPLATES: Final[dict[str, str]] = {
     "bash": (
@@ -30,9 +27,5 @@ def completions(shell: str) -> None:
     """Print shell completion script for the given shell."""
     prog = "grobl"
     var = "_GROBL_COMPLETE"
-    try:
-        template = COMPLETION_TEMPLATES[shell]
-    except KeyError as err:  # pragma: no cover - defensive
-        print(f"Unsupported shell: {shell}", file=sys.stderr)
-        raise SystemExit(EXIT_USAGE) from err
+    template = COMPLETION_TEMPLATES[shell]
     print(template.format(var=var, prog=prog))
