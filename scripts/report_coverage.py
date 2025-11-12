@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import re
-import sys
 import xml.etree.ElementTree as ET  # noqa: S405
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,7 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Callable, Iterable, Sequence
 
 
 # --------------------------- Models ------------------------------------------
@@ -26,6 +25,39 @@ class LineAgg:
 @dataclass
 class FileAgg:
     lines: dict[int, LineAgg]  # lineno -> agg
+
+
+@dataclass(slots=True)
+class ReportConfig:
+    """Configuration for coverage report generation."""
+
+    root: Path = field(default_factory=Path)
+    patterns: Sequence[str] = (".coverage.xml", "coverage.xml")
+    include: str | None = None
+    exclude: str | None = None
+    rel_to: Path | None = field(default_factory=Path)
+    sort: str = "file"  # "stmt_cov", "br_cov", "miss"
+    show_branches: bool = True
+    green_threshold: float = 90.0
+    yellow_threshold: float = 75.0
+    fail_under_line: float | None = None
+    fail_under_branch: float | None = None
+
+
+@dataclass(slots=True)
+class Totals:
+    """Aggregate statement and branch coverage counts."""
+
+    stmt_total: int = 0
+    stmt_hit: int = 0
+    br_total: int = 0
+    br_hit: int = 0
+
+    def add(self, *, stmt_total: int, stmt_hit: int, br_total: int, br_hit: int) -> None:
+        self.stmt_total += stmt_total
+        self.stmt_hit += stmt_hit
+        self.br_total += br_total
+        self.br_hit += br_hit
 
 
 # --------------------------- Discovery/Parsing -------------------------------
@@ -91,7 +123,7 @@ def _iter_lines(root: ET.Element) -> Iterable[tuple[str, int, int, int, int]]:
 
 
 # --------------------------- Aggregation -------------------------------------
-def _compile_filters(include: str | None, exclude: str | None):
+def _compile_filters(include: str | None, exclude: str | None) -> Callable[[Path], bool]:
     inc = re.compile(include) if include else None
     exc = re.compile(exclude) if exclude else None
 
@@ -123,6 +155,33 @@ def _aggregate(roots: Sequence[ET.Element], include: str | None, exclude: str | 
     return acc
 
 
+# --------------------------- Summaries ---------------------------------------
+def _summarize_files(acc: dict[str, FileAgg]) -> tuple[list[tuple], Totals]:
+    rows_raw: list[tuple] = []
+    totals = Totals()
+    for fpath, fa in acc.items():
+        stmt_total = len(fa.lines)
+        stmt_hit = sum(1 for la in fa.lines.values() if la.hits > 0)
+        stmt_miss = stmt_total - stmt_hit
+        br_total = sum(la.br_tot for la in fa.lines.values())
+        br_hit = sum(la.br_cov for la in fa.lines.values())
+        br_miss = br_total - br_hit
+
+        totals.add(stmt_total=stmt_total, stmt_hit=stmt_hit, br_total=br_total, br_hit=br_hit)
+        rows_raw.append((
+            fpath,
+            stmt_total,
+            stmt_hit,
+            stmt_miss,
+            (100.0 * stmt_hit / stmt_total) if stmt_total else None,
+            br_total,
+            br_hit,
+            br_miss,
+            (100.0 * br_hit / br_total) if br_total else None,
+        ))
+    return rows_raw, totals
+
+
 # --------------------------- Formatting --------------------------------------
 def _style_percent(pct: float | None, green: float, yellow: float) -> str:
     if pct is None:
@@ -144,12 +203,17 @@ def _relativize(path: str, rel_to: Path | None) -> str:
         return path
     try:
         return str(Path(path).resolve().relative_to(rel_to.resolve()))
-    except Exception:
+    except (OSError, ValueError):
         return path
 
 
 # --------------------------- Table -------------------------------------------
-def _build_table(rows, totals, show_branches: bool) -> Table:
+def _build_table(
+    rows: Sequence[Sequence[str]],
+    totals: Sequence[str],
+    *,
+    show_branches: bool,
+) -> Table:
     table = Table(title="Coverage Report", box=box.SIMPLE_HEAVY, header_style="bold", expand=True)
 
     table.add_column("File", style="cyan", overflow="fold")
@@ -180,53 +244,19 @@ def _build_table(rows, totals, show_branches: bool) -> Table:
 
 # --------------------------- Main --------------------------------------------
 def main(argv: Sequence[str] | None = None) -> int:
-    root = Path()
-    patterns = [".coverage.xml", "coverage.xml"]
-    include = None
-    exclude = None
-    rel_to = Path()
-    sort = "file"  # "stmt_cov", "br_cov", "miss"
-    show_branches = True
-    green = 90.0
-    yellow = 75.0
-    fail_under_line = None
-    fail_under_branch = None
+    del argv
+    config = ReportConfig()
 
-    roots = _read_all_coverage_roots(root, patterns)
+    roots = _read_all_coverage_roots(config.root, config.patterns)
     if not roots:
         return 0
 
-    acc = _aggregate(roots, include, exclude)
+    acc = _aggregate(roots, config.include, config.exclude)
     if not acc:
         return 0
 
     # Per-file
-    rows_raw = []
-    sum_stmt_tot = sum_stmt_hit = sum_br_tot = sum_br_hit = 0
-    for fpath, fa in acc.items():
-        stmt_tot = len(fa.lines)
-        stmt_hit = sum(1 for la in fa.lines.values() if la.hits > 0)
-        stmt_miss = stmt_tot - stmt_hit
-        br_tot = sum(la.br_tot for la in fa.lines.values())
-        br_hit = sum(la.br_cov for la in fa.lines.values())
-        br_miss = br_tot - br_hit
-
-        sum_stmt_tot += stmt_tot
-        sum_stmt_hit += stmt_hit
-        sum_br_tot += br_tot
-        sum_br_hit += br_hit
-
-        rows_raw.append((
-            fpath,
-            stmt_tot,
-            stmt_hit,
-            stmt_miss,
-            (100.0 * stmt_hit / stmt_tot) if stmt_tot else None,
-            br_tot,
-            br_hit,
-            br_miss,
-            (100.0 * br_hit / br_tot) if br_tot else None,
-        ))
+    rows_raw, totals = _summarize_files(acc)
 
     # Sorting
     keyfuncs = {
@@ -235,50 +265,50 @@ def main(argv: Sequence[str] | None = None) -> int:
         "br_cov": lambda r: (-(r[8] or -1), r[0]),
         "miss": lambda r: (-(r[3] + r[7]), r[0]),
     }
-    rows_raw.sort(key=keyfuncs[sort])
+    rows_raw.sort(key=keyfuncs[config.sort])
 
     # Render rows
-    stmt_cov_overall = (100.0 * sum_stmt_hit / sum_stmt_tot) if sum_stmt_tot else None
-    br_cov_overall = (100.0 * sum_br_hit / sum_br_tot) if sum_br_tot else None
+    stmt_cov_overall = (100.0 * totals.stmt_hit / totals.stmt_total) if totals.stmt_total else None
+    br_cov_overall = (100.0 * totals.br_hit / totals.br_total) if totals.br_total else None
 
     def fmt_row(r):
-        file_rel = _relativize(r[0], rel_to)
+        file_rel = _relativize(r[0], config.rel_to)
         return [
             file_rel,
             str(r[1]),
             str(r[2]),
             _style_miss(r[3]),
-            _style_percent(r[4], green, yellow),
+            _style_percent(r[4], config.green_threshold, config.yellow_threshold),
             str(r[5]),
             str(r[6]),
             _style_miss(r[7]),
-            _style_percent(r[8], green, yellow),
+            _style_percent(r[8], config.green_threshold, config.yellow_threshold),
         ]
 
     rows = [fmt_row(r) for r in rows_raw]
 
     totals = [
         "[bold]Overall[/bold]",
-        f"[bold]{sum_stmt_tot}[/bold]",
-        f"[bold]{sum_stmt_hit}[/bold]",
-        f"[bold]{sum_stmt_tot - sum_stmt_hit}[/bold]",
-        f"[bold]{_style_percent(stmt_cov_overall, green, yellow)}[/bold]",
-        f"[bold]{sum_br_tot}[/bold]",
-        f"[bold]{sum_br_hit}[/bold]",
-        f"[bold]{sum_br_tot - sum_br_hit}[/bold]",
-        f"[bold]{_style_percent(br_cov_overall, green, yellow)}[/bold]",
+        f"[bold]{totals.stmt_total}[/bold]",
+        f"[bold]{totals.stmt_hit}[/bold]",
+        f"[bold]{totals.stmt_total - totals.stmt_hit}[/bold]",
+        f"[bold]{_style_percent(stmt_cov_overall, config.green_threshold, config.yellow_threshold)}[/bold]",
+        f"[bold]{totals.br_total}[/bold]",
+        f"[bold]{totals.br_hit}[/bold]",
+        f"[bold]{totals.br_total - totals.br_hit}[/bold]",
+        f"[bold]{_style_percent(br_cov_overall, config.green_threshold, config.yellow_threshold)}[/bold]",
     ]
 
     console = Console()
     console.print()
-    console.print(_build_table(rows, totals, show_branches))
+    console.print(_build_table(rows, totals, show_branches=config.show_branches))
     console.print()
 
     # CI thresholds
     fail = False
-    if fail_under_line is not None and (stmt_cov_overall or 0.0) < fail_under_line:
+    if config.fail_under_line is not None and (stmt_cov_overall or 0.0) < config.fail_under_line:
         fail = True
-    if fail_under_branch is not None and (br_cov_overall or 0.0) < fail_under_branch:
+    if config.fail_under_branch is not None and (br_cov_overall or 0.0) < config.fail_under_branch:
         fail = True
     return 1 if fail else 0
 
