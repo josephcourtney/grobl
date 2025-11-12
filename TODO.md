@@ -119,15 +119,15 @@
     - [ ] Cover clipboard failure fallback semantics with the new sink model
   - [ ] Update `tests/component/cli/test_cli_features.py` and related tests that assume the old `--no-clipboard` semantics
 
-- [ ] Update CLI root wiring and help behavior
-  - [ ] Refactor `src/grobl/cli/root.py` to use Click’s `invoke_without_command=True` on `cli`:
-    - [ ] If no subcommand is given, call `scan` directly
-    - [ ] Remove manual argv manipulation logic in `main()`
-  - [ ] Keep global flags (`-v`, `--log-level`, `-V`, `--version`) unchanged
-  - [ ] Decide whether to keep the `version` subcommand:
-    - [ ] Either wire `version` to print the same info as `--version`, or
-    - [ ] Remove the `version` subcommand and update tests accordingly
-  - [ ] Update `tests/unit/test___main__.py` to assert the new argument injection behavior and to remove expectations tied to manual `scan` insertion
+- [x] Update CLI root wiring and help behavior
+  - [x] Refactor `src/grobl/cli/root.py` to use Click’s `invoke_without_command=True` on `cli`:
+    - [x] If no subcommand is given, call `scan` directly
+    - [x] Remove manual argv manipulation logic in `main()`
+  - [x] Keep global flags (`-v`, `--log-level`, `-V`, `--version`) unchanged
+  - [x] Decide whether to keep the `version` subcommand:
+    - [x] Either wire `version` to print the same info as `--version`, or
+    - [x] Remove the `version` subcommand and update tests accordingly
+  - [x] Update `tests/unit/test___main__.py` to assert the new argument injection behavior and to remove expectations tied to manual `scan` insertion
 
 - [x] Tighten config error handling for `--config`
   - [x] In `src/grobl/config.py`’s `read_config`, change behavior so that:

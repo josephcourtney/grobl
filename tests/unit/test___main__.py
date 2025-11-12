@@ -4,7 +4,9 @@ import io
 import runpy
 import sys
 
+import click
 import pytest
+from click.testing import CliRunner
 
 from grobl.cli import root as cli_root
 from grobl.cli.root import main as module_main
@@ -26,27 +28,41 @@ class _DummyCLI:
         self.called_with = list(args)
 
 
-def test_main_injects_scan_after_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_passes_arguments_through(monkeypatch: pytest.MonkeyPatch) -> None:
     dummy = _DummyCLI()
     monkeypatch.setattr(cli_root, "cli", dummy, raising=True)
 
     module_main(["-v", "patharg"])
+    assert dummy.called_with == ["-v", "patharg"]
 
-    assert dummy.called_with is not None
-    assert dummy.called_with == ["-v", "scan", "patharg"]
-
-    module_main(["--json"])
-    assert dummy.called_with is not None
-    assert dummy.called_with[0] == "scan"
-    assert dummy.called_with[1:] == ["--json"]
+    module_main([])
+    assert dummy.called_with == []
 
 
-def test_main_does_not_inject_when_subcommand_present(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_preserves_explicit_subcommands(monkeypatch: pytest.MonkeyPatch) -> None:
     dummy = _DummyCLI()
     monkeypatch.setattr(cli_root, "cli", dummy, raising=True)
+
     module_main(["version"])
-    assert dummy.called_with is not None
-    assert dummy.called_with[0] == "version"
+    assert dummy.called_with == ["version"]
+
+
+def test_cli_defaults_to_scan_when_no_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    called: dict[str, tuple[str, ...]] = {}
+
+    @click.command()
+    @click.argument("paths", nargs=-1)
+    def fake_scan(paths: tuple[str, ...]) -> None:
+        called["paths"] = paths
+
+    monkeypatch.setitem(cli_root.cli.commands, "scan", fake_scan)
+    monkeypatch.setattr(cli_root, "scan", fake_scan, raising=False)
+
+    result = runner.invoke(cli_root.cli, ["alpha", "beta"])
+
+    assert result.exit_code == 0
+    assert called["paths"] == ("alpha", "beta")
 
 
 def test_main_handles_broken_pipe(monkeypatch: pytest.MonkeyPatch) -> None:
