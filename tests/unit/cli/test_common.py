@@ -10,7 +10,9 @@ from grobl.constants import (
     EXIT_INTERRUPT,
     EXIT_PATH,
     EXIT_USAGE,
-    OutputMode,
+    ContentScope,
+    PayloadFormat,
+    PayloadSink,
     SummaryFormat,
     TableStyle,
 )
@@ -77,17 +79,17 @@ class _DummyExecRaises:
 def _params_for(tmp_path: Path) -> ccommon.ScanParams:
     return ccommon.ScanParams(
         ignore_defaults=False,
-        no_clipboard=True,
         output=None,
         add_ignore=(),
         remove_ignore=(),
         add_ignore_file=(),
         no_ignore=False,
-        mode=OutputMode.SUMMARY,
-        table=TableStyle.COMPACT,
+        scope=ContentScope.ALL,
+        summary_style=TableStyle.COMPACT,
         config_path=None,
-        quiet=False,
-        fmt=SummaryFormat.HUMAN,
+        payload=PayloadFormat.LLM,
+        summary=SummaryFormat.HUMAN,
+        sink=PayloadSink.AUTO,
         paths=(tmp_path,),
     )
 
@@ -100,7 +102,7 @@ def test__execute_with_handling_success(monkeypatch: pytest.MonkeyPatch, tmp_pat
         cfg={},
         cwd=tmp_path,
         write_fn=writes.append,
-        table=TableStyle.COMPACT,
+        summary_style=TableStyle.COMPACT,
     )
     assert human == "human"
     assert js == {"ok": 1}
@@ -116,7 +118,7 @@ def test__execute_with_handling_path_error(monkeypatch: pytest.MonkeyPatch, tmp_
             cfg={},
             cwd=tmp_path,
             write_fn=lambda _: None,
-            table=TableStyle.COMPACT,
+            summary_style=TableStyle.COMPACT,
         )
     e = excinfo.value
     assert isinstance(e, SystemExit)
@@ -133,7 +135,7 @@ def test__execute_with_handling_usage_error(monkeypatch: pytest.MonkeyPatch, tmp
             cfg={},
             cwd=tmp_path,
             write_fn=lambda _: None,
-            table=TableStyle.COMPACT,
+            summary_style=TableStyle.COMPACT,
         )
     e = exc.value
     assert isinstance(e, SystemExit)
@@ -157,7 +159,7 @@ def test__execute_with_handling_scan_interrupted(monkeypatch: pytest.MonkeyPatch
             cfg={"exclude_tree": []},
             cwd=tmp_path,
             write_fn=lambda _: None,
-            table=TableStyle.FULL,
+            summary_style=TableStyle.FULL,
         )
     e = exc.value
     assert isinstance(e, SystemExit)
@@ -177,7 +179,7 @@ def test__execute_with_handling_keyboard_interrupt(monkeypatch: pytest.MonkeyPat
             cfg={"exclude_tree": []},
             cwd=tmp_path,
             write_fn=lambda _: None,
-            table=TableStyle.FULL,
+            summary_style=TableStyle.FULL,
         )
     e = exc.value
     assert isinstance(e, SystemExit)

@@ -16,10 +16,25 @@ def test_cli_json_tree_payload(tmp_path: Path) -> None:
     d.mkdir()
     (d / "a.txt").write_text("aa", encoding="utf-8")
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path), "--mode", "tree", "--format", "json", "--table", "none"])
+    res = runner.invoke(
+        cli,
+        [
+            "scan",
+            str(tmp_path),
+            "--scope",
+            "tree",
+            "--payload",
+            "json",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
+        ],
+    )
     assert res.exit_code == 0
-    data = json.loads(res.output)
-    assert data["mode"] == "tree"
+    output = res.output.strip()
+    data = json.loads(output)
+    assert data["scope"] == "tree"
     assert data["root"] == str(tmp_path)
     assert "summary" in data
     assert "totals" in data["summary"]
@@ -40,19 +55,22 @@ def test_cli_json_files_payload(tmp_path: Path) -> None:
         [
             "scan",
             str(tmp_path),
-            "--mode",
+            "--scope",
             "files",
-            "--format",
+            "--payload",
             "json",
-            "--table",
+            "--summary",
             "none",
             "--config",
             str(cfg),
+            "--sink",
+            "stdout",
         ],
     )
     assert res.exit_code == 0
-    data = json.loads(res.output)
-    assert data["mode"] == "files"
+    output = res.output.strip()
+    data = json.loads(output)
+    assert data["scope"] == "files"
     files = {f["name"]: f for f in data.get("files", [])}
     assert files["inc.txt"]["content"] == "hello"
     sfiles = {f["path"]: f for f in data.get("summary", {}).get("files", [])}
@@ -62,10 +80,25 @@ def test_cli_json_files_payload(tmp_path: Path) -> None:
 def test_cli_json_all_payload(tmp_path: Path) -> None:
     (tmp_path / "x.txt").write_text("x", encoding="utf-8")
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path), "--mode", "all", "--format", "json", "--table", "none"])
+    res = runner.invoke(
+        cli,
+        [
+            "scan",
+            str(tmp_path),
+            "--scope",
+            "all",
+            "--payload",
+            "json",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
+        ],
+    )
     assert res.exit_code == 0
-    data = json.loads(res.output)
-    assert data["mode"] == "all"
+    output = res.output.strip()
+    data = json.loads(output)
+    assert data["scope"] == "all"
     assert "tree" in data
     assert "files" in data
     assert "summary" in data
