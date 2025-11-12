@@ -117,9 +117,11 @@ class StrategyChain:
     def write(self, content: str) -> None:
         if not content:
             return
+        wrote = False
         for link in self.links:
-            if link.write(content):
-                return
+            wrote = link.write(content) or wrote
+        if not wrote:
+            logger.warning("no output strategies succeeded")
 
 
 @dataclass(frozen=True, slots=True)
