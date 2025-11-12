@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import builtins
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,64 +21,6 @@ if TYPE_CHECKING:
     from typing import Any
 
 
-# ------------------------------ _default_confirm ------------------------------
-def test__default_confirm_yes(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(builtins, "input", lambda _msg: "  Y  ")
-    assert ccommon._default_confirm("q?") is True
-
-
-def test__default_confirm_no(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(builtins, "input", lambda _msg: "n")
-    assert ccommon._default_confirm("q?") is False
-
-
-# ------------------------------ _detect_heavy_dirs ----------------------------
-def test__detect_heavy_dirs_finds_present(tmp_path: Path) -> None:
-    # Create common heavy dirs under the scanned base
-    (tmp_path / "node_modules").mkdir()
-    (tmp_path / ".venv").mkdir()
-    found = ccommon._detect_heavy_dirs((tmp_path,))
-    assert {"node_modules", ".venv"}.issubset(found)
-
-
-# --------------------- _maybe_warn_on_common_heavy_dirs -----------------------
-def test__maybe_warn_on_heavy_dirs_confirms_and_aborts(tmp_path: Path) -> None:
-    # With ignore_defaults=True and heavy dirs present, a "no" confirmation should abort.
-    (tmp_path / "node_modules").mkdir()
-    with pytest.raises(SystemExit) as exc:
-        ccommon._maybe_warn_on_common_heavy_dirs(
-            paths=(tmp_path,),
-            ignore_defaults=True,
-            assume_yes=False,
-            confirm=lambda _msg: False,
-        )
-    e = exc.value
-    assert isinstance(e, SystemExit)
-    assert e.code == EXIT_USAGE
-
-
-def test__maybe_warn_on_heavy_dirs_assume_yes_skips_prompt(tmp_path: Path) -> None:
-    (tmp_path / "node_modules").mkdir()
-    # Should not raise even if confirm would return False because assume_yes=True.
-    ccommon._maybe_warn_on_common_heavy_dirs(
-        paths=(tmp_path,),
-        ignore_defaults=True,
-        assume_yes=True,
-        confirm=lambda _msg: False,
-    )
-
-
-def test__maybe_warn_on_heavy_dirs_no_warning_when_defaults_used(tmp_path: Path) -> None:
-    # ignore_defaults=False and not explicitly targeting a heavy dir -> no prompt
-    (tmp_path / "node_modules").mkdir()
-    ccommon._maybe_warn_on_common_heavy_dirs(
-        paths=(tmp_path,),
-        ignore_defaults=False,
-        assume_yes=False,
-        confirm=lambda _msg: False,
-    )
-
-
 # ------------------ iter_legacy_references / _scan_for_legacy -----------------
 def test_iter_and_scan_legacy_references(tmp_path: Path) -> None:
     # Create files that do and don't contain the legacy name
@@ -95,26 +36,6 @@ def test_iter_and_scan_legacy_references(tmp_path: Path) -> None:
     assert isinstance(p, Path)
     assert isinstance(ln, int)
     assert ".grobl.config.toml" in text
-
-
-# ----------------------- _maybe_offer_legacy_migration ------------------------
-def test__maybe_offer_legacy_migration_renames_when_yes(tmp_path: Path) -> None:
-    legacy = tmp_path / ".grobl.config.toml"
-    legacy.write_text("exclude_tree=[]\n", encoding="utf-8")
-    ccommon._maybe_offer_legacy_migration(tmp_path, assume_yes=True)
-    assert not legacy.exists()
-    assert (tmp_path / ".grobl.toml").exists()
-
-
-def test__maybe_offer_legacy_migration_noop_when_new_exists(tmp_path: Path) -> None:
-    legacy = tmp_path / ".grobl.config.toml"
-    new = tmp_path / ".grobl.toml"
-    legacy.write_text("x=1\n", encoding="utf-8")
-    new.write_text("y=2\n", encoding="utf-8")
-    ccommon._maybe_offer_legacy_migration(tmp_path, assume_yes=True)
-    # Both remain; function only prints a note.
-    assert legacy.exists()
-    assert new.exists()
 
 
 # --------------------------- print_interrupt_diagnostics ----------------------

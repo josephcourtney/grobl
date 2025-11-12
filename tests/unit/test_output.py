@@ -39,3 +39,16 @@ def test_clipboard_failure_falls_back_to_stdout(monkeypatch: pytest.MonkeyPatch)
     writer = build_writer_from_config(cfg={}, no_clipboard_flag=False, output=None)
     writer("hi")
     assert "hi" in buf.getvalue()
+
+
+def test_stdout_output_writes_exact(monkeypatch):
+    import io
+    import sys
+
+    from grobl.output import build_writer_from_config
+
+    buf = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", buf)
+    writer = build_writer_from_config(cfg={}, no_clipboard_flag=True, output=None)
+    writer("exact")
+    assert buf.getvalue() == "exact"

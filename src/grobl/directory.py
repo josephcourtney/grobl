@@ -104,21 +104,6 @@ class FileCollector:
         return list(self._json_file_blobs)
 
 
-@dataclass(slots=True)
-class BinaryCollector:
-    """Maintain metadata about binary files encountered during traversal."""
-
-    _details: dict[str, dict] = field(default_factory=dict)
-
-    def record(self, rel: Path, details: dict) -> None:
-        """Store ``details`` for the binary file located at ``rel``."""
-        self._details[str(rel)] = dict(details)
-
-    def get(self, key: str) -> dict | None:
-        """Return stored metadata for ``key`` if available."""
-        return self._details.get(key)
-
-
 @dataclass(slots=True)  # "Use __slots__ to reduce memory if many nodes are created"
 class DirectoryTreeBuilder:
     """Collect directory information (no rendering/formatting here)."""
@@ -128,7 +113,6 @@ class DirectoryTreeBuilder:
 
     tree: TreeCollector = field(default_factory=TreeCollector)
     files: FileCollector = field(default_factory=FileCollector)
-    binaries: BinaryCollector = field(default_factory=BinaryCollector)
 
     # Totals
     total_lines: int = 0
@@ -156,10 +140,6 @@ class DirectoryTreeBuilder:
     def file_tree_entries(self) -> list[tuple[int, Path]]:
         """Return tree indices paired with file paths for later augmentation."""
         return self.tree.entries()
-
-    def get_binary_details(self, key: str) -> dict | None:
-        """Return binary metadata for ``key`` if known."""
-        return self.binaries.get(key)
 
     def ordered_entries(self) -> list[tuple[str, Path]]:
         """Return ordered entries as ("dir"|"file", relpath)."""
@@ -213,10 +193,6 @@ class DirectoryTreeBuilder:
         self.files.add_file(file_path, rel, lines, chars, content)
         self.total_lines += lines
         self.total_characters += chars
-
-    def record_binary_details(self, rel: Path, details: dict) -> None:
-        """Record metadata about a binary artifact at ``rel``."""
-        self.binaries.record(rel, details)
 
 
 def _to_git_path(p: Path, *, is_dir: bool) -> str:

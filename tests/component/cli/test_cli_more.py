@@ -35,38 +35,3 @@ def test_quiet_suppresses_summary_output(tmp_path: Path) -> None:
     )
     assert res.exit_code == 0
     assert not res.output.strip()
-
-
-def test_heavy_dir_warning_can_abort(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Create an explicit heavy directory and scan that path
-    heavy = tmp_path / "node_modules"
-    heavy.mkdir()
-    (heavy / "x.txt").write_text("x", encoding="utf-8")
-
-    # Cause interactive confirmation to respond 'no'
-    import grobl.cli as grobl_cli
-
-    # The function uses a default param bound at definition time; wrap to override confirm.
-    original_warn = grobl_cli._maybe_warn_on_common_heavy_dirs
-
-    def wrapped_warn(*, paths, ignore_defaults, assume_yes):  # type: ignore[no-redef,unused-ignore]
-        return original_warn(
-            paths=paths,
-            ignore_defaults=ignore_defaults,
-            assume_yes=assume_yes,
-            confirm=lambda _msg: False,
-        )
-
-    monkeypatch.setattr(grobl_cli, "_maybe_warn_on_common_heavy_dirs", wrapped_warn)
-
-    runner = CliRunner()
-    res = runner.invoke(
-        cli,
-        [
-            "scan",
-            str(tmp_path),  # scan parent so heavy dir is detected
-            "--ignore-defaults",
-            "--no-clipboard",
-        ],
-    )
-    assert res.exit_code == 1

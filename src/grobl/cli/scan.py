@@ -18,17 +18,10 @@ from grobl.utils import find_common_ancestor
 from .common import (
     ScanParams,
     _execute_with_handling,
-    _maybe_offer_legacy_migration,
-    _maybe_warn_on_common_heavy_dirs,
 )
 
 
 @click.command()
-@click.option(
-    "--yes",
-    is_flag=True,
-    help="Assume 'yes' for interactive prompts (skip heavy-dir confirmation).",
-)
 @click.option("--ignore-defaults", "-I", is_flag=True, help="Ignore bundled default exclude patterns")
 @click.option(
     "--no-ignore",
@@ -86,7 +79,6 @@ def scan(
     fmt: str,
     quiet: bool,
     paths: tuple[Path, ...],
-    yes: bool,
 ) -> None:
     """Run a directory scan based on CLI flags and paths, then emit/copy output."""
     params = ScanParams(
@@ -106,10 +98,6 @@ def scan(
     )
 
     cwd = Path()
-    _maybe_offer_legacy_migration(cwd, assume_yes=yes)
-    _maybe_warn_on_common_heavy_dirs(
-        paths=params.paths, ignore_defaults=params.ignore_defaults, assume_yes=yes
-    )
 
     try:
         common_base = find_common_ancestor(list(params.paths) or [cwd])

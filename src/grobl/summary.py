@@ -31,8 +31,6 @@ def _file_entries(builder: DirectoryTreeBuilder) -> list[dict[str, Any]]:
         is_binary = ch > 0 and ln == 0 and not included
         if is_binary:
             entry["binary"] = True
-            details = builder.get_binary_details(key) or {"size_bytes": ch}
-            entry["binary_details"] = details
         files.append(entry)
     return files
 

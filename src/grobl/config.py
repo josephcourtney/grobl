@@ -138,7 +138,7 @@ def read_config(
     Precedence (low → high):
       1. bundled defaults (unless ``ignore_default``)
       2. XDG config: $XDG_CONFIG_HOME/grobl/config.toml (or ~/.config/grobl/config.toml)
-      3. local project files in ``base_path``: .grobl.toml, legacy .grobl.config.toml
+      3. local project files in ``base_path``: .grobl.toml
       4. [tool.grobl] table in pyproject.toml at ``base_path``
       5. $GROBL_CONFIG_PATH (if set)
       6. ``explicit_config`` (from --config)
@@ -146,10 +146,10 @@ def read_config(
     """
     cfg: dict[str, Any] = {} if ignore_default else load_default_config()
 
-    # 2-4) layer XDG, local TOML (or legacy), then pyproject table
+    # 2-4) layer XDG, local TOML, then pyproject table
     for p in (
         _xdg_config_path(),
-        (base_path / TOML_CONFIG if (base_path / TOML_CONFIG).exists() else base_path / LEGACY_TOML_CONFIG),
+        base_path / TOML_CONFIG,
     ):
         if p.exists():
             cfg |= load_toml_config(p)

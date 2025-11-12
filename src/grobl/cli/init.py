@@ -9,7 +9,7 @@ import click
 
 from grobl.config import LEGACY_TOML_CONFIG, TOML_CONFIG, write_default_config
 
-from .common import MAX_REF_PREVIEW, _default_confirm, _scan_for_legacy_references
+from .common import MAX_REF_PREVIEW, _scan_for_legacy_references
 
 
 @click.command()
@@ -21,34 +21,10 @@ from .common import MAX_REF_PREVIEW, _default_confirm, _scan_for_legacy_referenc
     help="Directory to initialize",
 )
 @click.option("--force", is_flag=True, help="Overwrite an existing config file")
-@click.option(
-    "--yes",
-    is_flag=True,
-    help="Assume 'yes' for interactive prompts (auto-migrate legacy filename and suppress questions).",
-)
-def init(*, target: Path, force: bool, yes: bool) -> None:
+def init(*, target: Path, force: bool) -> None:
     """Create a default .grobl.toml in the target directory (no auto-creation elsewhere)."""
     target = target.resolve()
-    legacy = target / LEGACY_TOML_CONFIG
     new = target / TOML_CONFIG
-
-    if (
-        legacy.exists()
-        and not new.exists()
-        and (
-            yes
-            or _default_confirm(
-                f"Found legacy '{LEGACY_TOML_CONFIG}'. Rename to '{TOML_CONFIG}' "
-                "instead of creating a new one? (y/N): "
-            )
-        )
-    ):
-        try:
-            legacy.rename(new)
-            print(f"Renamed '{LEGACY_TOML_CONFIG}' -> '{TOML_CONFIG}'.")
-        except OSError as e:
-            print(f"Could not rename legacy config: {e}", file=sys.stderr)
-            raise SystemExit(1) from e
 
     if new.exists() and not force:
         print(

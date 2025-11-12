@@ -42,6 +42,6 @@ def test_readme_version_and_completions(tmp_path: Path) -> None:
 
 def test_readme_init(tmp_path: Path) -> None:
     runner = CliRunner()
-    res = runner.invoke(cli, ["init", "--path", str(tmp_path), "--yes", "--force"])
+    res = runner.invoke(cli, ["init", "--path", str(tmp_path), "--force"])
     assert res.exit_code in {0, 1}  # force may be redundant but should succeed or assert existing
     assert (tmp_path / ".grobl.toml").exists()

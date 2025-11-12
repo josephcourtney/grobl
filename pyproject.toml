@@ -37,6 +37,7 @@
     "pytest-randomly>=3.16.0",
     "mutmut>=3.3.1",
     "hypothesis>=6.138.7",
+    "vulture>=2.14",
   ]
 
 # =================================== build ====================================
@@ -67,8 +68,6 @@
   testpaths = ["tests"]
   markers = [
     "comp: component tests",
-    "mut: mutation tests",
-    "perf: performance tests",
     "sys: system tests",
     "unit: unit tests",
   ]

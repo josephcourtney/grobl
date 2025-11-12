@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from click.testing import CliRunner
 
-from grobl.cli import _maybe_offer_legacy_migration, cli, print_interrupt_diagnostics
+from grobl.cli import cli, print_interrupt_diagnostics
 from grobl.constants import EXIT_INTERRUPT
 from grobl.directory import DirectoryTreeBuilder
 
@@ -39,16 +39,6 @@ def test_completions_command_outputs_script() -> None:
     zsh_res = runner.invoke(cli, ["completions", "--shell", "zsh"])
     assert zsh_res.exit_code == 0
     assert 'eval "$(env _GROBL_COMPLETE=zsh_source grobl)"' in zsh_res.output
-
-
-def test_legacy_migration_renames_file(tmp_path: Path) -> None:
-    legacy = tmp_path / ".grobl.config.toml"
-    legacy.write_text("exclude_tree=['x']\n", encoding="utf-8")
-    # Create a file referencing the legacy name
-    (tmp_path / "README.md").write_text("see .grobl.config.toml", encoding="utf-8")
-    _maybe_offer_legacy_migration(tmp_path, assume_yes=True)
-    assert not legacy.exists()
-    assert (tmp_path / ".grobl.toml").exists()
 
 
 def test_interrupt_diagnostics_exit_code(tmp_path: Path) -> None:
