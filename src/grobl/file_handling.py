@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .binary_probe import probe_binary_details
 from .utils import is_text, read_text
 
 if TYPE_CHECKING:
@@ -23,14 +22,12 @@ class ScanDependencies:
 
     text_detector: Callable[[Path], bool]
     text_reader: Callable[[Path], str]
-    binary_probe: Callable[[Path], dict[str, object]]
 
     @classmethod
     def default(cls) -> ScanDependencies:
         return cls(
             text_detector=is_text,
             text_reader=read_text,
-            binary_probe=probe_binary_details,
         )
 
 
@@ -52,7 +49,6 @@ class FileAnalysis:
     chars: int
     include_content: bool
     content: str | None = None
-    binary_details: dict[str, object] | None = None
 
 
 class BaseFileHandler:
@@ -63,15 +59,13 @@ class BaseFileHandler:
 
     def process(self, *, path: Path, context: FileProcessingContext, is_text_file: bool) -> None:
         rel = path.relative_to(context.common)
-        analysis = self._analyse(path=path, context=context, is_text_file=is_text_file)
+        analysis = self._analyze(path=path, context=context, is_text_file=is_text_file)
         builder = context.builder
         builder.record_metadata(rel, analysis.lines, analysis.chars)
         if analysis.include_content and analysis.content is not None:
             builder.add_file(path, rel, analysis.lines, analysis.chars, analysis.content)
-        if analysis.binary_details:
-            builder.record_binary_details(rel, analysis.binary_details)
 
-    def _analyse(
+    def _analyze(
         self,
         *,
         path: Path,
@@ -89,7 +83,7 @@ class TextFileHandler(BaseFileHandler):
         return is_text_file
 
     @staticmethod
-    def _analyse(
+    def _analyze(
         *,
         path: Path,
         context: FileProcessingContext,
@@ -109,29 +103,31 @@ class TextFileHandler(BaseFileHandler):
         )
 
 
+# --------------------------------------------------------------------------- #
+# NEW: simple handler for binary files                                        #
+# --------------------------------------------------------------------------- #
+
+
 class BinaryFileHandler(BaseFileHandler):
-    """Handle binary files by storing metadata and derived details."""
+    """Record metadata for binary files (size only, no contents)."""
 
     @staticmethod
-    def supports(*, path: Path, is_text_file: bool) -> bool:  # noqa: ARG004 - `path` unused
+    def supports(*, path: Path, is_text_file: bool) -> bool:  # noqa: ARG004
         return not is_text_file
 
     @staticmethod
-    def _analyse(
+    def _analyze(
         *,
         path: Path,
-        context: FileProcessingContext,
-        is_text_file: bool,  # noqa: ARG004 - template signature
+        context: FileProcessingContext,  # noqa: ARG004
+        is_text_file: bool,  # noqa: ARG004
     ) -> FileAnalysis:
-        deps = context.dependencies
-        details = deps.binary_probe(path)
-        size = int(details.get("size_bytes", 0))
-        return FileAnalysis(
-            lines=0,
-            chars=size,
-            include_content=False,
-            binary_details=details,
-        )
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = 0
+        # For binary blobs we expose character-count as byte size, 0 lines.
+        return FileAnalysis(lines=0, chars=size, include_content=False)
 
 
 @dataclass(slots=True)

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_build_summary_includes_binary_details_and_totals(tmp_path: Path) -> None:
+def test_build_summary_includes_binary_files_and_totals(tmp_path: Path) -> None:
     b = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
     # Text file (included)
     tf = tmp_path / "t.txt"
@@ -21,7 +21,6 @@ def test_build_summary_includes_binary_details_and_totals(tmp_path: Path) -> Non
     bf.write_bytes(b"\x00\x01\x02")
     relb = bf.relative_to(tmp_path)
     b.record_metadata(relb, lines=0, chars=3)
-    b.record_binary_details(relb, {"size_bytes": 3, "format": "dat"})
 
     ctx = SummaryContext(builder=b, common=tmp_path, mode=OutputMode.SUMMARY, table=TableStyle.COMPACT)
     js = build_summary(ctx)
@@ -35,4 +34,3 @@ def test_build_summary_includes_binary_details_and_totals(tmp_path: Path) -> Non
     files = {f["path"]: f for f in js["files"]}
     assert files["t.txt"]["included"] is True
     assert files["bin.dat"]["binary"] is True
-    assert files["bin.dat"]["binary_details"]["size_bytes"] == 3

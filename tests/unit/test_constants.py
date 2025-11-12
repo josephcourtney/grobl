@@ -5,7 +5,6 @@ from grobl.constants import (
     CONFIG_EXCLUDE_TREE,
     CONFIG_INCLUDE_FILE_TAGS,
     CONFIG_INCLUDE_TREE_TAGS,
-    HEAVY_DIRS,
     OutputMode,
     SummaryFormat,
     TableStyle,
@@ -21,9 +20,3 @@ def test_enum_values_and_config_keys() -> None:
     assert CONFIG_EXCLUDE_PRINT == "exclude_print"
     assert CONFIG_INCLUDE_TREE_TAGS == "include_tree_tags"
     assert CONFIG_INCLUDE_FILE_TAGS == "include_file_tags"
-
-
-def test_heavy_dirs_contains_common_entries() -> None:
-    # spot-check a few; don't overconstrain exact set
-    for expected in ("node_modules", ".venv", "venv"):
-        assert expected in HEAVY_DIRS

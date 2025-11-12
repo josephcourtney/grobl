@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeoutError
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -20,14 +19,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-MAX_CLIPBOARD_TIMEOUT = 2.0
 MAX_CLIPBOARD_RETRIES = 2
-
-
-def _copy_with_timeout(content: str, *, timeout: float = MAX_CLIPBOARD_TIMEOUT) -> None:
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(pyperclip.copy, content)
-        future.result(timeout=timeout)
 
 
 class OutputStrategy(Protocol):
@@ -54,21 +46,7 @@ class ClipboardOutput:
         last_error: Exception | None = None
         for attempt in range(1, MAX_CLIPBOARD_RETRIES + 1):
             try:
-                _copy_with_timeout(content)
-            except FuturesTimeoutError as err:
-                timeout_error = TimeoutError(
-                    f"clipboard copy timed out after {MAX_CLIPBOARD_TIMEOUT} seconds"
-                )
-                log_event(
-                    logger,
-                    StructuredLogEvent(
-                        name="clipboard.timeout",
-                        message="clipboard copy timed out",
-                        level=logging.WARNING,
-                        context={"attempt": attempt, "max_attempts": MAX_CLIPBOARD_RETRIES},
-                    ),
-                )
-                raise timeout_error from err
+                pyperclip.copy(content)
             except pyperclip.PyperclipException as err:  # pragma: no cover - backend dependent
                 last_error = err
                 if attempt < MAX_CLIPBOARD_RETRIES:
@@ -102,7 +80,8 @@ class StdoutOutput:
 
     @staticmethod
     def write(content: str) -> None:
-        print(content)
+        sys.stdout.write(content)
+        sys.stdout.flush()
 
 
 @dataclass(frozen=True, slots=True)

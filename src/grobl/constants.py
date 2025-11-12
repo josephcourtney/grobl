@@ -30,17 +30,11 @@ class SummaryFormat(StrEnum):
     JSON = "json"
 
 
-# "Common heavy directories that can cause very large scans when default ignores are disabled."
-HEAVY_DIRS: set[str] = {"node_modules", "venv", ".venv", "env", "site-packages"}
-
 # Add these constants:
 CONFIG_EXCLUDE_TREE = "exclude_tree"
 CONFIG_EXCLUDE_PRINT = "exclude_print"
 CONFIG_INCLUDE_TREE_TAGS = "include_tree_tags"
 CONFIG_INCLUDE_FILE_TAGS = "include_file_tags"
-
-DEFAULT_TREE_TAG = "directory"
-DEFAULT_FILE_TAG = "file"
 
 # Exit codes
 EXIT_OK = 0

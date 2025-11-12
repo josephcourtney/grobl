@@ -102,7 +102,6 @@ Schema (stable keys, deterministic ordering):
   - chars: number of characters for included text files (size in bytes for binaries)
   - included: whether the file’s contents are included in the payload
   - binary: present and true for detected binary files
-  - binary_details: present for binary files; includes size_bytes and, for common images, width/height and format
 
 Example:
 
@@ -125,7 +124,6 @@ Example:
       "chars": 1110,
       "included": false,
       "binary": true,
-      "binary_details": {"size_bytes": 1110, "format": "png", "width": 512, "height": 512}
     }
   ]
 }
@@ -142,6 +140,3 @@ Example:
 - Run tests: `pytest` (coverage and branch coverage enabled via config).
 - Branch coverage: configured with `--cov-branch`; reports show branch metrics.
 - README smoke tests: exercise quick-start, `--output`, `version`, `completions`, and `init` examples.
-- Performance tests: skipped by default in CI; enable with env:
-  - `GROBL_RUN_PERF=1 pytest` to run perf tests in CI.
-  - `GROBL_PERF_BUDGET_SEC=3.0` to adjust the runtime budget threshold.

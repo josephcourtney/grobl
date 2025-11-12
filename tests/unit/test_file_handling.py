@@ -6,7 +6,6 @@ from pathspec import PathSpec
 
 from grobl.directory import DirectoryTreeBuilder
 from grobl.file_handling import (
-    BinaryFileHandler,
     FileProcessingContext,
     ScanDependencies,
     TextFileHandler,
@@ -21,9 +20,8 @@ def _deps(
     *,
     detector: Callable[[Path], bool],
     reader: Callable[[Path], str],
-    probe: Callable[[Path], dict[str, object]],
 ) -> ScanDependencies:
-    return ScanDependencies(text_detector=detector, text_reader=reader, binary_probe=probe)
+    return ScanDependencies(text_detector=detector, text_reader=reader)
 
 
 def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path) -> None:
@@ -34,7 +32,7 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
 
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
     spec = PathSpec.from_lines("gitwildmatch", ["skip.txt"])
-    deps = _deps(detector=lambda _p: True, reader=lambda p: p.read_text("utf-8"), probe=lambda _p: {})
+    deps = _deps(detector=lambda _p: True, reader=lambda p: p.read_text("utf-8"))
     ctx = FileProcessingContext(builder=builder, common=tmp_path, print_spec=spec, dependencies=deps)
 
     handler = TextFileHandler()
@@ -49,22 +47,3 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
     payload = "\n".join(builder.file_contents())
     assert 'name="inc.txt"' in payload
     assert "skip.txt" not in payload
-
-
-def test_binary_handler_records_size_and_details(tmp_path: Path) -> None:
-    blob = tmp_path / "blob.bin"
-    blob.write_bytes(b"\x01\x02\x03\x04")
-
-    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    spec = PathSpec.from_lines("gitwildmatch", [])
-    details = {"size_bytes": 99, "format": "bin"}
-    deps = _deps(detector=lambda _p: False, reader=lambda _p: "", probe=lambda _p: details)
-    ctx = FileProcessingContext(builder=builder, common=tmp_path, print_spec=spec, dependencies=deps)
-
-    handler = BinaryFileHandler()
-    assert handler.supports(path=blob, is_text_file=False)
-    handler.process(path=blob, context=ctx, is_text_file=False)
-
-    m = dict(builder.metadata_items())
-    assert m["blob.bin"] == (0, 99, False)
-    assert builder.get_binary_details("blob.bin") == details

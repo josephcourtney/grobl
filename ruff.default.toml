@@ -130,7 +130,7 @@ respect-gitignore = true
   [lint.per-file-ignores]
     "tests/**/*.py" = [
       "ANN002",  # Missing type annotation for
-      "ANN003",  # Missing type annotation for 
+      "ANN003",  # Missing type annotation for
       "ANN202",  # Missing return type annotation for private function
       "ANN401",  # Dynamically typed expressions (typing.Any) are disallowed in `renderable`
       "ARG001",  # Unused function argument

@@ -7,7 +7,7 @@ import pytest
 
 from grobl.core import run_scan
 from grobl.file_handling import (
-    BinaryFileHandler,
+    BaseFileHandler,
     FileAnalysis,
     FileHandlerRegistry,
     FileProcessingContext,
@@ -89,7 +89,6 @@ def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
     deps = ScanDependencies(
         text_detector=lambda _path: True,
         text_reader=fake_read,
-        binary_probe=lambda _path: {"size_bytes": 0},
     )
 
     res = run_scan(paths=[tmp_path], cfg={}, dependencies=deps)
@@ -102,18 +101,18 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
     binary = tmp_path / "blob.bin"
     binary.write_bytes(b"abc")
 
-    class ZeroHandler(BinaryFileHandler):
+    class ZeroHandler(BaseFileHandler):
         def supports(self, *, path: Path, is_text_file: bool) -> bool:
             return path.suffix == ".bin"
 
-        def _analyse(
+        def _analyze(
             self,
             *,
             path: Path,
             context: FileProcessingContext,
             is_text_file: bool,
         ) -> FileAnalysis:
-            return FileAnalysis(lines=0, chars=0, include_content=False, binary_details={"size_bytes": 0})
+            return FileAnalysis(lines=0, chars=0, include_content=False)
 
     handlers = FileHandlerRegistry.default().extend((ZeroHandler(),))
     res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers)
