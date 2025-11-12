@@ -39,13 +39,17 @@ def test_iter_and_scan_legacy_references(tmp_path: Path) -> None:
 
 
 # --------------------------- print_interrupt_diagnostics ----------------------
-def test_print_interrupt_diagnostics_exits_with_interrupt(tmp_path: Path) -> None:
+
+
+def test_print_interrupt_diagnostics_prints_state(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    with pytest.raises(SystemExit) as exc:
-        ccommon.print_interrupt_diagnostics(tmp_path, {"exclude_tree": []}, builder)
-    e = exc.value
-    assert isinstance(e, SystemExit)
-    assert e.code == EXIT_INTERRUPT
+    ccommon.print_interrupt_diagnostics(tmp_path, {"exclude_tree": []}, builder)
+
+    out = capsys.readouterr().out
+    assert "Interrupted by user. Dumping debug info:" in out
+    assert f"cwd: {tmp_path}" in out
+    assert "exclude_tree:" in out
+    assert "DirectoryTreeBuilder(" in out
 
 
 # ---------------------------- _execute_with_handling --------------------------
@@ -106,7 +110,7 @@ def test__execute_with_handling_path_error(monkeypatch: pytest.MonkeyPatch, tmp_
     dummy = _DummyExecRaises(sink=None)
     dummy.exc = PathNotFoundError("No common ancestor")
     monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(SystemExit) as excinfo:
         ccommon._execute_with_handling(
             params=_params_for(tmp_path),
             cfg={},
@@ -114,7 +118,7 @@ def test__execute_with_handling_path_error(monkeypatch: pytest.MonkeyPatch, tmp_
             write_fn=lambda _: None,
             table=TableStyle.COMPACT,
         )
-    e = exc.value
+    e = excinfo.value
     assert isinstance(e, SystemExit)
     assert e.code == EXIT_PATH
 

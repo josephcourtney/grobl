@@ -38,7 +38,7 @@ Key options:
 Low → high precedence:
 1) bundled defaults (unless `-I`)
 2) XDG: `$XDG_CONFIG_HOME/grobl/config.toml` (or `~/.config/grobl/config.toml`)
-3) project files at common ancestor: `.grobl.toml` or legacy `.grobl.config.toml`
+3) project files at common ancestor: `.grobl.toml`
 4) `[tool.grobl]` in `pyproject.toml`
 5) env: `GROBL_CONFIG_PATH`
 6) explicit `--config PATH`
