@@ -8,7 +8,6 @@ grobl is a command-line utility that condenses a directory into a concise contex
 uv tool install grobl
 ```
 
-
 ## Quick Start
 
 Common workflows:
@@ -25,10 +24,10 @@ Common workflows:
   grobl scan .
   ```
 
-  When run interactively (stdout is a TTY) and without overrides:
+  With default options, when run interactively (stdout is a TTY):
 
-  * The **payload** (tree + file contents) goes to the clipboard.
-  * A **summary** is printed to stdout.
+  * The **payload** (tree + file contents, LLM-oriented) goes to the **clipboard**.
+  * A human **summary** is printed to **stdout**.
 
 * Save payload to a file:
 
@@ -36,16 +35,30 @@ Common workflows:
   grobl --output context.txt
   ```
 
-* Show only a summary table (no file payload):
+  This is equivalent to:
 
   ```bash
-  grobl --mode summary
+  grobl scan . --output context.txt
   ```
 
-* Suppress human summary (emit payload only):
+  The payload goes to `context.txt`; the human summary is still printed to stdout.
+
+* Show only a summary table (no payload):
 
   ```bash
-  grobl --quiet
+  grobl scan --payload none --summary human
+  ```
+
+* Emit only a JSON summary (no LLM payload):
+
+  ```bash
+  grobl scan --payload none --summary json
+  ```
+
+* Emit a JSON payload and no summary (machine-only):
+
+  ```bash
+  grobl scan --payload json --summary none --sink stdout
   ```
 
 ## Commands
@@ -57,51 +70,15 @@ The `grobl` entry point behaves like `grobl scan` when no subcommand is given.
 Main command: traverse paths and build LLM/JSON-friendly output.
 
 * If `PATHS` is omitted, the current directory is used.
-* If you pass only a single file, grobl treats its parent directory as the tree root.
-
-Key options:
-
-* Output modes:
-
-  * `--mode all` (default): directory tree + file payload
-  * `--mode tree`: directory tree only
-  * `--mode files`: file payload only
-  * `--mode summary`: no LLM payload; summary only
-
-* Summary format:
-
-  * `--format human` (default): human-readable summary table
-  * `--format json`: machine-readable JSON summary (and, in some modes, JSON payload)
-
-* Summary table style:
-
-  * `--table auto` (default): `full` if stdout is a TTY, otherwise `compact`
-  * `--table full`: tree with a framed “Project Summary” table
-  * `--table compact`: totals only (`Total lines: ...`)
-  * `--table none`: no summary text
-
-* Output destination:
-
-  * `--output PATH`: write payload to a file (highest precedence)
-  * `--no-clipboard`: disable clipboard even on a TTY
-  * `--quiet`: suppress summary output (payload still emitted as configured)
-
-* Ignore and config controls:
-
-  * `-I, --ignore-defaults`: ignore bundled default exclude patterns
-  * `--no-ignore`: disable *all* ignore patterns (built-in + config + CLI)
-  * `--ignore-file PATH`: read extra ignore patterns (one per line)
-  * `--add-ignore PATTERN`: add an extra exclude-tree pattern for this run
-  * `--remove-ignore PATTERN`: remove a pattern from the exclude list
-  * `--config PATH`: explicit config file path (highest precedence in config chain)
+* If you pass only a single file, grobl treats its **parent directory** as the tree root (the file is still included).
 
 ### `grobl init [--path DIR] [--force]`
 
 Bootstrap a default `.grobl.toml` in the target directory:
 
 ```bash
-grobl init --path .      # write ./.grobl.toml (if not present)
-grobl init --path . --force  # overwrite if it exists
+grobl init --path .           # write ./.grobl.toml (if not present)
+grobl init --path . --force   # overwrite if it exists
 ```
 
 Behavior:
@@ -111,7 +88,6 @@ Behavior:
   * One-item-per-line arrays
   * Comments
   * Spacing
-
 * If the target `.grobl.toml` already exists and `--force` is **not** given, the command exits with an error.
 
 ### `grobl version`
@@ -170,16 +146,142 @@ All subcommands share a top-level CLI group:
 
 * `-h, --help`: help for the group or a subcommand
 
-Example:
+Examples:
 
 ```bash
-grobl -vv scan --mode summary .
+grobl -vv scan --summary human .
 grobl --log-level=DEBUG scan .
 ```
 
-## Configuration
+## Scan options
 
-grobl merges configuration from several sources using a well-defined precedence.
+The `scan` command controls four orthogonal concerns:
+
+1. **Scope** – what to collect (tree, files, or both)
+2. **Payload** – heavy output format (LLM XML-like, JSON, or none)
+3. **Summary** – light metadata output (human, JSON, or none)
+4. **Sink** – where the payload is sent (clipboard, stdout, file)
+
+### Scope: what to collect
+
+```bash
+--scope {all,tree,files}
+```
+
+* `all` (default): collect both directory tree and file contents
+* `tree`: collect only the directory tree (no file contents)
+* `files`: collect only file contents/payload; the tree is used internally but not emitted in the payload
+
+Scope affects:
+
+* What goes into the payload (tree, files, or both)
+* Which files contribute to line/character totals in the summary
+
+### Payload: heavy output
+
+```bash
+--payload {llm,json,none}
+```
+
+* `llm` (default): emit an XML-like, LLM-oriented payload (see **LLM payload format** below)
+* `json`: emit a structured JSON payload (see **JSON formats** below)
+* `none`: do not emit any payload; only build a summary (if enabled)
+
+The payload is always written to the **payload sink** (see below), not to stderr. If you choose `--payload none` and also disable the summary (`--summary none`), grobl exits with a usage error (there would be nothing to do).
+
+### Summary: light metadata output
+
+```bash
+--summary {human,json,none}
+--summary-style {auto,full,compact}
+```
+
+* `--summary human` (default): print a human-readable summary to **stdout**
+
+  * `--summary-style auto` (default):
+
+    * `full` if stdout is a TTY
+    * `compact` otherwise
+  * `--summary-style full`: directory tree + table with totals
+  * `--summary-style compact`: totals only (`Total lines: ...`)
+* `--summary json`: print a JSON summary to stdout (schema described below)
+
+  * `--summary-style` is recorded as a `"style"` field but does not change the JSON structure.
+* `--summary none`: do not print any summary
+
+The summary is independent of the payload:
+
+* You can have a summary without a payload (`--payload none --summary json`).
+* You can have a payload without a summary (`--payload json --summary none`).
+
+There is no separate `--quiet` flag; `--summary none` is the explicit way to suppress summary printing.
+
+### Payload sink: where the payload goes
+
+```bash
+--sink {auto,clipboard,stdout,file}
+--output PATH
+```
+
+* `--sink auto` (default):
+
+  * If `--output PATH` is given: payload is written to that file.
+  * Else, if stdout is a TTY: payload is copied to the clipboard.
+  * Else: payload is written to stdout.
+* `--sink clipboard`:
+
+  * Attempt to copy the payload to the clipboard.
+  * If the clipboard backend fails (e.g., missing dependency), grobl logs a warning and falls back to stdout.
+* `--sink stdout`:
+
+  * Payload is written to stdout, regardless of TTY.
+* `--sink file`:
+
+  * Payload is written to `--output PATH`.
+  * If `--output` is omitted, this is a usage error.
+
+The **summary** is always printed to stdout (unless `--summary none`) regardless of the sink. This makes it easy to both pipe or capture payloads and still see a quick human or JSON summary.
+
+Examples:
+
+```bash
+# Default interactive workflow: payload to clipboard, human summary to stdout
+grobl scan .
+
+# Payload to stdout, no summary (ideal for tools)
+grobl scan --payload json --summary none --sink stdout
+
+# Human summary only (no payload)
+grobl scan --payload none --summary human
+
+# JSON summary only
+grobl scan --payload none --summary json
+
+# Payload to a file, human summary to stdout
+grobl scan --output context.txt
+
+# Payload to explicit file sink
+grobl scan --sink file --output context.txt
+```
+
+### Ignore and config controls
+
+Configuration and ignore behavior are shared across all scan modes:
+
+```bash
+-I, --ignore-defaults  # ignore bundled default exclude patterns
+--no-ignore            # disable all ignore patterns (built-in + config + CLI)
+--ignore-file PATH     # read extra ignore patterns (one per non-comment line)
+--add-ignore PATTERN   # add an extra exclude-tree pattern for this run
+--remove-ignore PATTERN # remove a pattern from the exclude list
+--config PATH          # explicit config file path (highest precedence, must exist)
+```
+
+Rules:
+
+* `--no-ignore` forces `exclude_tree = []`, disabling **all** tree-level ignores.
+* `--ignore-file PATH` reads patterns from files; empty lines and lines starting with `#` are ignored.
+* `--config PATH` must point to an existing file; if it does not, grobl treats this as a configuration error and exits.
 
 ### Configuration precedence
 
@@ -192,11 +294,11 @@ From lowest to highest precedence:
    * `$XDG_CONFIG_HOME/grobl/config.toml`, or
    * `~/.config/grobl/config.toml`
 
-3. **Project config** in the common ancestor directory:
+3. **Project config** in the scan root:
 
    * `.grobl.toml`
 
-4. **`pyproject.toml`** at the common ancestor:
+4. **`pyproject.toml`** at the scan root:
 
    * `[tool.grobl]` table
 
@@ -204,13 +306,13 @@ From lowest to highest precedence:
 
    * `GROBL_CONFIG_PATH=/path/to/config.toml`
 
-6. **Explicit `--config PATH`** on the CLI
+6. **Explicit `--config PATH`**
 
-Later sources override earlier ones (`dict`-style merge).
+Later sources override earlier ones (dictionary-style merge).
 
 ### `extends` in TOML
 
-Config files loaded via grobl can use an `extends` key to reference base configs:
+Config files loaded by grobl can use an `extends` key to reference base configs:
 
 ```toml
 extends = ["../base.toml", "shared/settings.toml"]
@@ -224,7 +326,7 @@ Rules:
 * Value may be a string or a list of strings.
 * Relative paths are resolved relative to the config file’s directory.
 * Later files override earlier ones in the `extends` chain.
-* Cycles are detected and stop the inheritance chain rather than recursing indefinitely.
+* Cycles are detected and break the inheritance chain instead of recursing indefinitely.
 
 ### Ignore patterns
 
@@ -233,23 +335,25 @@ Configuration keys (also available to CLI overrides):
 * `exclude_tree` (list of patterns)
 * `exclude_print` (list of patterns)
 
-Patterns are interpreted with **gitignore-style semantics** using `pathspec`:
+Patterns use **gitignore-style semantics** via `pathspec`:
 
 * `**` matches multiple directory levels.
 * Directories are matched with a trailing `/` in the internal representation.
-* Matching works on paths relative to the scan root, using POSIX separators.
+* Matching is done on paths **relative to the scan root**, using POSIX separators.
 
 At runtime:
 
-* `exclude_tree` controls which files/directories are **hidden from the tree traversal**.
+* `exclude_tree` controls which files/directories are **hidden from traversal** (tree and payload).
 * `exclude_print` controls which files have metadata only (no content captured).
 
-CLI overrides are applied on top of the merged config:
+CLI overrides:
 
 * `--add-ignore PATTERN`: append a pattern to `exclude_tree` (if not already present).
 * `--remove-ignore PATTERN`: remove a pattern from `exclude_tree` if present.
 * `--ignore-file PATH`: add patterns from files (one pattern per non-comment line).
 * `--no-ignore`: force `exclude_tree = []`, disabling **all** tree-level ignores.
+
+Use `--no-ignore` cautiously: it disables all tree-level ignores and can make scans significantly slower and payloads very large.
 
 ### Tag customization
 
@@ -285,16 +389,16 @@ instead of `<directory>` / `<file>`.
    * CLI paths are resolved.
    * grobl validates that all paths exist; missing paths produce an error.
    * A common ancestor directory is computed. If only a single file is passed, the ancestor is its parent directory.
-   * If no real common ancestor (e.g., `/` and `/tmp` only share filesystem root on POSIX), the scan fails with a path error.
+   * If the only shared ancestor is the filesystem root (e.g., `/` and `/tmp` on POSIX), the scan fails with a path error.
 
 2. **Apply ignore rules**
 
-   * The merged config is read based on the common ancestor.
+   * The merged config is read based on the scan root (common ancestor).
    * `exclude_tree` and `exclude_print` are applied using gitignore-style pattern matching.
 
 3. **Directory traversal**
 
-   * grobl walks the tree depth-first from the common ancestor, respecting `exclude_tree`.
+   * grobl walks the tree depth-first from the scan root, respecting `exclude_tree`.
    * It records:
 
      * A textual tree with ASCII connectors and trailing `/` for directories.
@@ -312,7 +416,7 @@ instead of `<directory>` / `<file>`.
      * The file’s relative path is checked against `exclude_print`:
 
        * If allowed: metadata + contents are stored.
-       * If excluded: only metadata is stored; contents are omitted from the payload.
+       * If excluded: only metadata is stored; contents are omitted.
    * For binary files:
 
      * No contents are read.
@@ -321,69 +425,48 @@ instead of `<directory>` / `<file>`.
 
    Special handling:
 
-   * For `.md` files, markdown code fences (` ``` `) are escaped as `\```` so that including a payload in another Markdown document does not break fences.
+   * For `.md` files, Markdown code fences (` ``` `) are escaped as `\\```` so that including a payload in another Markdown document does not break fences.
 
 5. **Formatting and output**
 
-   * A directory tree and file metadata/contents are fed into output renderers.
+   * A directory tree and file metadata/contents are fed into renderers.
    * A summary object is computed (totals + per-file entries).
-   * Depending on the selected `--mode`, `--format`, and output preferences:
+   * Depending on `--scope`, `--payload`, `--summary`, and `--sink`:
 
-     * An XML-like LLM payload or JSON payload is sent to the output sink.
-     * A human or JSON summary is printed (unless suppressed with `--quiet`).
+     * An XML-like LLM payload or JSON payload is sent to the payload sink (file/clipboard/stdout).
+     * A human or JSON summary is printed to stdout (unless `--summary none`).
 
 ## Output destinations and clipboard behavior
 
-### Output precedence
+### Output precedence (sink = auto)
 
-grobl always routes the **payload** (LLM or JSON) through an output chain with this precedence:
+With `--sink auto` (the default):
 
-1. **File** (if `--output PATH` is given)
-2. **Clipboard** (if allowed)
-3. **Stdout**
+1. If `--output PATH` is provided, the payload is written to that file.
+2. Else if stdout is a TTY, the payload is copied to the clipboard.
+3. Else, the payload is written to stdout.
 
-Clipboard use is controlled by:
-
-* Whether stdout is a TTY (as reported by `sys.stdout.isatty()`), and
-* The CLI flag `--no-clipboard`, and
-* `no_clipboard = true` in config.
-
-Clipboard is allowed only if:
+Clipboard use is allowed only if:
 
 * stdout is a TTY, and
-* `--no-clipboard` is **not** used, and
-* `no_clipboard` is **not** set in config.
+* the chosen sink is `auto` or `clipboard`.
 
-If clipboard is enabled but copying fails, grobl logs a structured warning and falls back to the next strategy (usually stdout), without aborting the scan.
+If clipboard copying fails, grobl logs a structured warning and falls back to stdout without aborting the scan.
 
-### Summary output
-
-Summaries are **separate** from the payload:
-
-* For `--format human`:
-
-  * When `--mode summary`, the summary is printed to stdout only (no payload).
-  * For other modes, a human summary is printed to stdout (unless `--quiet`, or `--table none`).
-
-* For `--format json`:
-
-  * When `--mode summary`, a JSON summary (see below) is printed to stdout.
-  * When `--mode all/tree/files`, a **JSON payload** is written via the output chain; no summary is printed to stdout. This is useful for machine consumption where the payload is the primary output.
-
-The `--quiet` flag always suppresses summary printing (human or JSON), but does **not** affect the payload.
+The summary is printed to stdout independently of these decisions, unless suppressed by `--summary none`.
 
 ### Broken pipes
 
 If writing to stdout raises a `BrokenPipeError` (e.g., when piping to `head`), grobl:
 
-* Closes stdout,
-* Exits with status `0` (treated as success).
+* Closes stdout
+* Exits with status `0` (treated as success)
 
 This keeps it well-behaved in shell pipelines.
 
-## LLM payload format (human mode)
+## LLM payload format (payload = llm)
 
-When `--format human` and `--mode` is **not** `summary`, grobl emits an XML-like payload suitable for LLM contexts.
+When `--payload llm` and scope includes the tree and/or files, grobl emits an XML-like payload suitable for LLM contexts.
 
 ### Directory tree block
 
@@ -423,23 +506,29 @@ Each `<file:content>` element captures:
 * `lines`: number of lines in the captured content
 * `chars`: number of characters in the captured content
 
-Markdown code fences in `.md` files are escaped (` ``` ` → `\````) inside the `content` so that the entire block can be safely embedded in another Markdown document.
+Markdown code fences in `.md` files are escaped (` ``` ` → `\\````) inside the `content` so that the entire block can be safely embedded in another Markdown document.
 
 Tag name (`file` above) comes from `include_file_tags` in config.
 
+Which blocks appear is controlled by `--scope`:
+
+* `--scope all` → directory block + file block
+* `--scope tree` → directory block only
+* `--scope files` → file block only
+
 ## JSON formats
 
-grobl uses JSON in two distinct ways:
+grobl uses JSON in two ways:
 
-1. **JSON summary** (printed to stdout when `--format json --mode summary`)
-2. **JSON payload** (sent to the sink when `--format json` and `--mode` is `all`, `tree`, or `files`)
+1. **JSON summary** – printed to stdout when `--summary json`
+2. **JSON payload** – written to the payload sink when `--payload json`
 
 ### JSON summary schema
 
 Used when:
 
 ```bash
-grobl scan --mode summary --format json ...
+grobl scan --summary json ...
 ```
 
 Structure:
@@ -447,8 +536,8 @@ Structure:
 ```json
 {
   "root": "/absolute/path/to/PROJECT",
-  "mode": "summary",
-  "table": "compact",
+  "scope": "all",
+  "style": "compact",
   "totals": {
     "total_lines": 10,
     "total_characters": 120,
@@ -475,7 +564,8 @@ Structure:
 
 Notes:
 
-* `mode` and `table` reflect the CLI choices.
+* `scope` reflects `--scope`.
+* `style` reflects `--summary-style`.
 * `totals` report both:
 
   * totals for files whose contents were included (`total_*`), and
@@ -488,14 +578,12 @@ Notes:
   * `included`: `true` if the file’s content is included in the payload
   * `binary`: `true` for files heuristically treated as binary (`lines == 0`, `chars > 0`, `included == false`)
 
-### JSON payload schema (non-summary modes)
+### JSON payload schema (payload = json)
 
 Used when:
 
 ```bash
-grobl scan --mode all   --format json ...
-grobl scan --mode tree  --format json ...
-grobl scan --mode files --format json ...
+grobl scan --payload json ...
 ```
 
 In these cases, grobl writes a structured JSON payload to the sink (file/clipboard/stdout) with:
@@ -503,7 +591,7 @@ In these cases, grobl writes a structured JSON payload to the sink (file/clipboa
 ```json
 {
   "root": "/absolute/path/to/PROJECT",
-  "mode": "all",
+  "scope": "all",
   "tree": [
     {"type": "dir",  "path": "."},
     {"type": "dir",  "path": "src"},
@@ -518,7 +606,7 @@ In these cases, grobl writes a structured JSON payload to the sink (file/clipboa
     }
   ],
   "summary": {
-    "table": "none",
+    "style": "none",
     "totals": {
       "total_lines": 10,
       "total_characters": 120,
@@ -537,11 +625,14 @@ In these cases, grobl writes a structured JSON payload to the sink (file/clipboa
 }
 ```
 
-* `tree` is present for `mode = all` or `tree`, listing visited entries in traversal order.
-* `files` is present for `mode = all` or `files`, listing captured file blobs.
+* `tree` is present when `--scope` is `all` or `tree`, listing visited entries in traversal order.
+* `files` is present when `--scope` is `all` or `files`, listing captured file blobs.
 * `summary` matches the summary schema described above, embedded for convenience.
+* Whether a separate summary is printed to stdout is governed by `--summary`:
 
-In this JSON mode, **no summary is printed to stdout**; all structured data is routed through the sink.
+  * `--summary none` → no extra output
+  * `--summary json` → an additional summary JSON is printed to stdout
+  * `--summary human` → a human summary is printed to stdout
 
 ## Large repositories
 
@@ -550,14 +641,14 @@ For large projects:
 * Prefer exploring structure first:
 
   ```bash
-  grobl --mode tree --table compact
-  grobl --mode summary
+  grobl scan --scope tree --summary human
+  grobl scan --payload none --summary human
   ```
 
 * Use `--output` when expecting large payloads:
 
   ```bash
-  grobl --output context.txt
+  grobl scan --output context.txt
   ```
 
 * Restrict scope via paths and ignores:
@@ -570,9 +661,10 @@ For large projects:
 * Most heavy directories (`node_modules`, `.venv`, build outputs, coverage artifacts, etc.) are excluded from the tree by default via `exclude_tree` in the bundled config. To include them, either:
 
   * Override the defaults with a project `.grobl.toml`, or
-  * Use `-I/--ignore-defaults` and supply your own `exclude_tree`.
+  * Use `-I/--ignore-defaults` and supply your own `exclude_tree`, or
+  * Use `--no-ignore` to disable all tree-level ignores.
 
-Use `--no-ignore` cautiously: it disables **all** tree-level ignores and can make scans significantly slower and payloads very large.
+Use `--no-ignore` cautiously: it disables **all** tree-level ignores and can significantly increase scan time and payload size.
 
 ## Testing
 
@@ -605,16 +697,17 @@ grobl uses stable exit codes:
   * Includes clean `BrokenPipeError` on stdout.
 * `2`: usage error
 
-  * Invalid flags or option values (e.g., invalid `--mode`).
+  * Invalid flags or option values (e.g., unknown `--scope`, missing `--output` when `--sink file`, or `--payload none --summary none`).
 * `3`: configuration load error
 
   * Bad TOML in config files or `pyproject.toml`.
+  * Explicit `--config PATH` that cannot be loaded.
 * `4`: path error
 
   * Invalid paths (nonexistent) or no meaningful common ancestor between paths.
 * `130`: interrupted by user (Ctrl-C)
 
-  * On interruption, grobl captures scan state and prints diagnostics for debugging.
+  * On interruption, grobl captures scan state and may print diagnostics for debugging.
 
 These codes are suitable for use in CI pipelines and shell scripts.
 
