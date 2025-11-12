@@ -42,7 +42,7 @@ def test_warn_shown_and_aborted(monkeypatch: pytest.MonkeyPatch) -> None:
                 assume_yes=False,
                 confirm=lambda _: False,  # User says "no"
             )
-    excinfo = cast(pytest.ExceptionInfo[SystemExit], excinfo_raw)
+    excinfo = cast("pytest.ExceptionInfo[SystemExit]", excinfo_raw)
     assert excinfo.value.code == 2
 
 

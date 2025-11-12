@@ -51,5 +51,5 @@ def test_run_scan_keyboard_interrupt(tmp_path: Path) -> None:
         with pytest.raises(SystemExit) as excinfo_raw:
             run_scan_command(params)
 
-    excinfo = cast(pytest.ExceptionInfo[SystemExit], excinfo_raw)
+    excinfo = cast("pytest.ExceptionInfo[SystemExit]", excinfo_raw)
     assert excinfo.value.code == 130
