@@ -1,0 +1,40 @@
+site_name: grobl
+site_description: "Documentation for the grobl CLI"
+site_url: ""
+repo_url: https://github.com/josephcourtney/grobl
+edit_uri: ""
+
+nav:
+  - Home: index.md
+  - Usage: usage.md
+  - Configuration: configuration.md
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+    - scheme: slate
+      primary: indigo
+      accent: blue
+  language: en
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - codehilite
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+docs_dir: docs
