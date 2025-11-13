@@ -1,8 +1,3 @@
-## Command line behavior without `scan` provided is confusing:
-command: `grobl --add-ignore tests`
-expected result: grobl output the normal result based on .grobl.toml but, additionally, ignoring the tests directory
-actual result: grobl output only includes the tests directory
-
 ## `ScanExecutor` centralizes too many concerns
 
 **Problem**
