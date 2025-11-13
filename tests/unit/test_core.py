@@ -13,6 +13,7 @@ from grobl.file_handling import (
     FileProcessingContext,
     ScanDependencies,
 )
+from grobl.utils import TextDetectionResult
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -86,8 +87,11 @@ def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
         reads.append(path)
         return "hello"
 
+    def fake_detect(path: Path) -> TextDetectionResult:
+        return TextDetectionResult(is_text=True, content=fake_read(path))
+
     deps = ScanDependencies(
-        text_detector=lambda _path: True,
+        text_detector=fake_detect,
         text_reader=fake_read,
     )
 
@@ -111,6 +115,7 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
             path: Path,
             context: FileProcessingContext,
             is_text_file: bool,
+            detection: TextDetectionResult,
         ) -> FileAnalysis:
             return FileAnalysis(lines=0, chars=0, include_content=False)
 

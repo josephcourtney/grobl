@@ -460,42 +460,6 @@ This ensures `grobl /` and `grobl C:\` do exactly what users expect or fail loud
 
 ---
 
-## Text files are opened twice during analysis
-
-**Problem**
-
-In `src/grobl/file_handling.py:78–149`:
-
-* `FileHandlerRegistry.handle` invokes `text_detector` prior to dispatch, reading from the file once.
-* `TextFileHandler._analyze` later reopens the same file via `text_reader` to collect the full contents.
-
-Result:
-
-* Every text file is opened at least twice during scanning.
-* This doubles I/O for text files and can significantly slow down large scans.
-
-**Suggested approach**
-
-* Reuse the detector’s work in the handler:
-
-  * Change the contract of `text_detector` to return both:
-
-    * Whether it’s a text file (and perhaps encoding).
-    * The initial chunk of data it read.
-
-  * Pass this information to `TextFileHandler._analyze` so it can:
-
-    * Start from the already-read chunk.
-    * Avoid reopening or re-reading the file from the beginning unless necessary.
-
-* Alternatively, restructure the pipeline:
-
-  * Provide a single abstraction that performs detection and analysis using one underlying stream.
-  * Ensure that once the stream is opened, both detection and content reading occur in sequence without reopens.
-
-* Add benchmarks for large repositories to confirm I/O reduction and performance gains.
-
----
 
 ## Payload and metadata escaping is unsafe (XML/Markdown)
 

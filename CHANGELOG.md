@@ -1,4 +1,8 @@
 ## [Unreleased]
+## [1.0.13] - 2025-11-16
+
+### Fixed
+- reuse text detection prefetched content to avoid reopening files during scans
 ## [1.0.12] - 2025-11-15
 
 ### Fixed
