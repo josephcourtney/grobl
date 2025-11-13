@@ -1,4 +1,8 @@
 ## [Unreleased]
+## [1.0.15] - 2025-11-13
+
+### Fixed
+- centralize BrokenPipe handling across CLI entry points using a shared helper
 ## [1.0.14] - 2025-11-17
 
 ### Fixed

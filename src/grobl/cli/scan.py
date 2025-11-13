@@ -25,6 +25,7 @@ from grobl.utils import find_common_ancestor
 from .common import (
     ScanParams,
     _execute_with_handling,
+    exit_on_broken_pipe,
 )
 
 
@@ -160,7 +161,4 @@ def scan(
         elif params.summary is SummaryFormat.JSON:
             print(json.dumps(summary_json, sort_keys=True, indent=2))
     except BrokenPipeError:
-        try:
-            sys.stdout.close()
-        finally:
-            raise SystemExit(0)
+        exit_on_broken_pipe()
