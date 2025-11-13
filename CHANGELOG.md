@@ -1,4 +1,8 @@
 ## [Unreleased]
+## [1.0.17] - 2025-11-19
+
+### Fixed
+- unify directory tree rendering annotation helpers to share fallbacks across metadata and markdown views
 ## [1.0.16] - 2025-11-18
 
 ### Fixed
