@@ -1,13 +1,9 @@
-# Open Issues
+## Command line behavior without `scan` provided is confusing:
+command: `grobl --add-ignore tests`
+expected result: grobl output the normal result based on .grobl.toml but, additionally, ignoring the tests directory
+actual result: grobl output only includes the tests directory
 
-Each issue below has a uniform shape:
-
-- **Problem** — what is wrong or at risk.
-- **Suggested approach** — concrete directions to fix or refactor.
-
----
-
-## 1. `ScanExecutor` centralizes too many concerns
+## `ScanExecutor` centralizes too many concerns
 
 **Problem**
 
@@ -91,7 +87,7 @@ instead of encoding every output policy inline.
 
 ---
 
-## 2. Markdown payload builder mixes schema and layout
+## Markdown payload builder mixes schema and layout
 
 **Problem**
 
@@ -151,7 +147,7 @@ This makes it easier to:
 
 ---
 
-## 3. Totals and inclusion semantics are spread across modules
+## Totals and inclusion semantics are spread across modules
 
 **Problem**
 
@@ -218,7 +214,7 @@ The distinction between “all files” totals (`all_total_*`) and “included f
 
 ---
 
-## 4. Directory traversal configuration uses overloaded tuples
+## Directory traversal configuration uses overloaded tuples
 
 **Problem**
 
@@ -291,7 +287,7 @@ This removes tuple shape logic, makes the code more self-documenting, and improv
 
 ---
 
-## 5. Directory tree rendering duplicates annotation logic
+## Directory tree rendering duplicates annotation logic
 
 **Problem**
 
@@ -352,7 +348,7 @@ This removes duplicated traversal logic and makes the difference between the two
 
 ---
 
-## 6. CLI error handling and ergonomics are fragmented
+## CLI error handling and ergonomics are fragmented
 
 **Problem**
 
@@ -435,7 +431,7 @@ This reduces duplication, makes error handling easier to discover, and keeps CLI
 
 ---
 
-## 7. Root selection at filesystem anchors is surprising
+## Root selection at filesystem anchors is surprising
 
 **Problem**
 
@@ -469,7 +465,7 @@ This ensures `grobl /` and `grobl C:\` do exactly what users expect or fail loud
 
 ---
 
-## 8. Text files are opened twice during analysis
+## Text files are opened twice during analysis
 
 **Problem**
 
@@ -506,7 +502,7 @@ Result:
 
 ---
 
-## 9. Payload and metadata escaping is unsafe (XML/Markdown)
+## Payload and metadata escaping is unsafe (XML/Markdown)
 
 **Problem**
 
