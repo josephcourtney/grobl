@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from pathspec import PathSpec
 
-from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, traverse_dir
+from grobl.directory import (
+    DirectoryTreeBuilder,
+    TraverseConfig,
+    TreeCallback,
+    traverse_dir,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -85,6 +89,47 @@ def test_traversal_order_and_exclude_patterns(tmp_path: Path) -> None:
     assert "b.txt" in joined
     assert "ignore.me" not in joined
     assert joined.index("a.txt") < joined.index("b.txt")
+
+
+def test_summary_totals_exposes_inclusion_and_totals(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+
+    include = tmp_path / "include.txt"
+    include.write_text("a\nb\n", encoding="utf-8")
+
+    skip = tmp_path / "skip.bin"
+    skip.write_bytes(b"\x00\x01")
+
+    rel_include = include.relative_to(tmp_path)
+    rel_skip = skip.relative_to(tmp_path)
+
+    builder.record_metadata(rel_include, lines=2, chars=4)
+    builder.add_file(include, rel_include, lines=2, chars=4, content="a\nb\n")
+
+    builder.record_metadata(rel_skip, lines=0, chars=2)
+
+    snapshot = builder.summary_totals()
+    assert snapshot.total_lines == 2
+    assert snapshot.total_characters == 4
+    assert snapshot.all_total_lines == 2
+    assert snapshot.all_total_characters == 6
+
+    include_stats = snapshot.for_path(rel_include)
+    skip_stats = snapshot.for_path(rel_skip)
+    assert include_stats is not None
+    assert include_stats.included is True
+    assert skip_stats is not None
+    assert skip_stats.included is False
+    assert snapshot.is_included(rel_include) is True
+    assert snapshot.is_included(rel_skip) is False
+
+    totals_dict = snapshot.to_dict()
+    assert totals_dict == {
+        "total_lines": 2,
+        "total_characters": 4,
+        "all_total_lines": 2,
+        "all_total_characters": 6,
+    }
 
 
 def test_double_star_excludes_any_depth(tmp_path: Path) -> None:

@@ -10,7 +10,7 @@ from .constants import ContentScope, TableStyle
 if TYPE_CHECKING:  # resolve types for static checkers without runtime imports
     from pathlib import Path
 
-    from .directory import DirectoryTreeBuilder
+    from .directory import DirectoryTreeBuilder, SummaryTotals
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,36 +23,33 @@ class SummaryContext:
     style: TableStyle
 
 
-def _file_entries(builder: DirectoryTreeBuilder) -> list[dict[str, Any]]:
+def _file_entries(snapshot: SummaryTotals) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
-    for key, (ln, ch, included) in builder.metadata_items():
-        entry: dict[str, Any] = {"path": key, "lines": ln, "chars": ch, "included": included}
+    for key, record in snapshot.iter_files():
+        entry: dict[str, Any] = {
+            "path": key,
+            "lines": record.lines,
+            "chars": record.chars,
+            "included": record.included,
+        }
         # Heuristic: non-empty files with zero lines are treated as binary
-        is_binary = ch > 0 and ln == 0 and not included
+        is_binary = record.chars > 0 and record.lines == 0 and not record.included
         if is_binary:
             entry["binary"] = True
         files.append(entry)
     return files
 
 
-def _totals(builder: DirectoryTreeBuilder) -> dict[str, int]:
-    return {
-        "total_lines": builder.total_lines,
-        "total_characters": builder.total_characters,
-        "all_total_lines": builder.all_total_lines,
-        "all_total_characters": builder.all_total_characters,
-    }
-
-
 def build_summary(context: SummaryContext) -> dict[str, Any]:
     """Build a machine-readable summary from collected scan data."""
     builder = context.builder
+    snapshot = builder.summary_totals()
     return {
         "root": str(context.common),
         "scope": context.scope.value,
         "style": context.style.value,
-        "totals": _totals(builder),
-        "files": _file_entries(builder),
+        "totals": snapshot.to_dict(),
+        "files": _file_entries(snapshot),
     }
 
 

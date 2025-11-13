@@ -78,8 +78,9 @@ def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: Dire
     print(f"{CONFIG_EXCLUDE_PRINT}: {cfg.get(CONFIG_EXCLUDE_PRINT)}")
     print("DirectoryTreeBuilder(")
     print(f"    base_path         = {builder.base_path}")
-    print(f"    total_lines       = {builder.total_lines}")
-    print(f"    total_characters  = {builder.total_characters}")
+    snapshot = builder.summary_totals()
+    print(f"    total_lines       = {snapshot.total_lines}")
+    print(f"    total_characters  = {snapshot.total_characters}")
     print(f"    exclude_patterns  = {builder.exclude_patterns}")
     print(")")
 
