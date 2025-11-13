@@ -5,7 +5,7 @@ from __future__ import annotations
 import json as _json
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from .constants import (
     CONFIG_INCLUDE_FILE_TAGS,
@@ -22,7 +22,7 @@ from .renderers import DirectoryRenderer, build_llm_payload, build_markdown_payl
 from .summary import SummaryContext, build_sink_payload_json, build_summary
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from logging import Logger
     from pathlib import Path
 
     from .directory import DirectoryTreeBuilder
@@ -43,7 +43,8 @@ class ScanExecutorDependencies:
     human_formatter: Callable[..., str]
     summary_builder: Callable[[SummaryContext], dict[str, Any]]
     sink_payload_builder: Callable[[SummaryContext], dict[str, Any]]
-    payload_builder: Callable[..., str]
+    llm_payload_builder: Callable[..., str]
+    markdown_payload_builder: Callable[..., str]
 
     @classmethod
     def default(cls) -> ScanExecutorDependencies:
@@ -53,8 +54,173 @@ class ScanExecutorDependencies:
             human_formatter=human_summary,
             summary_builder=build_summary,
             sink_payload_builder=build_sink_payload_json,
-            payload_builder=build_llm_payload,
+            llm_payload_builder=build_llm_payload,
+            markdown_payload_builder=build_markdown_payload,
         )
+
+
+class PayloadStrategy(Protocol):
+    def emit(
+        self,
+        *,
+        builder: DirectoryTreeBuilder,
+        context: SummaryContext,
+        result: ScanResult,
+        sink: Callable[[str], None],
+        logger: Logger,
+        config: dict[str, object],
+    ) -> None: ...
+
+
+@dataclass(slots=True)
+class JsonPayloadStrategy:
+    build_payload: Callable[[SummaryContext], dict[str, Any]]
+
+    def emit(
+        self,
+        *,
+        builder: DirectoryTreeBuilder,
+        context: SummaryContext,
+        result: ScanResult,  # noqa: ARG002 - retained for protocol symmetry
+        sink: Callable[[str], None],
+        logger: Logger,
+        config: dict[str, object],  # noqa: ARG002
+    ) -> None:
+        payload_json = self.build_payload(context)
+        sink(_json.dumps(payload_json, sort_keys=True, indent=2))
+        log_event(
+            logger,
+            StructuredLogEvent(
+                name="executor.emitted_json",
+                message="emitted json payload to sink",
+                context={
+                    "tree_entries": len(builder.tree_output()),
+                    "file_entries": len(builder.file_contents()),
+                },
+            ),
+        )
+
+
+@dataclass(slots=True)
+class MarkdownPayloadStrategy:
+    build_payload: Callable[..., str]
+
+    def emit(
+        self,
+        *,
+        builder: DirectoryTreeBuilder,
+        context: SummaryContext,
+        result: ScanResult,
+        sink: Callable[[str], None],
+        logger: Logger,  # noqa: ARG002
+        config: dict[str, object],  # noqa: ARG002
+    ) -> None:
+        payload = self.build_payload(
+            builder=builder,
+            common=result.common,
+            scope=context.scope,
+        )
+        if payload:
+            sink(payload)
+
+
+@dataclass(slots=True)
+class LlmPayloadStrategy:
+    build_payload: Callable[..., str]
+
+    def emit(
+        self,
+        *,
+        builder: DirectoryTreeBuilder,
+        context: SummaryContext,
+        result: ScanResult,
+        sink: Callable[[str], None],
+        logger: Logger,  # noqa: ARG002
+        config: dict[str, object],
+    ) -> None:
+        tree_tag = str(config.get(CONFIG_INCLUDE_TREE_TAGS, "directory"))
+        file_tag = str(config.get(CONFIG_INCLUDE_FILE_TAGS, "file"))
+        payload = self.build_payload(
+            builder=builder,
+            common=result.common,
+            scope=context.scope,
+            tree_tag=tree_tag,
+            file_tag=file_tag,
+        )
+        if payload:
+            sink(payload)
+
+
+@dataclass(slots=True)
+class NoopPayloadStrategy:
+    def emit(  # noqa: PLR6301
+        self,
+        *,
+        builder: DirectoryTreeBuilder,  # noqa: ARG002
+        context: SummaryContext,  # noqa: ARG002
+        result: ScanResult,  # noqa: ARG002
+        sink: Callable[[str], None],  # noqa: ARG002
+        logger: Logger,  # noqa: ARG002
+        config: dict[str, object],  # noqa: ARG002
+    ) -> None:
+        return
+
+
+StrategySource = PayloadStrategy | Callable[[ScanExecutorDependencies], PayloadStrategy]
+
+
+def _build_default_payload_strategies(
+    deps: ScanExecutorDependencies,
+) -> dict[PayloadFormat, PayloadStrategy]:
+    sources: dict[PayloadFormat, StrategySource] = dict(_PAYLOAD_STRATEGIES)
+    strategies: dict[PayloadFormat, PayloadStrategy] = {}
+    for fmt, source in sources.items():
+        if hasattr(source, "emit"):
+            strategies[fmt] = source  # type: ignore[assignment]
+        else:
+            factory = source  # type: ignore[assignment]
+            strategies[fmt] = factory(deps)
+    return strategies
+
+
+def build_summary_for_format(
+    *,
+    base_summary: dict[str, Any],
+    fmt: SummaryFormat,
+    renderer: DirectoryRenderer,
+    builder: DirectoryTreeBuilder,
+    options: ScanOptions,
+    human_formatter: Callable[..., str],
+) -> tuple[str, dict[str, Any]]:
+    if fmt is SummaryFormat.NONE:
+        minimal = {
+            "root": base_summary["root"],
+            "scope": base_summary["scope"],
+            "style": base_summary["style"],
+            "totals": base_summary["totals"],
+            "files": [],
+        }
+        return "", minimal
+    if fmt is SummaryFormat.JSON:
+        return "", base_summary
+
+    snapshot = builder.summary_totals()
+    tree_lines = renderer.tree_lines(include_metadata=True)
+    human_summary_text = human_formatter(
+        tree_lines=tree_lines,
+        total_lines=snapshot.total_lines,
+        total_chars=snapshot.total_characters,
+        table=options.summary_style.value,
+    )
+    return human_summary_text, base_summary
+
+
+_PAYLOAD_STRATEGIES: dict[PayloadFormat, StrategySource] = {
+    PayloadFormat.JSON: lambda deps: JsonPayloadStrategy(deps.sink_payload_builder),
+    PayloadFormat.MARKDOWN: lambda deps: MarkdownPayloadStrategy(deps.markdown_payload_builder),
+    PayloadFormat.LLM: lambda deps: LlmPayloadStrategy(deps.llm_payload_builder),
+    PayloadFormat.NONE: NoopPayloadStrategy(),
+}
 
 
 class ScanExecutor:
@@ -70,10 +236,7 @@ class ScanExecutor:
     ) -> None:
         self._sink = sink
         self._deps = ScanExecutorDependencies.default() if dependencies is None else dependencies
-
-    @staticmethod
-    def _should_emit_json_payload(options: ScanOptions) -> bool:
-        return options.payload_format is PayloadFormat.JSON
+        self._payload_strategies = _build_default_payload_strategies(self._deps)
 
     def execute(
         self,
@@ -98,9 +261,6 @@ class ScanExecutor:
         )
         result = self._deps.scan(paths=paths, cfg=cfg)
 
-        ttag = str(cfg.get(CONFIG_INCLUDE_TREE_TAGS, "directory"))
-        ftag = str(cfg.get(CONFIG_INCLUDE_FILE_TAGS, "file"))
-
         builder = result.builder
         context = SummaryContext(
             builder=builder,
@@ -110,66 +270,26 @@ class ScanExecutor:
         )
 
         renderer = self._deps.renderer_factory(builder)
-
-        human_summary_text = ""
-        if options.summary_format is SummaryFormat.HUMAN:
-            tree_lines = renderer.tree_lines(include_metadata=True)
-            human_summary_text = self._deps.human_formatter(
-                tree_lines=tree_lines,
-                total_lines=builder.total_lines,
-                total_chars=builder.total_characters,
-                table=options.summary_style.value,
-            )
-
-        if self._should_emit_json_payload(options):
-            payload_json = self._deps.sink_payload_builder(context)
-            self._sink(_json.dumps(payload_json, sort_keys=True, indent=2))
-            log_event(
-                self._logger,
-                StructuredLogEvent(
-                    name="executor.emitted_json",
-                    message="emitted json payload to sink",
-                    context={
-                        "tree_entries": len(builder.tree_output()),
-                        "file_entries": len(builder.file_contents()),
-                    },
-                ),
-            )
-        elif options.payload_format is PayloadFormat.LLM:
-            payload = self._deps.payload_builder(
-                builder=builder,
-                common=result.common,
-                scope=options.scope,
-                tree_tag=ttag,
-                file_tag=ftag,
-            )
-            if payload:
-                self._sink(payload)
-        elif options.payload_format is PayloadFormat.MARKDOWN:
-            payload = build_markdown_payload(
-                builder=builder,
-                common=result.common,
-                scope=options.scope,
-            )
-            if payload:
-                self._sink(payload)
+        strategy = self._payload_strategies[options.payload_format]
+        strategy.emit(
+            builder=builder,
+            context=context,
+            result=result,
+            sink=self._sink,
+            logger=self._logger,
+            config=cfg,
+        )
 
         base_summary = self._deps.summary_builder(context)
-
-        if options.summary_format is SummaryFormat.NONE:
-            summary_dict = {
-                "root": base_summary["root"],
-                "scope": base_summary["scope"],
-                "style": base_summary["style"],
-                "totals": base_summary["totals"],
-                "files": [],
-            }
-            human_summary_text = ""
-        elif options.summary_format is SummaryFormat.JSON:
-            summary_dict = base_summary
-            human_summary_text = ""
-        else:
-            summary_dict = base_summary
+        snapshot = builder.summary_totals()
+        human_summary_text, summary_dict = build_summary_for_format(
+            base_summary=base_summary,
+            fmt=options.summary_format,
+            renderer=renderer,
+            builder=builder,
+            options=options,
+            human_formatter=self._deps.human_formatter,
+        )
 
         log_event(
             self._logger,
@@ -177,8 +297,8 @@ class ScanExecutor:
                 name="executor.complete",
                 message="scan executor completed",
                 context={
-                    "total_lines": builder.total_lines,
-                    "total_characters": builder.total_characters,
+                    "total_lines": snapshot.total_lines,
+                    "total_characters": snapshot.total_characters,
                 },
             ),
         )

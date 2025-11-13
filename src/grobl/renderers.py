@@ -7,15 +7,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape as _html_escape
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .constants import ContentScope
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
+    from pathlib import Path
 
-    from .directory import DirectoryTreeBuilder
+    from .directory import DirectoryTreeBuilder, FileSummary, SummaryTotals
 
 
 def _escape_xml_attr(value: str) -> str:
@@ -41,6 +41,35 @@ class DirectoryRenderer:
 
     builder: DirectoryTreeBuilder
 
+    def _annotated_tree(
+        self,
+        formatter: Callable[[int, str, str, Path | None, FileSummary | None], str],
+        *,
+        raw_lines: Sequence[str] | None = None,
+        ordered_entries: Sequence[tuple[str, Path]] | None = None,
+        snapshot: SummaryTotals | None = None,
+    ) -> tuple[list[str], bool]:
+        """Return formatted tree lines plus a flag indicating annotation success."""
+        b = self.builder
+        raw = list(raw_lines if raw_lines is not None else b.tree_output())
+        base_line = f"{b.base_path.name}/"
+        if not raw:
+            return [base_line], False
+
+        ordered = list(ordered_entries if ordered_entries is not None else b.ordered_entries())
+        if len(ordered) != len(raw):
+            return [base_line, *raw], False
+
+        lines: list[str] = []
+        for idx, (text, (kind, rel)) in enumerate(zip(raw, ordered, strict=True)):
+            rel_path: Path | None = rel
+            file_summary = None
+            if kind == "file" and rel_path is not None and snapshot is not None:
+                file_summary = snapshot.for_path(rel_path)
+            lines.append(formatter(idx, text, kind, rel_path, file_summary))
+
+        return [base_line, *lines], True
+
     def tree_lines(
         self,
         *,
@@ -51,100 +80,95 @@ class DirectoryRenderer:
         raw_tree = b.tree_output()
 
         if not include_metadata:
-            return [f"{b.base_path.name}/", *raw_tree]
+            body, _ = self._annotated_tree(
+                lambda _i, text, _k, _r, _m: text,
+                raw_lines=raw_tree,
+            )
+            return body
 
         if not raw_tree:
             return [f"{b.base_path.name}/"]
 
-        def _column_widths() -> tuple[int, int, int, int]:
-            name_w = max(len(line) for line in raw_tree)
-            meta_values = list(b.metadata_items())
-            max_line_digits = max((len(str(v[0])) for _, v in meta_values), default=1)
-            max_char_digits = max((len(str(v[1])) for _, v in meta_values), default=1)
-            line_w = max(max_line_digits, len("lines"))
-            char_w = max(max_char_digits, len("chars"))
-            marker_w = max(len("included"), 8)
-            return name_w, line_w, char_w, marker_w
+        snapshot = b.summary_totals()
+        name_w = max(len(line) for line in raw_tree)
+        meta_values = list(snapshot.iter_files())
+        max_line_digits = max((len(str(record.lines)) for _, record in meta_values), default=1)
+        max_char_digits = max((len(str(record.chars)) for _, record in meta_values), default=1)
+        line_w = max(max_line_digits, len("lines"))
+        char_w = max(max_char_digits, len("chars"))
+        marker_w = max(len("included"), 8)
+        header = f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{marker_w}}"
 
-        widths = _column_widths()
-        name_w, line_w, char_w, mark_w = widths
-        header = f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{mark_w}}"
-        output = [header, f"{b.base_path.name}/"]
-
-        entry_map = dict(b.file_tree_entries())
-        for idx, text in enumerate(raw_tree):
-            rel = entry_map.get(idx)
-            if rel is None:
-                output.append(text)
-                continue
-            ln, ch, included = b.get_metadata(str(rel)) or (0, 0, False)
+        def _format(
+            _idx: int,
+            text: str,
+            kind: str,
+            _rel: Path | None,
+            metadata: FileSummary | None,
+        ) -> str:
+            if kind != "file":
+                return text
+            record = metadata
+            ln = record.lines if record is not None else 0
+            ch = record.chars if record is not None else 0
+            included = record.included if record is not None else False
             marker = " " if included else "*"
-            output.append(f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {marker:>{mark_w}}")
+            return f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {marker:>{marker_w}}"
 
-        return output
+        body, annotated = self._annotated_tree(_format, raw_lines=raw_tree, snapshot=snapshot)
+        if not annotated:
+            return body
+        return [header, *body]
 
-    def tree_lines_for_markdown(self) -> list[str]:  # noqa: C901, PLR0912
-        """Return tree lines annotated with inclusion markers for markdown payloads.
-
-        Files are annotated with either [INCLUDED:FULL] or [NOT_INCLUDED] based on
-        whether their contents are captured in the payload. Directories whose
-        descendant files are all *not* included are annotated with [NOT_INCLUDED].
-        """
+    def tree_lines_for_markdown(self) -> list[str]:  # noqa: C901
+        """Return tree lines annotated with inclusion markers for markdown payloads."""
         b = self.builder
         raw_tree = b.tree_output()
         if not raw_tree:
             return [f"{b.base_path.name}/"]
 
         ordered = b.ordered_entries()
-        # Defensive: fall back to the unannotated view if our invariants break.
         if len(ordered) != len(raw_tree):
             return [f"{b.base_path.name}/", *raw_tree]
 
-        # Map file paths to their inclusion flag.
-        meta_included: dict[Path, bool] = {}
-        for key, (_, _, included) in b.metadata_items():
-            meta_included[Path(key)] = included
+        snapshot = b.summary_totals()
 
-        # Aggregate per-directory flags: any descendant files and any included descendants.
-        dir_any: dict[Path, bool] = {}
-        dir_included: dict[Path, bool] = {}
-        root = Path()
-        for path, included in meta_included.items():
-            parent = path.parent
-            while parent != root:
-                dir_any[parent] = True
-                if included:
-                    dir_included[parent] = True
-                parent = parent.parent
-
-        # Compute column width for entries that will receive annotations.
+        labels: dict[int, str] = {}
         name_width = 0
-        for idx, (kind, rel) in enumerate(ordered):
-            annotate = False
-            if kind == "file" or (kind == "dir" and dir_any.get(rel) and not dir_included.get(rel)):
-                annotate = True
-            if annotate:
-                name_width = max(name_width, len(raw_tree[idx]))
-
-        if name_width == 0:
-            return [f"{b.base_path.name}/", *raw_tree]
-
-        annotated: list[str] = []
-        for idx, (kind, rel) in enumerate(ordered):
-            text = raw_tree[idx]
+        for idx, (text, (kind, rel)) in enumerate(zip(raw_tree, ordered, strict=True)):
             label: str | None = None
             if kind == "file":
-                included = meta_included.get(rel, False)
-                label = "[INCLUDED:FULL]" if included else "[NOT_INCLUDED]"
+                label = snapshot.marker_for_file(rel)
             elif kind == "dir":
-                if dir_any.get(rel) and not dir_included.get(rel):
-                    label = "[NOT_INCLUDED]"
-            if label is None:
-                annotated.append(text)
-            else:
-                annotated.append(f"{text:<{name_width}} {label}")
+                label = snapshot.marker_for_directory(rel)
+            if label is not None:
+                labels[idx] = label
+                name_width = max(name_width, len(text))
 
-        return [f"{b.base_path.name}/", *annotated]
+        if not labels:
+            return [f"{b.base_path.name}/", *raw_tree]
+
+        def _format(
+            idx: int,
+            text: str,
+            _kind: str,
+            _rel: Path | None,
+            _metadata: FileSummary | None,
+        ) -> str:
+            label = labels.get(idx)
+            if label is None:
+                return text
+            return f"{text:<{name_width}} {label}"
+
+        body, annotated = self._annotated_tree(
+            _format,
+            raw_lines=raw_tree,
+            ordered_entries=ordered,
+            snapshot=snapshot,
+        )
+        if not annotated:
+            return body
+        return body
 
     def files_payload(self) -> str:
         """Return the combined <file:content> payload already collected by builder."""
@@ -164,6 +188,26 @@ class DirectoryRenderer:
 
 
 # -------------------- LLM payload assembly moved here --------------------
+
+
+@dataclass(slots=True)
+class MarkdownFileSchema:
+    """Schema representation for an individual file block in the markdown snapshot."""
+
+    path: str
+    language: str | None
+    start_line: int
+    end_line: int
+    chars: int
+    content: str
+
+
+@dataclass(slots=True)
+class MarkdownSnapshotSchema:
+    """Schema containing the directory tree lines and file blocks for markdown output."""
+
+    tree_lines: list[str] | None
+    files: list[MarkdownFileSchema]
 
 
 def _build_tree_payload(builder: DirectoryTreeBuilder, common: Path, *, ttag: str) -> str:
@@ -226,6 +270,53 @@ def _guess_language(path: str) -> str:
     return mapping.get(ext, "")
 
 
+def build_markdown_snapshot(*, builder: DirectoryTreeBuilder, scope: ContentScope) -> MarkdownSnapshotSchema:
+    """Build a schema object describing the markdown snapshot for a scan result."""
+    renderer = DirectoryRenderer(builder)
+    tree_lines: list[str] | None = None
+    if scope in {ContentScope.ALL, ContentScope.TREE}:
+        tree_lines = renderer.tree_lines_for_markdown()
+
+    files: list[MarkdownFileSchema] = []
+    if scope in {ContentScope.ALL, ContentScope.FILES}:
+        for file_info in builder.files_json():
+            name = str(file_info.get("name", ""))
+            line_count = int(file_info.get("lines", 0))
+            chars = int(file_info.get("chars", 0))
+            content = str(file_info.get("content", ""))
+            language = _guess_language(name) or None
+
+            if line_count > 0:
+                start_line = 1
+                end_line = line_count
+            else:
+                start_line = 0
+                end_line = 0
+
+            files.append(
+                MarkdownFileSchema(
+                    path=name,
+                    language=language,
+                    start_line=start_line,
+                    end_line=end_line,
+                    chars=chars,
+                    content=content,
+                )
+            )
+
+    return MarkdownSnapshotSchema(tree_lines=tree_lines, files=files)
+
+
+def format_begin_file_header(entry: MarkdownFileSchema) -> str:
+    """Return the formatted BEGIN_FILE header for a markdown file block."""
+    meta_parts: list[str] = [f'path="{_escape_markdown_meta(entry.path)}"']
+    if entry.language:
+        meta_parts.append(f'language="{_escape_markdown_meta(entry.language)}"')
+    line_range = f"{entry.start_line}-{entry.end_line}"
+    meta_parts.extend((f'lines="{line_range}"', f'chars="{entry.chars}"'))
+    return f"%%%% BEGIN_FILE {' '.join(meta_parts)} %%%%"
+
+
 def build_markdown_payload(
     *,
     builder: DirectoryTreeBuilder,
@@ -234,13 +325,11 @@ def build_markdown_payload(
 ) -> str:
     """Assemble a Markdown payload containing a directory tree and file blocks."""
     del common
-    renderer = DirectoryRenderer(builder)
+    snapshot = build_markdown_snapshot(builder=builder, scope=scope)
     parts: list[str] = ["# Project Snapshot"]
 
-    # Optional directory section
-    if scope in {ContentScope.ALL, ContentScope.TREE}:
-        tree_lines = renderer.tree_lines_for_markdown()
-        tree_body = "\n".join(tree_lines)
+    if snapshot.tree_lines is not None:
+        tree_body = "\n".join(snapshot.tree_lines)
         parts.extend((
             "",
             "## Directory",
@@ -250,41 +339,19 @@ def build_markdown_payload(
             "```",
         ))
 
-    # Optional files section
-    if scope in {ContentScope.ALL, ContentScope.FILES}:
-        files = builder.files_json()
-        if files:
-            # Ensure we only add the "## Files" header once, even if the directory
-            # section was suppressed by scope.
-            if not any(line.startswith("## Files") for line in parts):
-                parts.extend(("", "## Files"))
-            for file_info in files:
-                name = str(file_info.get("name", ""))
-                line_count = int(file_info.get("lines", 0))
-                chars = int(file_info.get("chars", 0))
-                content = file_info.get("content", "")
-                language = _guess_language(name)
-                # For now, all captures are full files; encode a 1-based range.
-                line_range = f"1-{line_count}" if line_count > 0 else "0-0"
+    if snapshot.files:
+        parts.extend(("", "## Files"))
+        for entry in snapshot.files:
+            parts.extend(("", format_begin_file_header(entry)))
 
-                meta_parts: list[str] = [f'path="{_escape_markdown_meta(name)}"']
-                # `kind="full"` is the default and therefore omitted until other
-                # variants (e.g. partial slices) are introduced.
-                if language:
-                    meta_parts.append(f'language="{_escape_markdown_meta(language)}"')
-                meta_parts.extend((f'lines="{line_range}"', f'chars="{chars}"'))
-
-                header = f"%%%% BEGIN_FILE {' '.join(meta_parts)} %%%%"
-                parts.extend(("", header))
-
-                fence = "```" + (language or "")
-                parts.append(fence)
-                if content:
-                    # Avoid spurious blank lines caused by trailing newlines in file
-                    # contents when rendering fenced code blocks.
-                    trimmed = content.rstrip("\n")
-                    if trimmed:
-                        parts.append(trimmed)
-                parts.extend(("```", "%%%% END_FILE %%%%"))
+            fence = "```" + (entry.language or "")
+            parts.append(fence)
+            if entry.content:
+                # Avoid spurious blank lines caused by trailing newlines in file
+                # contents when rendering fenced code blocks.
+                trimmed = entry.content.rstrip("\n")
+                if trimmed:
+                    parts.append(trimmed)
+            parts.extend(("```", "%%%% END_FILE %%%%"))
 
     return "\n".join(parts).rstrip() + "\n"

@@ -1,4 +1,32 @@
 ## [Unreleased]
+
+## [1.0.22] - 2025-11-24
+
+### Fixed
+- load legacy `.grobl.config.toml` files when `.grobl.toml` is absent to retain existing configuration
+
+## [1.0.21] - 2025-11-23
+
+### Changed
+- centralize summary totals and inclusion semantics across builders, renderers, summaries, and CLI diagnostics
+
+## [1.0.20] - 2025-11-22
+
+### Changed
+- separate markdown payload schema construction from layout rendering and centralize BEGIN_FILE header formatting
+
+## [1.0.19] - 2025-11-13
+
+### Changed
+- refactor scan executor to delegate payload emission and summary shaping to dedicated helpers
+## [1.0.18] - 2025-11-20
+
+### Changed
+- refactor directory traversal configuration to use a `TraverseConfig` dataclass instead of overloaded tuples
+## [1.0.17] - 2025-11-19
+
+### Fixed
+- unify directory tree rendering annotation helpers to share fallbacks across metadata and markdown views
 ## [1.0.16] - 2025-11-18
 
 ### Fixed

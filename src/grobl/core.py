@@ -13,7 +13,7 @@ from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
 )
-from grobl.directory import DirectoryTreeBuilder, traverse_dir
+from grobl.directory import DirectoryTreeBuilder, TraverseConfig, traverse_dir
 from grobl.errors import ERROR_MSG_EMPTY_PATHS, ScanInterrupted
 from grobl.file_handling import (
     FileHandlerRegistry,
@@ -102,8 +102,11 @@ def run_scan(
         registry.handle(path=item, context=context)
 
     try:
-        # Pass a 4-tuple so traverse_dir can reuse the compiled spec
-        traverse_dir(common, (resolved, excl_tree, common, tree_spec), collect)
+        traverse_dir(
+            common,
+            TraverseConfig(paths=resolved, patterns=excl_tree, base=common, spec=tree_spec),
+            collect,
+        )
     except KeyboardInterrupt as _:
         log_event(
             logger,

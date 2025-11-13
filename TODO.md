@@ -13,3 +13,20 @@
 - [x] Add regression tests covering XML/Markdown payload escaping for metadata and file contents.
 - [x] Implement escaping helpers and apply them to payload builders to harden XML/Markdown output.
 - [x] Record the payload escaping fix (TODO/ISSUES/changelog) and bump the patch version.
+- [x] Add regression tests covering the shared directory tree annotation helper for metadata and markdown outputs.
+- [x] Refactor the directory tree renderer to use a shared annotation helper and remove duplication.
+- [x] Record the directory renderer refactor (TODO/ISSUES/changelog), remove the resolved issue, and bump the patch version.
+- [x] Add regression tests ensuring `traverse_dir` accepts a `TraverseConfig` dataclass while preserving filtering behaviour.
+- [x] Refactor traversal code to use `TraverseConfig` instead of overloaded tuples and update all call sites.
+- [x] Record the traversal refactor by updating the changelog, removing the resolved issue entry, and bumping the patch version.
+- [x] Add regression tests ensuring `ScanExecutor` delegates payload emission and summary shaping to dedicated helpers.
+- [x] Refactor `ScanExecutor` to use payload strategies and a summary helper instead of inline branching.
+- [x] Add regression tests ensuring the markdown snapshot schema and header helper cover layout/schema separation cases.
+- [x] Refactor the markdown payload builder to introduce a schema layer and centralize BEGIN_FILE header formatting.
+- [x] Record the markdown builder refactor (TODO/ISSUES/changelog), remove the resolved issue entry, and bump the patch version.
+- [x] Add unit tests exercising centralized summary totals and inclusion semantics for builders, renderers, and summaries.
+- [x] Refactor directory totals/inclusion tracking into a shared helper and update consumers to query it.
+- [x] Remove the resolved totals/inclusion issue, record the change in the changelog, and bump the patch version.
+- [x] Add regression tests confirming `read_config` merges legacy `.grobl.config.toml` files when `.grobl.toml` is missing.
+- [x] Update the configuration loader to layer legacy `.grobl.config.toml` files into the precedence chain.
+- [x] Record the legacy configuration loading fix (TODO/ISSUES/changelog), remove the resolved issue entry, and bump the patch version.
