@@ -1,0 +1,4 @@
+- [x] Add regression test ensuring the root CLI forwards scan options when invoked without an explicit command.
+- [x] Update the CLI default-command fallback to correctly route option flags to the scan command.
+- [x] Remove the resolved CLI issue entry and record the fix in the changelog with a patch version bump.
+- [x] Increment the project patch version to reflect the CLI fix.

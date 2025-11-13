@@ -1,4 +1,8 @@
 ## [Unreleased]
+## [1.0.12] - 2025-11-15
+
+### Fixed
+- ensure invoking grobl without an explicit command routes CLI options to the default scan command
 
 
 ## [1.0.10] - 2025-11-13

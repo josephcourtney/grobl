@@ -65,7 +65,7 @@ class DirectoryRenderer:
 
         return output
 
-    def tree_lines_for_markdown(self) -> list[str]:
+    def tree_lines_for_markdown(self) -> list[str]:  # noqa: C901, PLR0912
         """Return tree lines annotated with inclusion markers for markdown payloads.
 
         Files are annotated with either [INCLUDED:FULL] or [NOT_INCLUDED] based on
@@ -200,6 +200,7 @@ def build_markdown_payload(
     scope: ContentScope,
 ) -> str:
     """Assemble a Markdown payload containing a directory tree and file blocks."""
+    del common
     renderer = DirectoryRenderer(builder)
     parts: list[str] = ["# Project Snapshot"]
 

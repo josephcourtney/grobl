@@ -114,7 +114,7 @@ def _extract_begin_file_lines(markdown: str) -> list[str]:
     return [line for line in markdown.splitlines() if line.startswith("%%%% BEGIN_FILE ")]
 
 
-def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:
+def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:  # noqa: PLR0914
     root = tmp_path / "proj"
     root.mkdir()
 
