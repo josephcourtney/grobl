@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.20] - 2025-11-22
+
+### Changed
+- separate markdown payload schema construction from layout rendering and centralize BEGIN_FILE header formatting
+
 ## [1.0.19] - 2025-11-13
 
 ### Changed
