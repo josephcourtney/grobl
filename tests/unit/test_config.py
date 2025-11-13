@@ -105,6 +105,23 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
     assert cfg.get("exclude_tree") == ["from-base"]
 
 
+def test_legacy_config_file_is_loaded(tmp_path: Path) -> None:
+    base = tmp_path / "proj"
+    base.mkdir()
+    legacy = base / ".grobl.config.toml"
+    legacy.write_text("exclude_tree=['from-legacy']\n", encoding="utf-8")
+
+    cfg = load_and_adjust_config(
+        base_path=base,
+        explicit_config=None,
+        ignore_defaults=True,
+        add_ignore=(),
+        remove_ignore=(),
+    )
+
+    assert cfg.get("exclude_tree") == ["from-legacy"]
+
+
 def test_missing_explicit_config_raises(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist.toml"
 

@@ -27,3 +27,6 @@
 - [x] Add unit tests exercising centralized summary totals and inclusion semantics for builders, renderers, and summaries.
 - [x] Refactor directory totals/inclusion tracking into a shared helper and update consumers to query it.
 - [x] Remove the resolved totals/inclusion issue, record the change in the changelog, and bump the patch version.
+- [x] Add regression tests confirming `read_config` merges legacy `.grobl.config.toml` files when `.grobl.toml` is missing.
+- [x] Update the configuration loader to layer legacy `.grobl.config.toml` files into the precedence chain.
+- [x] Record the legacy configuration loading fix (TODO/ISSUES/changelog), remove the resolved issue entry, and bump the patch version.
