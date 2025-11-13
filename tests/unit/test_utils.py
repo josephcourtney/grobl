@@ -28,9 +28,9 @@ def test_find_common_ancestor_single_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX-only path assumptions")
-def test_find_common_ancestor_root_rejected() -> None:
-    with pytest.raises(PathNotFoundError):
-        find_common_ancestor([Path("/"), Path("/tmp")])  # noqa: S108 - controlled use in test
+def test_find_common_ancestor_allows_filesystem_root() -> None:
+    got = find_common_ancestor([Path("/"), Path("/tmp")])  # noqa: S108 - controlled use in test
+    assert got == Path("/")
 
 
 def test_is_text_missing_file_returns_false(tmp_path: Path) -> None:
@@ -78,9 +78,15 @@ def test_common_ancestor_param(tmp_path: Path, components: tuple[str, ...], expe
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX-only path assumptions")
 def test_common_ancestor_disjoint_drives_like(tmp_path: Path) -> None:
-    # Mix an absolute path outside /private/var with tmp_path so only root is shared -> rejected
+    # Mixing unrelated absolute paths should still converge on the filesystem root
+    got = find_common_ancestor([Path("/usr"), tmp_path / "q"])
+    assert got == Path("/")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows-only drive semantics")
+def test_common_ancestor_windows_disjoint_drives() -> None:
     with pytest.raises(PathNotFoundError):
-        find_common_ancestor([Path("/usr"), tmp_path / "q"])
+        find_common_ancestor([Path("C:/alpha"), Path("D:/beta")])
 
 
 SEGMENT = st.text(

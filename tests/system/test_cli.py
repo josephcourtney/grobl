@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+import os
+from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from grobl.cli import cli
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-    import pytest
 
 
 def test_cli_help_and_scan_help() -> None:
@@ -25,6 +22,28 @@ def test_cli_help_and_scan_help() -> None:
     assert "--scope" in scan_help.output
     assert "--payload" in scan_help.output
     assert "--summary" in scan_help.output
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX-only filesystem root semantics")
+def test_cli_scan_accepts_filesystem_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: dict[str, Path] = {}
+
+    def fake_load_and_adjust_config(**kwargs: object) -> dict[str, object]:
+        base_path = kwargs.get("base_path")
+        assert isinstance(base_path, Path)
+        observed["base_path"] = base_path
+        return {}
+
+    monkeypatch.setattr("grobl.cli.scan.load_and_adjust_config", fake_load_and_adjust_config)
+    monkeypatch.setattr("grobl.cli.scan.build_writer_from_config", lambda **_: lambda _text: None)
+    monkeypatch.setattr("grobl.cli.scan.resolve_table_style", lambda style: style)
+    monkeypatch.setattr("grobl.cli.scan._execute_with_handling", lambda **_: ("", {}))
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["scan", "/"])
+
+    assert result.exit_code == 0
+    assert observed["base_path"] == Path("/")
 
 
 def test_cli_root_invocation_forwards_scan_options(
