@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from grobl.errors import PathNotFoundError
-from grobl.utils import find_common_ancestor, is_text
+from grobl.utils import detect_text, find_common_ancestor, is_text
 
 try:  # import at module level; skip the whole module if unavailable
     from hypothesis import given
@@ -36,6 +36,29 @@ def test_find_common_ancestor_root_rejected() -> None:
 def test_is_text_missing_file_returns_false(tmp_path: Path) -> None:
     missing = tmp_path / "nope.txt"
     assert is_text(missing) is False
+    detection = detect_text(missing)
+    assert detection.is_text is False
+    assert detection.content is None
+
+
+def test_detect_text_prefetches_content(tmp_path: Path) -> None:
+    sample = tmp_path / "sample.txt"
+    sample.write_text("héllo\nworld", encoding="utf-8")
+
+    detection = detect_text(sample)
+
+    assert detection.is_text is True
+    assert detection.content == sample.read_text(encoding="utf-8", errors="ignore")
+
+
+def test_detect_text_binary_payload(tmp_path: Path) -> None:
+    blob = tmp_path / "blob.bin"
+    blob.write_bytes(b"\x00\xff\x01\x02")
+
+    detection = detect_text(blob)
+
+    assert detection.is_text is False
+    assert detection.content is None
 
 
 @pytest.mark.parametrize(

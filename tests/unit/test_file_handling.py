@@ -5,11 +5,8 @@ from typing import TYPE_CHECKING
 from pathspec import PathSpec
 
 from grobl.directory import DirectoryTreeBuilder
-from grobl.file_handling import (
-    FileProcessingContext,
-    ScanDependencies,
-    TextFileHandler,
-)
+from grobl.file_handling import FileProcessingContext, ScanDependencies, TextFileHandler
+from grobl.utils import TextDetectionResult
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -18,7 +15,7 @@ if TYPE_CHECKING:
 
 def _deps(
     *,
-    detector: Callable[[Path], bool],
+    detector: Callable[[Path], TextDetectionResult],
     reader: Callable[[Path], str],
 ) -> ScanDependencies:
     return ScanDependencies(text_detector=detector, text_reader=reader)
@@ -32,13 +29,35 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
 
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
     spec = PathSpec.from_lines("gitwildmatch", ["skip.txt"])
-    deps = _deps(detector=lambda _p: True, reader=lambda p: p.read_text("utf-8"))
+    reader_calls: list[Path] = []
+
+    def detector(path: Path) -> TextDetectionResult:
+        return TextDetectionResult(is_text=True, content=path.read_text(encoding="utf-8"))
+
+    def reader(path: Path) -> str:
+        reader_calls.append(path)
+        return path.read_text(encoding="utf-8")
+
+    deps = _deps(detector=detector, reader=reader)
     ctx = FileProcessingContext(builder=builder, common=tmp_path, print_spec=spec, dependencies=deps)
 
     handler = TextFileHandler()
-    assert handler.supports(path=inc, is_text_file=True)
-    handler.process(path=inc, context=ctx, is_text_file=True)
-    handler.process(path=skip, context=ctx, is_text_file=True)
+    detection_inc = detector(inc)
+    detection_skip = detector(skip)
+
+    assert handler.supports(path=inc, is_text_file=detection_inc.is_text)
+    handler.process(
+        path=inc,
+        context=ctx,
+        is_text_file=detection_inc.is_text,
+        detection=detection_inc,
+    )
+    handler.process(
+        path=skip,
+        context=ctx,
+        is_text_file=detection_skip.is_text,
+        detection=detection_skip,
+    )
 
     m = dict(builder.metadata_items())
     assert m["inc.txt"] == (2, len("hello\nworld\n"), True)
@@ -47,3 +66,4 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
     payload = "\n".join(builder.file_contents())
     assert 'name="inc.txt"' in payload
     assert "skip.txt" not in payload
+    assert reader_calls == []
