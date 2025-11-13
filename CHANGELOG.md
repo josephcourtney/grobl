@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.22] - 2025-11-24
+
+### Fixed
+- load legacy `.grobl.config.toml` files when `.grobl.toml` is absent to retain existing configuration
+
 ## [1.0.21] - 2025-11-23
 
 ### Changed
