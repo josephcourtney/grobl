@@ -1,7 +1,7 @@
 # =================================== project ====================================
 [project]
   name = "grobl"
-version = "1.0.10"
+version = "1.0.11"
   description = "A tool to copy directory structure and file contents as a single string."
   readme = "README.md"
   authors = [
@@ -20,8 +20,9 @@ version = "1.0.10"
     "click>=8.2.1",
     "pathspec>=0.12.1",
     "pyperclip",
+    "rich>=14.2.0",
     "tomlkit>=0.13.2",
-  ]
+]
 
 
   [project.scripts]
