@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .utils import is_text, read_text
+from .utils import TextDetectionResult, detect_text, read_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -20,13 +20,13 @@ if TYPE_CHECKING:
 class ScanDependencies:
     """Gateway used by the scanner to perform I/O."""
 
-    text_detector: Callable[[Path], bool]
+    text_detector: Callable[[Path], TextDetectionResult]
     text_reader: Callable[[Path], str]
 
     @classmethod
     def default(cls) -> ScanDependencies:
         return cls(
-            text_detector=is_text,
+            text_detector=detect_text,
             text_reader=read_text,
         )
 
@@ -57,9 +57,21 @@ class BaseFileHandler:
     def supports(self, *, path: Path, is_text_file: bool) -> bool:
         raise NotImplementedError
 
-    def process(self, *, path: Path, context: FileProcessingContext, is_text_file: bool) -> None:
+    def process(
+        self,
+        *,
+        path: Path,
+        context: FileProcessingContext,
+        is_text_file: bool,
+        detection: TextDetectionResult,
+    ) -> None:
         rel = path.relative_to(context.common)
-        analysis = self._analyze(path=path, context=context, is_text_file=is_text_file)
+        analysis = self._analyze(
+            path=path,
+            context=context,
+            is_text_file=is_text_file,
+            detection=detection,
+        )
         builder = context.builder
         builder.record_metadata(rel, analysis.lines, analysis.chars)
         if analysis.include_content and analysis.content is not None:
@@ -71,6 +83,7 @@ class BaseFileHandler:
         path: Path,
         context: FileProcessingContext,
         is_text_file: bool,
+        detection: TextDetectionResult,
     ) -> FileAnalysis:
         raise NotImplementedError
 
@@ -88,9 +101,10 @@ class TextFileHandler(BaseFileHandler):
         path: Path,
         context: FileProcessingContext,
         is_text_file: bool,  # noqa: ARG004 - template signature
+        detection: TextDetectionResult,
     ) -> FileAnalysis:
         deps = context.dependencies
-        content = deps.text_reader(path)
+        content = deps.text_reader(path) if detection.content is None else detection.content
         line_count = len(content.splitlines())
         char_count = len(content)
         rel = path.relative_to(context.common)
@@ -121,6 +135,7 @@ class BinaryFileHandler(BaseFileHandler):
         path: Path,
         context: FileProcessingContext,  # noqa: ARG004
         is_text_file: bool,  # noqa: ARG004
+        detection: TextDetectionResult,  # noqa: ARG004
     ) -> FileAnalysis:
         try:
             size = path.stat().st_size
@@ -142,10 +157,16 @@ class FileHandlerRegistry:
 
     def handle(self, *, path: Path, context: FileProcessingContext) -> None:
         deps = context.dependencies
-        is_text_file = deps.text_detector(path)
+        detection = deps.text_detector(path)
+        is_text_file = detection.is_text
         for handler in self.handlers:
             if handler.supports(path=path, is_text_file=is_text_file):
-                handler.process(path=path, context=context, is_text_file=is_text_file)
+                handler.process(
+                    path=path,
+                    context=context,
+                    is_text_file=is_text_file,
+                    detection=detection,
+                )
                 return
         msg = f"no handler registered for {path}"
         raise ValueError(msg)
