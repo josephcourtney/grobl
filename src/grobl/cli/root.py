@@ -12,6 +12,8 @@ from rich.table import Table
 
 from grobl import __version__
 
+from .common import exit_on_broken_pipe
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -273,10 +275,7 @@ def main(argv: list[str] | None = None) -> None:
     try:
         cli.main(args=argv, prog_name="grobl", standalone_mode=False)
     except BrokenPipeError:
-        try:
-            sys.stdout.close()
-        finally:
-            raise SystemExit(0)
+        exit_on_broken_pipe()
 
 
 # Flags handled by the root command itself; encountering them means we should

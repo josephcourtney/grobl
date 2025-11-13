@@ -7,3 +7,6 @@
 - [x] Document the fix, remove the resolved issue entry, and bump the patch version.
 - [x] Add regression tests ensuring filesystem root anchors are treated as valid scan roots and passed through the CLI without fallback.
 - [x] Allow filesystem root anchors to be used directly as scan roots instead of reverting to the current working directory.
+- [x] Add regression tests ensuring BrokenPipe handling flows through a shared helper for both the root entry point and the scan command.
+- [x] Introduce a shared BrokenPipe exit helper and update CLI code to delegate to it.
+- [x] Remove the resolved BrokenPipe handling issue, update the changelog, and bump the patch version.

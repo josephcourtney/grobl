@@ -84,6 +84,14 @@ def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: Dire
     print(")")
 
 
+def exit_on_broken_pipe() -> None:
+    """Terminate cleanly when stdout is closed by the downstream pipe."""
+    try:
+        sys.stdout.close()
+    finally:
+        raise SystemExit(0)
+
+
 def _execute_with_handling(
     *,
     params: ScanParams,
