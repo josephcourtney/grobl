@@ -149,6 +149,7 @@ def read_config(
     # 2-4) layer XDG, local TOML, then pyproject table
     for p in (
         _xdg_config_path(),
+        base_path / LEGACY_TOML_CONFIG,
         base_path / TOML_CONFIG,
     ):
         if p.exists():
