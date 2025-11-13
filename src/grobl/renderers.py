@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from .constants import ContentScope
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from .directory import DirectoryTreeBuilder
 
@@ -41,6 +41,34 @@ class DirectoryRenderer:
 
     builder: DirectoryTreeBuilder
 
+    def _annotated_tree(
+        self,
+        formatter: Callable[[int, str, str, Path | None, tuple[int, int, bool] | None], str],
+        *,
+        raw_lines: Sequence[str] | None = None,
+        ordered_entries: Sequence[tuple[str, Path]] | None = None,
+    ) -> tuple[list[str], bool]:
+        """Return formatted tree lines plus a flag indicating annotation success."""
+        b = self.builder
+        raw = list(raw_lines if raw_lines is not None else b.tree_output())
+        base_line = f"{b.base_path.name}/"
+        if not raw:
+            return [base_line], False
+
+        ordered = list(ordered_entries if ordered_entries is not None else b.ordered_entries())
+        if len(ordered) != len(raw):
+            return [base_line, *raw], False
+
+        lines: list[str] = []
+        for idx, (text, (kind, rel)) in enumerate(zip(raw, ordered, strict=True)):
+            metadata = None
+            rel_path: Path | None = rel
+            if kind == "file" and rel_path is not None:
+                metadata = b.get_metadata(str(rel_path))
+            lines.append(formatter(idx, text, kind, rel_path, metadata))
+
+        return [base_line, *lines], True
+
     def tree_lines(
         self,
         *,
@@ -51,61 +79,57 @@ class DirectoryRenderer:
         raw_tree = b.tree_output()
 
         if not include_metadata:
-            return [f"{b.base_path.name}/", *raw_tree]
+            body, _ = self._annotated_tree(
+                lambda _i, text, _k, _r, _m: text,
+                raw_lines=raw_tree,
+            )
+            return body
 
         if not raw_tree:
             return [f"{b.base_path.name}/"]
 
-        def _column_widths() -> tuple[int, int, int, int]:
-            name_w = max(len(line) for line in raw_tree)
-            meta_values = list(b.metadata_items())
-            max_line_digits = max((len(str(v[0])) for _, v in meta_values), default=1)
-            max_char_digits = max((len(str(v[1])) for _, v in meta_values), default=1)
-            line_w = max(max_line_digits, len("lines"))
-            char_w = max(max_char_digits, len("chars"))
-            marker_w = max(len("included"), 8)
-            return name_w, line_w, char_w, marker_w
+        name_w = max(len(line) for line in raw_tree)
+        meta_values = list(b.metadata_items())
+        max_line_digits = max((len(str(v[0])) for _, v in meta_values), default=1)
+        max_char_digits = max((len(str(v[1])) for _, v in meta_values), default=1)
+        line_w = max(max_line_digits, len("lines"))
+        char_w = max(max_char_digits, len("chars"))
+        marker_w = max(len("included"), 8)
+        header = f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{marker_w}}"
 
-        widths = _column_widths()
-        name_w, line_w, char_w, mark_w = widths
-        header = f"{'':{name_w}} {'lines':>{line_w}} {'chars':>{char_w}} {'included':>{mark_w}}"
-        output = [header, f"{b.base_path.name}/"]
-
-        entry_map = dict(b.file_tree_entries())
-        for idx, text in enumerate(raw_tree):
-            rel = entry_map.get(idx)
-            if rel is None:
-                output.append(text)
-                continue
-            ln, ch, included = b.get_metadata(str(rel)) or (0, 0, False)
+        def _format(
+            _idx: int,
+            text: str,
+            kind: str,
+            _rel: Path | None,
+            metadata: tuple[int, int, bool] | None,
+        ) -> str:
+            if kind != "file":
+                return text
+            ln, ch, included = metadata or (0, 0, False)
             marker = " " if included else "*"
-            output.append(f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {marker:>{mark_w}}")
+            return f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {marker:>{marker_w}}"
 
-        return output
+        body, annotated = self._annotated_tree(_format, raw_lines=raw_tree)
+        if not annotated:
+            return body
+        return [header, *body]
 
     def tree_lines_for_markdown(self) -> list[str]:  # noqa: C901, PLR0912
-        """Return tree lines annotated with inclusion markers for markdown payloads.
-
-        Files are annotated with either [INCLUDED:FULL] or [NOT_INCLUDED] based on
-        whether their contents are captured in the payload. Directories whose
-        descendant files are all *not* included are annotated with [NOT_INCLUDED].
-        """
+        """Return tree lines annotated with inclusion markers for markdown payloads."""
         b = self.builder
         raw_tree = b.tree_output()
         if not raw_tree:
             return [f"{b.base_path.name}/"]
 
         ordered = b.ordered_entries()
-        # Defensive: fall back to the unannotated view if our invariants break.
         if len(ordered) != len(raw_tree):
             return [f"{b.base_path.name}/", *raw_tree]
 
-        # Map file paths to their inclusion flag.
         meta_included: dict[Path, bool] = {}
         for key, (_, _, included) in b.metadata_items():
             meta_included[Path(key)] = included
 
-        # Aggregate per-directory flags: any descendant files and any included descendants.
         dir_any: dict[Path, bool] = {}
         dir_included: dict[Path, bool] = {}
         root = Path()
@@ -117,21 +141,9 @@ class DirectoryRenderer:
                     dir_included[parent] = True
                 parent = parent.parent
 
-        # Compute column width for entries that will receive annotations.
+        labels: dict[int, str] = {}
         name_width = 0
-        for idx, (kind, rel) in enumerate(ordered):
-            annotate = False
-            if kind == "file" or (kind == "dir" and dir_any.get(rel) and not dir_included.get(rel)):
-                annotate = True
-            if annotate:
-                name_width = max(name_width, len(raw_tree[idx]))
-
-        if name_width == 0:
-            return [f"{b.base_path.name}/", *raw_tree]
-
-        annotated: list[str] = []
-        for idx, (kind, rel) in enumerate(ordered):
-            text = raw_tree[idx]
+        for idx, (text, (kind, rel)) in enumerate(zip(raw_tree, ordered, strict=True)):
             label: str | None = None
             if kind == "file":
                 included = meta_included.get(rel, False)
@@ -139,12 +151,33 @@ class DirectoryRenderer:
             elif kind == "dir":
                 if dir_any.get(rel) and not dir_included.get(rel):
                     label = "[NOT_INCLUDED]"
-            if label is None:
-                annotated.append(text)
-            else:
-                annotated.append(f"{text:<{name_width}} {label}")
+            if label is not None:
+                labels[idx] = label
+                name_width = max(name_width, len(text))
 
-        return [f"{b.base_path.name}/", *annotated]
+        if not labels:
+            return [f"{b.base_path.name}/", *raw_tree]
+
+        def _format(
+            idx: int,
+            text: str,
+            _kind: str,
+            _rel: Path | None,
+            _metadata: tuple[int, int, bool] | None,
+        ) -> str:
+            label = labels.get(idx)
+            if label is None:
+                return text
+            return f"{text:<{name_width}} {label}"
+
+        body, annotated = self._annotated_tree(
+            _format,
+            raw_lines=raw_tree,
+            ordered_entries=ordered,
+        )
+        if not annotated:
+            return body
+        return body
 
     def files_payload(self) -> str:
         """Return the combined <file:content> payload already collected by builder."""

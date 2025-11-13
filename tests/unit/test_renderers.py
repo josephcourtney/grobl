@@ -38,6 +38,35 @@ def test_tree_lines_with_metadata_shows_columns_and_markers(tmp_path: Path) -> N
     assert " 1 " in text  # line count column rendered
 
 
+def test_tree_and_markdown_views_fall_back_to_plain_tree_on_invariant_break(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    d = tmp_path / "pkg"
+    d.mkdir()
+    f = tmp_path / "pkg" / "module.py"
+    f.write_text("print('hi')\n", encoding="utf-8")
+
+    builder.add_directory(d, "", is_last=False)
+    builder.add_file_to_tree(f, "pkg", is_last=True)
+    builder.add_file(
+        f,
+        f.relative_to(tmp_path),
+        lines=1,
+        chars=len("print('hi')\n"),
+        content="print('hi')\n",
+    )
+
+    raw_tree = builder.tree_output()
+
+    # Break the ordering invariant to simulate a partially collected tree.
+    builder.tree._ordered.pop()  # type: ignore[attr-defined]
+
+    renderer = DirectoryRenderer(builder)
+    expected = [f"{tmp_path.name}/", *raw_tree]
+
+    assert renderer.tree_lines(include_metadata=True) == expected
+    assert renderer.tree_lines_for_markdown() == expected
+
+
 def test_files_payload_contains_file_content_block(tmp_path: Path) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
     f = tmp_path / "doc.md"
