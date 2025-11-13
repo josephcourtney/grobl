@@ -13,3 +13,6 @@
 - [x] Add regression tests covering XML/Markdown payload escaping for metadata and file contents.
 - [x] Implement escaping helpers and apply them to payload builders to harden XML/Markdown output.
 - [x] Record the payload escaping fix (TODO/ISSUES/changelog) and bump the patch version.
+- [x] Add regression tests covering the shared directory tree annotation helper for metadata and markdown outputs.
+- [x] Refactor the directory tree renderer to use a shared annotation helper and remove duplication.
+- [x] Record the directory renderer refactor (TODO/ISSUES/changelog), remove the resolved issue, and bump the patch version.
