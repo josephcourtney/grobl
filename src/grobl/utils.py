@@ -39,10 +39,6 @@ def find_common_ancestor(paths: list[Path]) -> Path:
         # Different drives or otherwise disjoint paths.
         msg = ERROR_MSG_NO_COMMON_ANCESTOR
         raise PathNotFoundError(msg) from e
-    # Treat “only the filesystem root” as no real common ancestor.
-    if root == Path(root.anchor):
-        msg = ERROR_MSG_NO_COMMON_ANCESTOR
-        raise PathNotFoundError(msg)
     return root
 
 

@@ -1,4 +1,8 @@
 ## [Unreleased]
+## [1.0.14] - 2025-11-17
+
+### Fixed
+- allow filesystem root anchors to be used as scan roots without falling back to the current directory
 ## [1.0.13] - 2025-11-16
 
 ### Fixed
