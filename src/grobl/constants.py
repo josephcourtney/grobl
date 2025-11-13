@@ -17,6 +17,7 @@ class PayloadFormat(StrEnum):
     """Payload output formats."""
 
     LLM = "llm"
+    MARKDOWN = "markdown"
     JSON = "json"
     NONE = "none"
 
