@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import logging
 import sys
+from typing import TYPE_CHECKING
 
 import click
 from rich.console import Console
 from rich.table import Table
 
 from grobl import __version__
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 # Threshold for -vv to map to DEBUG
 VERBOSE_DEBUG_THRESHOLD = 2
@@ -38,9 +42,10 @@ class _DefaultScanGroup(click.Group):
         scan_cmd = self.get_command(ctx, "scan")
         if scan_cmd is None:
             return super().resolve_command(ctx, args)
-        return "scan", scan_cmd, args
+        ctx.meta["__default_scan__"] = True
+        return "scan", scan_cmd, list(ctx.protected_args) + args
 
-    def get_help(self, ctx: click.Context) -> str:  # type: ignore[override]
+    def get_help(self, ctx: click.Context) -> str:  # type: ignore[override]  # noqa: C901, PLR0912, PLR0915
         """Return rich-formatted help for the root command.
 
         Layout:
@@ -182,11 +187,17 @@ def cli(ctx: click.Context, verbose: int, log_level: str | None) -> None:
     # When invoked without a subcommand, resolve_command routes to ``scan``.
     # ``ctx.invoked_subcommand`` stays ``None`` in that case, so we manually
     # invoke the resolved command with the remaining arguments.
-    if ctx.invoked_subcommand is None and isinstance(ctx.command, click.Group):
+    default_scan = ctx.meta.pop("__default_scan__", False)
+    if (default_scan or ctx.invoked_subcommand is None) and isinstance(ctx.command, click.Group):
         command = ctx.command.get_command(ctx, "scan")
         if command is not None:
+            default_args = list(ctx.protected_args) + list(ctx.args)
+            command_map = getattr(ctx.command, "commands", None)
+            normalized = _inject_default_scan(default_args, commands=command_map)
+            if normalized and normalized[0] == "scan":
+                normalized = normalized[1:]
             command.main(
-                args=list(ctx.protected_args) + list(ctx.args),
+                args=normalized,
                 prog_name=f"{ctx.command_path} scan",
                 standalone_mode=False,
             )
@@ -204,9 +215,61 @@ cli.add_command(completions)
 cli.add_command(init)
 
 
+def _inject_default_scan(
+    args: list[str],
+    *,
+    commands: Iterable[str] | None = None,
+) -> list[str]:
+    """Insert the ``scan`` command when users omit it."""
+    normalized = list(args)
+
+    if commands is None:
+        return normalized
+
+    command_names = set(commands)
+    has_scan = "scan" in command_names
+
+    insert_at: int | None = None
+    idx = 0
+    while idx < len(normalized):
+        current = normalized[idx]
+
+        if current in _HELP_FLAGS or current in command_names:
+            return normalized
+
+        if not current.startswith("-"):
+            insert_at = idx
+            break
+
+        if _is_verbose_flag(current):
+            idx += 1
+            continue
+
+        skip = _log_level_skip(current)
+        if skip:
+            idx += skip
+            continue
+
+        insert_at = idx
+        break
+
+    if insert_at is None:
+        insert_at = len(normalized)
+
+    if insert_at == len(normalized):
+        if has_scan:
+            normalized.append("scan")
+    else:
+        normalized.insert(insert_at, "scan")
+
+    return normalized
+
+
 def main(argv: list[str] | None = None) -> None:
     """Compat entry that executes the Click group with the provided argv."""
     argv = list(sys.argv[1:] if argv is None else argv)
+    command_map = getattr(cli, "commands", None)
+    argv = _inject_default_scan(argv, commands=command_map)
     try:
         cli.main(args=argv, prog_name="grobl", standalone_mode=False)
     except BrokenPipeError:
@@ -214,3 +277,28 @@ def main(argv: list[str] | None = None) -> None:
             sys.stdout.close()
         finally:
             raise SystemExit(0)
+
+
+# Flags handled by the root command itself; encountering them means we should
+# not inject the default ``scan`` subcommand.
+_HELP_FLAGS = {"-h", "--help", "-V", "--version"}
+_VERBOSE_FLAGS = {"--verbose"}
+
+
+def _is_verbose_flag(flag: str) -> bool:
+    """Return ``True`` if the token is a root-level verbosity flag."""
+    if flag in _VERBOSE_FLAGS:
+        return True
+    if flag == "-":
+        return False
+    stripped = flag.lstrip("-")
+    return bool(stripped) and set(stripped) == {"v"}
+
+
+def _log_level_skip(flag: str) -> int:
+    """Return how many tokens a log-level flag consumes (1 for inline)."""
+    if flag == "--log-level":
+        return 2
+    if flag.startswith("--log-level="):
+        return 1
+    return 0

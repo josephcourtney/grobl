@@ -27,6 +27,43 @@ def test_cli_help_and_scan_help() -> None:
     assert "--summary" in scan_help.output
 
 
+def test_cli_root_invocation_forwards_scan_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+
+    base = tmp_path / "proj"
+    base.mkdir()
+    (base / "src").mkdir()
+    (base / "src" / "keep.txt").write_text("keep\n", encoding="utf-8")
+    (base / "tests").mkdir()
+    (base / "tests" / "skip.txt").write_text("skip\n", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--scope",
+            "tree",
+            "--summary",
+            "none",
+            "--sink",
+            "stdout",
+            "--ignore-defaults",
+            "--add-ignore",
+            "tests",
+            str(base),
+        ],
+    )
+
+    assert result.exit_code == 0
+    out = result.output
+    assert "src/" in out
+    assert "tests/" not in out
+
+
 def test_cli_default_scan_outputs_summary_and_payload(tmp_path: Path) -> None:
     (tmp_path / "sample.txt").write_text("content\n", encoding="utf-8")
     runner = CliRunner()
@@ -440,24 +477,3 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
         ],
     )
     assert res_debug.exit_code == 0
-
-
-def test_cli_help_and_scan_help() -> None:
-    runner = CliRunner()
-    result = runner.invoke(cli, ["--help"])
-    assert result.exit_code == 0
-    assert "Usage" in result.output
-    # Root help should surface key scan options as well.
-    assert "--scope" in result.output
-    assert "--payload" in result.output
-    assert "--summary" in result.output
-
-    scan_help = runner.invoke(cli, ["scan", "--help"])
-    assert scan_help.exit_code == 0
-    # Spot-check that key options are documented in the scan help.
-    assert "--scope" in scan_help.output
-    assert "--payload" in scan_help.output
-    assert "--summary" in scan_help.output
-
-
-# ... rest of the file unchanged ...
