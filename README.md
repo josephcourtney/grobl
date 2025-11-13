@@ -2,6 +2,21 @@
 
 grobl is a command-line utility that condenses a directory into a concise context payload for LLMs. It scans input paths, builds a directory tree, collects text file contents (with metadata), and emits a well-structured payload while respecting ignore patterns.
 
+## Documentation
+
+Project documentation is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). To work on the docs locally, install the development dependencies and launch the preview server:
+
+```bash
+uv sync --group dev
+uv run mkdocs serve
+```
+
+Build the static site with:
+
+```bash
+uv run mkdocs build
+```
+
 ## Installation
 
 ```bash
