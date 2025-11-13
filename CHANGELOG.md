@@ -1,4 +1,8 @@
 ## [Unreleased]
+## [1.0.18] - 2025-11-20
+
+### Changed
+- refactor directory traversal configuration to use a `TraverseConfig` dataclass instead of overloaded tuples
 ## [1.0.17] - 2025-11-19
 
 ### Fixed
