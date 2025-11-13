@@ -29,10 +29,11 @@ def test_build_summary_includes_binary_files_and_totals(tmp_path: Path) -> None:
     assert js["scope"] == "all"
     assert js["style"] == "compact"
     totals = js["totals"]
-    assert totals["total_lines"] == b.total_lines
-    assert totals["total_characters"] == b.total_characters
-    assert totals["all_total_lines"] == b.all_total_lines
-    assert totals["all_total_characters"] == b.all_total_characters
+    snapshot = b.summary_totals()
+    assert totals["total_lines"] == snapshot.total_lines
+    assert totals["total_characters"] == snapshot.total_characters
+    assert totals["all_total_lines"] == snapshot.all_total_lines
+    assert totals["all_total_characters"] == snapshot.all_total_characters
     files = {entry["path"]: entry for entry in js["files"]}
     assert files["t.txt"]["included"] is True
     assert files["t.txt"]["lines"] == 2

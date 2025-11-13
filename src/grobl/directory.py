@@ -1,9 +1,9 @@
 """Directory traversal helpers and tree rendering utilities."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from pathspec import PathSpec
 
@@ -11,7 +11,6 @@ from pathspec import PathSpec
 # consistent across the codebase and the tests that assert on them.
 LAST_CONNECTOR = "└── "
 BRANCH_CONNECTOR = "├── "
-CONFIG_WITHOUT_SPEC_LENGTH = 3
 
 
 class TreeCallback(Protocol):
@@ -27,6 +26,28 @@ class TreeCallback(Protocol):
         *,
         is_last: bool,
     ) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class TraverseConfig:
+    """Configuration controlling directory traversal filtering."""
+
+    paths: list[Path]
+    patterns: list[str]
+    base: Path
+    spec: PathSpec | None = None
+
+    def with_spec(self) -> "TraverseConfig":
+        """Return a configuration with a compiled PathSpec."""
+        if self.spec is not None:
+            return self
+        compiled = PathSpec.from_lines("gitwildmatch", self.patterns)
+        return TraverseConfig(
+            paths=self.paths,
+            patterns=self.patterns,
+            base=self.base,
+            spec=compiled,
+        )
 
 
 @dataclass(slots=True)
@@ -104,6 +125,103 @@ class FileCollector:
         return list(self._json_file_blobs)
 
 
+@dataclass(frozen=True, slots=True)
+class FileSummary:
+    """Immutable snapshot of per-file inclusion metadata."""
+
+    lines: int
+    chars: int
+    included: bool
+
+    def as_tuple(self) -> tuple[int, int, bool]:
+        return self.lines, self.chars, self.included
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryTotals:
+    """Snapshot exposing totals and inclusion state from a builder."""
+
+    total_lines: int
+    total_characters: int
+    all_total_lines: int
+    all_total_characters: int
+    _files: Mapping[str, FileSummary]
+    _directories_with_files: frozenset[Path]
+    _directories_with_included: frozenset[Path]
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "total_lines": self.total_lines,
+            "total_characters": self.total_characters,
+            "all_total_lines": self.all_total_lines,
+            "all_total_characters": self.all_total_characters,
+        }
+
+    def iter_files(self) -> Iterable[tuple[str, FileSummary]]:
+        return tuple(self._files.items())
+
+    def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
+        return tuple((path, record.as_tuple()) for path, record in self._files.items())
+
+    def for_path(self, rel: str | Path) -> FileSummary | None:
+        return self._files.get(str(rel))
+
+    def is_included(self, rel: str | Path) -> bool:
+        record = self.for_path(rel)
+        return False if record is None else record.included
+
+    def marker_for_file(self, rel: Path) -> str:
+        return "[INCLUDED:FULL]" if self.is_included(rel) else "[NOT_INCLUDED]"
+
+    def marker_for_directory(self, rel: Path) -> str | None:
+        if rel in self._directories_with_files and rel not in self._directories_with_included:
+            return "[NOT_INCLUDED]"
+        return None
+
+
+@dataclass(slots=True)
+class TotalsTracker:
+    """Mutable accumulator for inclusion and aggregate totals."""
+
+    total_lines: int = 0
+    total_characters: int = 0
+    all_total_lines: int = 0
+    all_total_characters: int = 0
+
+    def record_seen(self, *, lines: int, chars: int) -> None:
+        self.all_total_lines += lines
+        self.all_total_characters += chars
+
+    def record_included(self, *, lines: int, chars: int) -> None:
+        self.total_lines += lines
+        self.total_characters += chars
+
+    def snapshot(self, metadata: Mapping[str, tuple[int, int, bool]]) -> SummaryTotals:
+        files = {
+            path: FileSummary(lines=ln, chars=ch, included=inc) for path, (ln, ch, inc) in metadata.items()
+        }
+        directories_with_files: set[Path] = set()
+        directories_with_included: set[Path] = set()
+        root = Path()
+        for path_str, record in files.items():
+            rel = Path(path_str)
+            parent = rel.parent
+            while parent != root:
+                directories_with_files.add(parent)
+                if record.included:
+                    directories_with_included.add(parent)
+                parent = parent.parent
+        return SummaryTotals(
+            total_lines=self.total_lines,
+            total_characters=self.total_characters,
+            all_total_lines=self.all_total_lines,
+            all_total_characters=self.all_total_characters,
+            _files=files,
+            _directories_with_files=frozenset(directories_with_files),
+            _directories_with_included=frozenset(directories_with_included),
+        )
+
+
 @dataclass(slots=True)  # "Use __slots__ to reduce memory if many nodes are created"
 class DirectoryTreeBuilder:
     """Collect directory information (no rendering/formatting here)."""
@@ -113,12 +231,7 @@ class DirectoryTreeBuilder:
 
     tree: TreeCollector = field(default_factory=TreeCollector)
     files: FileCollector = field(default_factory=FileCollector)
-
-    # Totals
-    total_lines: int = 0
-    total_characters: int = 0
-    all_total_lines: int = 0
-    all_total_characters: int = 0
+    _totals: TotalsTracker = field(default_factory=TotalsTracker)
 
     # ----- Read-only accessors (encapsulation) -----
     def tree_output(self) -> list[str]:
@@ -178,8 +291,7 @@ class DirectoryTreeBuilder:
     ) -> None:
         """Record line/char counts for a file and update ALL-file totals."""
         self.files.record_metadata(rel, lines, chars)
-        self.all_total_lines += lines
-        self.all_total_characters += chars
+        self._totals.record_seen(lines=lines, chars=chars)
 
     def add_file(
         self,
@@ -191,8 +303,12 @@ class DirectoryTreeBuilder:
     ) -> None:
         """Store file metadata and content for output (collection only)."""
         self.files.add_file(file_path, rel, lines, chars, content)
-        self.total_lines += lines
-        self.total_characters += chars
+        self._totals.record_included(lines=lines, chars=chars)
+
+    def summary_totals(self) -> SummaryTotals:
+        """Return a snapshot exposing totals and inclusion metadata."""
+        metadata = dict(self.files.metadata_items())
+        return self._totals.snapshot(metadata)
 
 
 def _to_git_path(p: Path, *, is_dir: bool) -> str:
@@ -204,17 +320,14 @@ def _to_git_path(p: Path, *, is_dir: bool) -> str:
     return s + ("/" if is_dir and not s.endswith("/") else "")
 
 
-def filter_items(
-    items: list[Path], paths: list[Path], patterns: list[str], base: Path, spec: PathSpec | None = None
-) -> list[Path]:
-    """Filter ``items`` against ``paths`` and ``patterns`` using gitignore semantics."""
-    # Compile once per call if not provided (keeps backward compatibility for direct calls in tests)
-    spec = spec or PathSpec.from_lines("gitwildmatch", patterns)
+def filter_items(items: list[Path], config: TraverseConfig) -> list[Path]:
+    """Filter ``items`` using ``config`` paths and patterns with gitignore semantics."""
+    spec = config.spec or PathSpec.from_lines("gitwildmatch", config.patterns)
     results: list[Path] = []
     for item in items:
-        if not any(item.is_relative_to(p) for p in paths):
+        if not any(item.is_relative_to(p) for p in config.paths):
             continue
-        rel = item.relative_to(base)
+        rel = item.relative_to(config.base)
         rel_git = _to_git_path(rel, is_dir=item.is_dir())
         if spec.match_file(rel_git):
             continue
@@ -224,17 +337,13 @@ def filter_items(
 
 def traverse_dir(
     path: Path,
-    config: tuple[list[Path], list[str], Path] | tuple[list[Path], list[str], Path, PathSpec],
+    config: TraverseConfig,
     callback: TreeCallback,
     prefix: str = "",
 ) -> None:
     """Depth-first traversal applying ``callback`` to each item."""
-    if len(config) == CONFIG_WITHOUT_SPEC_LENGTH:
-        paths, patterns, base = cast(tuple[list[Path], list[str], Path], config)  # noqa: TC006 - runtime tuple unpacking
-        spec: PathSpec | None = None
-    else:
-        paths, patterns, base, spec = cast(tuple[list[Path], list[str], Path, PathSpec], config)  # noqa: TC006 - runtime tuple unpacking
-    items = filter_items(list(path.iterdir()), paths, patterns, base, spec)
+    config = config.with_spec()
+    items = filter_items(list(path.iterdir()), config)
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1
         callback(item, prefix, is_last=is_last)

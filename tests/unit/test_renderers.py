@@ -7,7 +7,13 @@ from grobl.config import load_default_config
 from grobl.constants import ContentScope
 from grobl.core import run_scan
 from grobl.directory import DirectoryTreeBuilder
-from grobl.renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
+from grobl.renderers import (
+    DirectoryRenderer,
+    build_llm_payload,
+    build_markdown_payload,
+    build_markdown_snapshot,
+    format_begin_file_header,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -36,6 +42,35 @@ def test_tree_lines_with_metadata_shows_columns_and_markers(tmp_path: Path) -> N
     text = "\n".join(lines)
     assert "file.txt" in text
     assert " 1 " in text  # line count column rendered
+
+
+def test_tree_and_markdown_views_fall_back_to_plain_tree_on_invariant_break(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    d = tmp_path / "pkg"
+    d.mkdir()
+    f = tmp_path / "pkg" / "module.py"
+    f.write_text("print('hi')\n", encoding="utf-8")
+
+    builder.add_directory(d, "", is_last=False)
+    builder.add_file_to_tree(f, "pkg", is_last=True)
+    builder.add_file(
+        f,
+        f.relative_to(tmp_path),
+        lines=1,
+        chars=len("print('hi')\n"),
+        content="print('hi')\n",
+    )
+
+    raw_tree = builder.tree_output()
+
+    # Break the ordering invariant to simulate a partially collected tree.
+    builder.tree._ordered.pop()  # type: ignore[attr-defined]
+
+    renderer = DirectoryRenderer(builder)
+    expected = [f"{tmp_path.name}/", *raw_tree]
+
+    assert renderer.tree_lines(include_metadata=True) == expected
+    assert renderer.tree_lines_for_markdown() == expected
 
 
 def test_files_payload_contains_file_content_block(tmp_path: Path) -> None:
@@ -167,6 +202,52 @@ def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:  
     # should be marked as not included.
     assert "[NOT_INCLUDED]" in line_b_dir
     assert "[NOT_INCLUDED]" in line_b_file
+
+
+def test_markdown_snapshot_schema_separates_tree_and_files(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    subdir = tmp_path / "pkg"
+    subdir.mkdir()
+    builder.add_directory(subdir, "", is_last=False)
+
+    file_path = tmp_path / "pkg" / "module.py"
+    file_path.write_text("print('hi')\n", encoding="utf-8")
+    rel = file_path.relative_to(tmp_path)
+    builder.add_file_to_tree(file_path, "pkg", is_last=True)
+    builder.add_file(file_path, rel, lines=1, chars=len("print('hi')\n"), content="print('hi')\n")
+
+    snapshot = build_markdown_snapshot(builder=builder, scope=ContentScope.ALL)
+
+    assert snapshot.tree_lines == DirectoryRenderer(builder).tree_lines_for_markdown()
+    assert len(snapshot.files) == 1
+    entry = snapshot.files[0]
+    assert entry.path == "pkg/module.py"
+    assert entry.language == "python"
+    assert entry.start_line == 1
+    assert entry.end_line == 1
+    assert entry.chars == len("print('hi')\n")
+    assert entry.content == "print('hi')\n"
+
+
+def test_markdown_payload_uses_formatted_header_once(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    file_path = tmp_path / "app.py"
+    file_path.write_text("print('ok')\n", encoding="utf-8")
+    rel = file_path.relative_to(tmp_path)
+    builder.add_file_to_tree(file_path, "", is_last=True)
+    builder.add_file(file_path, rel, lines=1, chars=len("print('ok')\n"), content="print('ok')\n")
+
+    snapshot = build_markdown_snapshot(builder=builder, scope=ContentScope.FILES)
+    expected_header = format_begin_file_header(snapshot.files[0])
+
+    markdown = build_markdown_payload(builder=builder, common=tmp_path, scope=ContentScope.FILES)
+    lines = markdown.splitlines()
+
+    headers = [line for line in lines if line.startswith("%%%% BEGIN_FILE ")]
+    assert headers == [expected_header]
+
+    files_headers = [line for line in lines if line == "## Files"]
+    assert files_headers == ["## Files"]
 
 
 def test_markdown_metadata_omits_obvious_fields(tmp_path: Path) -> None:
