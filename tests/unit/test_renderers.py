@@ -225,3 +225,60 @@ def test_markdown_trims_trailing_newlines_in_code_blocks(tmp_path: Path) -> None
     # ```
     assert lines[fence_idx + 1] == 'print("hi")'
     assert lines[fence_idx + 2] == "```"
+
+
+def test_llm_payload_escapes_xml_metadata_and_content(tmp_path: Path) -> None:
+    root = tmp_path / "proj&<>"
+    root.mkdir()
+
+    special = root / 'strange "name"&.txt'
+    special.write_text("<file:content> & closing </file:content>", encoding="utf-8")
+
+    builder = DirectoryTreeBuilder(base_path=root, exclude_patterns=[])
+    builder.add_file_to_tree(special, "", is_last=True)
+    builder.add_file(
+        special,
+        special.relative_to(root),
+        lines=1,
+        chars=len("<file:content> & closing </file:content>"),
+        content=special.read_text(encoding="utf-8"),
+    )
+
+    payload = build_llm_payload(
+        builder=builder,
+        common=root,
+        scope=ContentScope.ALL,
+        tree_tag="tree",
+        file_tag="files",
+    )
+
+    assert 'name="proj&amp;&lt;&gt;"' in payload
+    escaped_path = str(root).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    assert f'path="{escaped_path}"' in payload
+    assert '<file:content name="strange &quot;name&quot;&amp;.txt"' in payload
+    assert "&lt;file:content&gt; &amp; closing &lt;/file:content&gt;" in payload
+
+
+def test_markdown_headers_escape_metadata(tmp_path: Path) -> None:
+    root = tmp_path / "proj"
+    root.mkdir()
+
+    special = root / 'unsafe "name"% &.py'
+    special.write_text('print("hi")\n', encoding="utf-8")
+
+    builder = DirectoryTreeBuilder(base_path=root, exclude_patterns=[])
+    builder.add_file_to_tree(special, "", is_last=True)
+    builder.add_file(
+        special,
+        special.relative_to(root),
+        lines=1,
+        chars=len('print("hi")\n'),
+        content=special.read_text(encoding="utf-8"),
+    )
+
+    markdown = build_markdown_payload(builder=builder, common=root, scope=ContentScope.ALL)
+    header = next(line for line in markdown.splitlines() if line.startswith("%%%% BEGIN_FILE "))
+
+    assert 'path="unsafe &quot;name&quot;%25 &amp;.py"' in header
+    assert 'language="python"' in header
+    assert '%"' not in header
