@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape as _html_escape
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,23 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .directory import DirectoryTreeBuilder
+
+
+def _escape_xml_attr(value: str) -> str:
+    """Escape XML/HTML attribute characters."""
+    return _html_escape(value, quote=True)
+
+
+def _escape_xml_text(value: str) -> str:
+    """Escape XML/HTML text content without quoting apostrophes."""
+    return _html_escape(value, quote=False)
+
+
+def _escape_markdown_meta(value: str) -> str:
+    """Escape metadata values embedded in Markdown headers."""
+    escaped = _escape_xml_attr(value)
+    escaped = escaped.replace("%", "%25")
+    return escaped.replace("\n", "&#10;")
 
 
 @dataclass(slots=True)
@@ -130,7 +148,19 @@ class DirectoryRenderer:
 
     def files_payload(self) -> str:
         """Return the combined <file:content> payload already collected by builder."""
-        return "\n".join(self.builder.file_contents())
+        parts: list[str] = []
+        for file_info in self.builder.files_json():
+            name = str(file_info.get("name", ""))
+            lines = int(file_info.get("lines", 0))
+            chars = int(file_info.get("chars", 0))
+            content = str(file_info.get("content", ""))
+            parts.append(f'<file:content name="{_escape_xml_attr(name)}" lines="{lines}" chars="{chars}">')
+            if content:
+                parts.append(_escape_xml_text(content))
+            else:
+                parts.append("")
+            parts.append("</file:content>")
+        return "\n".join(parts)
 
 
 # -------------------- LLM payload assembly moved here --------------------
@@ -139,13 +169,16 @@ class DirectoryRenderer:
 def _build_tree_payload(builder: DirectoryTreeBuilder, common: Path, *, ttag: str) -> str:
     renderer = DirectoryRenderer(builder)
     tree_xml = "\n".join(renderer.tree_lines(include_metadata=False))
-    return f'<{ttag} name="{common.name}" path="{common}">\n{tree_xml}\n</{ttag}>'
+    return (
+        f'<{ttag} name="{_escape_xml_attr(common.name)}" '
+        f'path="{_escape_xml_attr(str(common))}">\n{tree_xml}\n</{ttag}>'
+    )
 
 
 def _build_files_payload(builder: DirectoryTreeBuilder, common: Path, *, ftag: str) -> str:
     renderer = DirectoryRenderer(builder)
     files_xml = renderer.files_payload()
-    return f'<{ftag} root="{common.name}">\n{files_xml}\n</{ftag}>'
+    return f'<{ftag} root="{_escape_xml_attr(common.name)}">\n{files_xml}\n</{ftag}>'
 
 
 MODE_HANDLERS: dict[ContentScope, Callable[[DirectoryTreeBuilder, Path, str, str], list[str]]] = {
@@ -234,11 +267,11 @@ def build_markdown_payload(
                 # For now, all captures are full files; encode a 1-based range.
                 line_range = f"1-{line_count}" if line_count > 0 else "0-0"
 
-                meta_parts: list[str] = [f'path="{name}"']
+                meta_parts: list[str] = [f'path="{_escape_markdown_meta(name)}"']
                 # `kind="full"` is the default and therefore omitted until other
                 # variants (e.g. partial slices) are introduced.
                 if language:
-                    meta_parts.append(f'language="{language}"')
+                    meta_parts.append(f'language="{_escape_markdown_meta(language)}"')
                 meta_parts.extend((f'lines="{line_range}"', f'chars="{chars}"'))
 
                 header = f"%%%% BEGIN_FILE {' '.join(meta_parts)} %%%%"

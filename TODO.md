@@ -10,3 +10,6 @@
 - [x] Add regression tests ensuring BrokenPipe handling flows through a shared helper for both the root entry point and the scan command.
 - [x] Introduce a shared BrokenPipe exit helper and update CLI code to delegate to it.
 - [x] Remove the resolved BrokenPipe handling issue, update the changelog, and bump the patch version.
+- [x] Add regression tests covering XML/Markdown payload escaping for metadata and file contents.
+- [x] Implement escaping helpers and apply them to payload builders to harden XML/Markdown output.
+- [x] Record the payload escaping fix (TODO/ISSUES/changelog) and bump the patch version.
