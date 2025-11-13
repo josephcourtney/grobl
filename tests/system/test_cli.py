@@ -440,3 +440,24 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
         ],
     )
     assert res_debug.exit_code == 0
+
+
+def test_cli_help_and_scan_help() -> None:
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--help"])
+    assert result.exit_code == 0
+    assert "Usage" in result.output
+    # Root help should surface key scan options as well.
+    assert "--scope" in result.output
+    assert "--payload" in result.output
+    assert "--summary" in result.output
+
+    scan_help = runner.invoke(cli, ["scan", "--help"])
+    assert scan_help.exit_code == 0
+    # Spot-check that key options are documented in the scan help.
+    assert "--scope" in scan_help.output
+    assert "--payload" in scan_help.output
+    assert "--summary" in scan_help.output
+
+
+# ... rest of the file unchanged ...

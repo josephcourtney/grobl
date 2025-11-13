@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+
+## [1.0.10] - 2025-11-13
+
+### Changed
+- improve root CLI help to show default scan options with rich-formatted, colorized output
+
 ## [1.0.9] - 2025-11-14
 
 ### Changed
