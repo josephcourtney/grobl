@@ -16,3 +16,6 @@
 - [x] Add regression tests covering the shared directory tree annotation helper for metadata and markdown outputs.
 - [x] Refactor the directory tree renderer to use a shared annotation helper and remove duplication.
 - [x] Record the directory renderer refactor (TODO/ISSUES/changelog), remove the resolved issue, and bump the patch version.
+- [x] Add regression tests ensuring `traverse_dir` accepts a `TraverseConfig` dataclass while preserving filtering behaviour.
+- [x] Refactor traversal code to use `TraverseConfig` instead of overloaded tuples and update all call sites.
+- [x] Record the traversal refactor by updating the changelog, removing the resolved issue entry, and bumping the patch version.
