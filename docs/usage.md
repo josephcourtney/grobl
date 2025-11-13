@@ -1,0 +1,77 @@
+# Usage guide
+
+The `grobl` command groups functionality into subcommands. When invoked without a subcommand, `grobl` behaves as if `grobl scan` was called.
+
+## Common workflows
+
+### Copy the current directory to your clipboard
+
+```bash
+grobl
+```
+
+With default options and an interactive terminal, grobl writes the payload to the clipboard and prints a human-readable summary to stdout.
+
+### Save a payload to disk
+
+```bash
+grobl --output context.txt
+```
+
+Equivalent to `grobl scan . --output context.txt`. The payload is written to `context.txt` and the summary remains on stdout.
+
+### Emit only a summary
+
+```bash
+grobl scan --payload none --summary human
+```
+
+Skips payload generation and prints only the human summary.
+
+### Machine-oriented output
+
+```bash
+grobl scan --payload json --summary none --sink stdout
+```
+
+Produces a JSON payload with no human summary and writes it directly to stdout.
+
+## Subcommands
+
+### `grobl scan [OPTIONS] [PATHS...]`
+
+Traverse one or more paths, apply ignore rules, and emit payloads plus optional summaries. If `PATHS` is omitted, the current directory is scanned. Supplying a single file causes grobl to treat the parent directory as the root while still including the file.
+
+### `grobl init [--path DIR] [--force]`
+
+Bootstrap a `.grobl.toml` configuration file using the bundled defaults. Without `--force`, grobl refuses to overwrite an existing configuration file.
+
+### `grobl version`
+
+Print the installed grobl version.
+
+### `grobl completions --shell (bash|zsh|fish)`
+
+Emit shell completion scripts for the requested shell. For example, generate completions for Bash with:
+
+```bash
+grobl completions --shell bash > /usr/local/etc/bash_completion.d/grobl
+```
+
+Refer to the README for shell-specific installation guidance.
+
+## Global CLI options
+
+All subcommands share the following options:
+
+* `-v, --verbose` – increase log verbosity (`-v` → INFO, `-vv` or higher → DEBUG)
+* `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` – set an explicit log level
+* `-V, --version` – print the installed version
+* `-h, --help` – display help for the command or subcommand
+
+Examples:
+
+```bash
+grobl -vv scan --summary human .
+grobl --log-level=DEBUG scan .
+```
