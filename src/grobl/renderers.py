@@ -7,15 +7,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape as _html_escape
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .constants import ContentScope
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from pathlib import Path
 
-    from .directory import DirectoryTreeBuilder
+    from .directory import DirectoryTreeBuilder, FileSummary, SummaryTotals
 
 
 def _escape_xml_attr(value: str) -> str:
@@ -43,10 +43,11 @@ class DirectoryRenderer:
 
     def _annotated_tree(
         self,
-        formatter: Callable[[int, str, str, Path | None, tuple[int, int, bool] | None], str],
+        formatter: Callable[[int, str, str, Path | None, FileSummary | None], str],
         *,
         raw_lines: Sequence[str] | None = None,
         ordered_entries: Sequence[tuple[str, Path]] | None = None,
+        snapshot: SummaryTotals | None = None,
     ) -> tuple[list[str], bool]:
         """Return formatted tree lines plus a flag indicating annotation success."""
         b = self.builder
@@ -61,11 +62,11 @@ class DirectoryRenderer:
 
         lines: list[str] = []
         for idx, (text, (kind, rel)) in enumerate(zip(raw, ordered, strict=True)):
-            metadata = None
             rel_path: Path | None = rel
-            if kind == "file" and rel_path is not None:
-                metadata = b.get_metadata(str(rel_path))
-            lines.append(formatter(idx, text, kind, rel_path, metadata))
+            file_summary = None
+            if kind == "file" and rel_path is not None and snapshot is not None:
+                file_summary = snapshot.for_path(rel_path)
+            lines.append(formatter(idx, text, kind, rel_path, file_summary))
 
         return [base_line, *lines], True
 
@@ -88,10 +89,11 @@ class DirectoryRenderer:
         if not raw_tree:
             return [f"{b.base_path.name}/"]
 
+        snapshot = b.summary_totals()
         name_w = max(len(line) for line in raw_tree)
-        meta_values = list(b.metadata_items())
-        max_line_digits = max((len(str(v[0])) for _, v in meta_values), default=1)
-        max_char_digits = max((len(str(v[1])) for _, v in meta_values), default=1)
+        meta_values = list(snapshot.iter_files())
+        max_line_digits = max((len(str(record.lines)) for _, record in meta_values), default=1)
+        max_char_digits = max((len(str(record.chars)) for _, record in meta_values), default=1)
         line_w = max(max_line_digits, len("lines"))
         char_w = max(max_char_digits, len("chars"))
         marker_w = max(len("included"), 8)
@@ -102,20 +104,23 @@ class DirectoryRenderer:
             text: str,
             kind: str,
             _rel: Path | None,
-            metadata: tuple[int, int, bool] | None,
+            metadata: FileSummary | None,
         ) -> str:
             if kind != "file":
                 return text
-            ln, ch, included = metadata or (0, 0, False)
+            record = metadata
+            ln = record.lines if record is not None else 0
+            ch = record.chars if record is not None else 0
+            included = record.included if record is not None else False
             marker = " " if included else "*"
             return f"{text:<{name_w}} {ln:>{line_w}} {ch:>{char_w}} {marker:>{marker_w}}"
 
-        body, annotated = self._annotated_tree(_format, raw_lines=raw_tree)
+        body, annotated = self._annotated_tree(_format, raw_lines=raw_tree, snapshot=snapshot)
         if not annotated:
             return body
         return [header, *body]
 
-    def tree_lines_for_markdown(self) -> list[str]:  # noqa: C901, PLR0912
+    def tree_lines_for_markdown(self) -> list[str]:  # noqa: C901
         """Return tree lines annotated with inclusion markers for markdown payloads."""
         b = self.builder
         raw_tree = b.tree_output()
@@ -126,31 +131,16 @@ class DirectoryRenderer:
         if len(ordered) != len(raw_tree):
             return [f"{b.base_path.name}/", *raw_tree]
 
-        meta_included: dict[Path, bool] = {}
-        for key, (_, _, included) in b.metadata_items():
-            meta_included[Path(key)] = included
-
-        dir_any: dict[Path, bool] = {}
-        dir_included: dict[Path, bool] = {}
-        root = Path()
-        for path, included in meta_included.items():
-            parent = path.parent
-            while parent != root:
-                dir_any[parent] = True
-                if included:
-                    dir_included[parent] = True
-                parent = parent.parent
+        snapshot = b.summary_totals()
 
         labels: dict[int, str] = {}
         name_width = 0
         for idx, (text, (kind, rel)) in enumerate(zip(raw_tree, ordered, strict=True)):
             label: str | None = None
             if kind == "file":
-                included = meta_included.get(rel, False)
-                label = "[INCLUDED:FULL]" if included else "[NOT_INCLUDED]"
+                label = snapshot.marker_for_file(rel)
             elif kind == "dir":
-                if dir_any.get(rel) and not dir_included.get(rel):
-                    label = "[NOT_INCLUDED]"
+                label = snapshot.marker_for_directory(rel)
             if label is not None:
                 labels[idx] = label
                 name_width = max(name_width, len(text))
@@ -163,7 +153,7 @@ class DirectoryRenderer:
             text: str,
             _kind: str,
             _rel: Path | None,
-            _metadata: tuple[int, int, bool] | None,
+            _metadata: FileSummary | None,
         ) -> str:
             label = labels.get(idx)
             if label is None:
@@ -174,6 +164,7 @@ class DirectoryRenderer:
             _format,
             raw_lines=raw_tree,
             ordered_entries=ordered,
+            snapshot=snapshot,
         )
         if not annotated:
             return body
