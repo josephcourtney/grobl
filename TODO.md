@@ -5,3 +5,5 @@
 - [x] Add regression tests ensuring text detection reuses prefetched content and avoids redundant reads.
 - [x] Implement detector-prefetch plumbing so text files are read only once during scans.
 - [x] Document the fix, remove the resolved issue entry, and bump the patch version.
+- [x] Add regression tests ensuring filesystem root anchors are treated as valid scan roots and passed through the CLI without fallback.
+- [x] Allow filesystem root anchors to be used directly as scan roots instead of reverting to the current working directory.

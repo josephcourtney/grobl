@@ -426,41 +426,6 @@ This reduces duplication, makes error handling easier to discover, and keeps CLI
 
 ---
 
-## Root selection at filesystem anchors is surprising
-
-**Problem**
-
-* `src/grobl/utils.py:15–31` treats any common ancestor equal to `Path(root.anchor)` (typically `/` on POSIX or a drive root on Windows) as “no common ancestor”.
-* `src/grobl/cli/scan.py:124–128` then silently falls back to the current working directory when that happens.
-
-Consequences:
-
-* Commands like `grobl /` or `grobl C:\` may end up scanning the current working directory instead of the requested root.
-* This is surprising and non-obvious to users; the CLI appears to accept the root argument but ignores it when it’s a filesystem anchor.
-
-**Suggested approach**
-
-* Revisit the “anchor is not allowed” policy:
-
-  * Either allow filesystem root anchors (`/`, `C:\`, etc.) as valid scan roots.
-  * Or explicitly reject them with a clear, user-visible error message.
-
-* If falling back to the current directory remains necessary in some edge cases:
-
-  * Make the fallback explicit: log or print a message explaining why the requested root couldn’t be used.
-  * Consider adding a flag (or internal parameter) that determines whether fallback is allowed.
-
-* Add tests covering:
-
-  * Scanning `/` on POSIX.
-  * Scanning drive roots on Windows.
-  * The behaviour when multiple input paths’ common ancestor is an anchor.
-
-This ensures `grobl /` and `grobl C:\` do exactly what users expect or fail loudly.
-
----
-
-
 ## Payload and metadata escaping is unsafe (XML/Markdown)
 
 **Problem**
