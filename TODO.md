@@ -21,3 +21,6 @@
 - [x] Record the traversal refactor by updating the changelog, removing the resolved issue entry, and bumping the patch version.
 - [x] Add regression tests ensuring `ScanExecutor` delegates payload emission and summary shaping to dedicated helpers.
 - [x] Refactor `ScanExecutor` to use payload strategies and a summary helper instead of inline branching.
+- [x] Add regression tests ensuring the markdown snapshot schema and header helper cover layout/schema separation cases.
+- [x] Refactor the markdown payload builder to introduce a schema layer and centralize BEGIN_FILE header formatting.
+- [x] Record the markdown builder refactor (TODO/ISSUES/changelog), remove the resolved issue entry, and bump the patch version.
