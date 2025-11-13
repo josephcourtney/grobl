@@ -44,8 +44,10 @@ class _DefaultScanGroup(click.Group):
         scan_cmd = self.get_command(ctx, "scan")
         if scan_cmd is None:
             return super().resolve_command(ctx, args)
+        fallback_args = _gather_forwarded_args(ctx, args)
         ctx.meta["__default_scan__"] = True
-        return "scan", scan_cmd, list(ctx.protected_args) + args
+        ctx.meta["__default_scan_args__"] = list(fallback_args)
+        return "scan", scan_cmd, list(fallback_args)
 
     def get_help(self, ctx: click.Context) -> str:  # type: ignore[override]  # noqa: C901, PLR0912, PLR0915
         """Return rich-formatted help for the root command.
@@ -193,7 +195,10 @@ def cli(ctx: click.Context, verbose: int, log_level: str | None) -> None:
     if (default_scan or ctx.invoked_subcommand is None) and isinstance(ctx.command, click.Group):
         command = ctx.command.get_command(ctx, "scan")
         if command is not None:
-            default_args = list(ctx.protected_args) + list(ctx.args)
+            default_args = ctx.meta.pop(
+                "__default_scan_args__",
+                _gather_forwarded_args(ctx, ctx.args),
+            )
             command_map = getattr(ctx.command, "commands", None)
             normalized = _inject_default_scan(default_args, commands=command_map)
             if normalized and normalized[0] == "scan":
@@ -215,6 +220,13 @@ cli.add_command(scan)
 cli.add_command(version)
 cli.add_command(completions)
 cli.add_command(init)
+
+
+def _gather_forwarded_args(ctx: click.Context, args: Iterable[str]) -> list[str]:
+    """Return CLI arguments that should be forwarded to the scan command."""
+    forwarded = list(getattr(ctx, "_protected_args", ()))
+    forwarded.extend(list(args))
+    return forwarded
 
 
 def _inject_default_scan(

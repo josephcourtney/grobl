@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.23] - 2025-11-25
+
+### Fixed
+- remove reliance on `click.Context.protected_args` in the root CLI default-command fallback to avoid Click 9 regressions
+
 ## [1.0.22] - 2025-11-24
 
 ### Fixed
