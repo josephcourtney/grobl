@@ -199,6 +199,26 @@ class DirectoryRenderer:
 # -------------------- LLM payload assembly moved here --------------------
 
 
+@dataclass(slots=True)
+class MarkdownFileSchema:
+    """Schema representation for an individual file block in the markdown snapshot."""
+
+    path: str
+    language: str | None
+    start_line: int
+    end_line: int
+    chars: int
+    content: str
+
+
+@dataclass(slots=True)
+class MarkdownSnapshotSchema:
+    """Schema containing the directory tree lines and file blocks for markdown output."""
+
+    tree_lines: list[str] | None
+    files: list[MarkdownFileSchema]
+
+
 def _build_tree_payload(builder: DirectoryTreeBuilder, common: Path, *, ttag: str) -> str:
     renderer = DirectoryRenderer(builder)
     tree_xml = "\n".join(renderer.tree_lines(include_metadata=False))
@@ -259,6 +279,53 @@ def _guess_language(path: str) -> str:
     return mapping.get(ext, "")
 
 
+def build_markdown_snapshot(*, builder: DirectoryTreeBuilder, scope: ContentScope) -> MarkdownSnapshotSchema:
+    """Build a schema object describing the markdown snapshot for a scan result."""
+    renderer = DirectoryRenderer(builder)
+    tree_lines: list[str] | None = None
+    if scope in {ContentScope.ALL, ContentScope.TREE}:
+        tree_lines = renderer.tree_lines_for_markdown()
+
+    files: list[MarkdownFileSchema] = []
+    if scope in {ContentScope.ALL, ContentScope.FILES}:
+        for file_info in builder.files_json():
+            name = str(file_info.get("name", ""))
+            line_count = int(file_info.get("lines", 0))
+            chars = int(file_info.get("chars", 0))
+            content = str(file_info.get("content", ""))
+            language = _guess_language(name) or None
+
+            if line_count > 0:
+                start_line = 1
+                end_line = line_count
+            else:
+                start_line = 0
+                end_line = 0
+
+            files.append(
+                MarkdownFileSchema(
+                    path=name,
+                    language=language,
+                    start_line=start_line,
+                    end_line=end_line,
+                    chars=chars,
+                    content=content,
+                )
+            )
+
+    return MarkdownSnapshotSchema(tree_lines=tree_lines, files=files)
+
+
+def format_begin_file_header(entry: MarkdownFileSchema) -> str:
+    """Return the formatted BEGIN_FILE header for a markdown file block."""
+    meta_parts: list[str] = [f'path="{_escape_markdown_meta(entry.path)}"']
+    if entry.language:
+        meta_parts.append(f'language="{_escape_markdown_meta(entry.language)}"')
+    line_range = f"{entry.start_line}-{entry.end_line}"
+    meta_parts.extend((f'lines="{line_range}"', f'chars="{entry.chars}"'))
+    return f"%%%% BEGIN_FILE {' '.join(meta_parts)} %%%%"
+
+
 def build_markdown_payload(
     *,
     builder: DirectoryTreeBuilder,
@@ -267,13 +334,11 @@ def build_markdown_payload(
 ) -> str:
     """Assemble a Markdown payload containing a directory tree and file blocks."""
     del common
-    renderer = DirectoryRenderer(builder)
+    snapshot = build_markdown_snapshot(builder=builder, scope=scope)
     parts: list[str] = ["# Project Snapshot"]
 
-    # Optional directory section
-    if scope in {ContentScope.ALL, ContentScope.TREE}:
-        tree_lines = renderer.tree_lines_for_markdown()
-        tree_body = "\n".join(tree_lines)
+    if snapshot.tree_lines is not None:
+        tree_body = "\n".join(snapshot.tree_lines)
         parts.extend((
             "",
             "## Directory",
@@ -283,41 +348,19 @@ def build_markdown_payload(
             "```",
         ))
 
-    # Optional files section
-    if scope in {ContentScope.ALL, ContentScope.FILES}:
-        files = builder.files_json()
-        if files:
-            # Ensure we only add the "## Files" header once, even if the directory
-            # section was suppressed by scope.
-            if not any(line.startswith("## Files") for line in parts):
-                parts.extend(("", "## Files"))
-            for file_info in files:
-                name = str(file_info.get("name", ""))
-                line_count = int(file_info.get("lines", 0))
-                chars = int(file_info.get("chars", 0))
-                content = file_info.get("content", "")
-                language = _guess_language(name)
-                # For now, all captures are full files; encode a 1-based range.
-                line_range = f"1-{line_count}" if line_count > 0 else "0-0"
+    if snapshot.files:
+        parts.extend(("", "## Files"))
+        for entry in snapshot.files:
+            parts.extend(("", format_begin_file_header(entry)))
 
-                meta_parts: list[str] = [f'path="{_escape_markdown_meta(name)}"']
-                # `kind="full"` is the default and therefore omitted until other
-                # variants (e.g. partial slices) are introduced.
-                if language:
-                    meta_parts.append(f'language="{_escape_markdown_meta(language)}"')
-                meta_parts.extend((f'lines="{line_range}"', f'chars="{chars}"'))
-
-                header = f"%%%% BEGIN_FILE {' '.join(meta_parts)} %%%%"
-                parts.extend(("", header))
-
-                fence = "```" + (language or "")
-                parts.append(fence)
-                if content:
-                    # Avoid spurious blank lines caused by trailing newlines in file
-                    # contents when rendering fenced code blocks.
-                    trimmed = content.rstrip("\n")
-                    if trimmed:
-                        parts.append(trimmed)
-                parts.extend(("```", "%%%% END_FILE %%%%"))
+            fence = "```" + (entry.language or "")
+            parts.append(fence)
+            if entry.content:
+                # Avoid spurious blank lines caused by trailing newlines in file
+                # contents when rendering fenced code blocks.
+                trimmed = entry.content.rstrip("\n")
+                if trimmed:
+                    parts.append(trimmed)
+            parts.extend(("```", "%%%% END_FILE %%%%"))
 
     return "\n".join(parts).rstrip() + "\n"
