@@ -19,3 +19,5 @@
 - [x] Add regression tests ensuring `traverse_dir` accepts a `TraverseConfig` dataclass while preserving filtering behaviour.
 - [x] Refactor traversal code to use `TraverseConfig` instead of overloaded tuples and update all call sites.
 - [x] Record the traversal refactor by updating the changelog, removing the resolved issue entry, and bumping the patch version.
+- [x] Add regression tests ensuring `ScanExecutor` delegates payload emission and summary shaping to dedicated helpers.
+- [x] Refactor `ScanExecutor` to use payload strategies and a summary helper instead of inline branching.

@@ -1,4 +1,9 @@
 ## [Unreleased]
+
+## [1.0.19] - 2025-11-13
+
+### Changed
+- refactor scan executor to delegate payload emission and summary shaping to dedicated helpers
 ## [1.0.18] - 2025-11-20
 
 ### Changed
