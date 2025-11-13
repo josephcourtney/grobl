@@ -24,3 +24,6 @@
 - [x] Add regression tests ensuring the markdown snapshot schema and header helper cover layout/schema separation cases.
 - [x] Refactor the markdown payload builder to introduce a schema layer and centralize BEGIN_FILE header formatting.
 - [x] Record the markdown builder refactor (TODO/ISSUES/changelog), remove the resolved issue entry, and bump the patch version.
+- [x] Add unit tests exercising centralized summary totals and inclusion semantics for builders, renderers, and summaries.
+- [x] Refactor directory totals/inclusion tracking into a shared helper and update consumers to query it.
+- [x] Remove the resolved totals/inclusion issue, record the change in the changelog, and bump the patch version.

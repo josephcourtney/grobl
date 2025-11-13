@@ -204,11 +204,12 @@ def build_summary_for_format(
     if fmt is SummaryFormat.JSON:
         return "", base_summary
 
+    snapshot = builder.summary_totals()
     tree_lines = renderer.tree_lines(include_metadata=True)
     human_summary_text = human_formatter(
         tree_lines=tree_lines,
-        total_lines=builder.total_lines,
-        total_chars=builder.total_characters,
+        total_lines=snapshot.total_lines,
+        total_chars=snapshot.total_characters,
         table=options.summary_style.value,
     )
     return human_summary_text, base_summary
@@ -280,6 +281,7 @@ class ScanExecutor:
         )
 
         base_summary = self._deps.summary_builder(context)
+        snapshot = builder.summary_totals()
         human_summary_text, summary_dict = build_summary_for_format(
             base_summary=base_summary,
             fmt=options.summary_format,
@@ -295,8 +297,8 @@ class ScanExecutor:
                 name="executor.complete",
                 message="scan executor completed",
                 context={
-                    "total_lines": builder.total_lines,
-                    "total_characters": builder.total_characters,
+                    "total_lines": snapshot.total_lines,
+                    "total_characters": snapshot.total_characters,
                 },
             ),
         )
