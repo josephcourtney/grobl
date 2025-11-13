@@ -84,6 +84,14 @@ def test_main_handles_broken_pipe(monkeypatch: pytest.MonkeyPatch) -> None:
     broken_cli = BrokenCLI()
     monkeypatch.setattr(cli_root, "cli", broken_cli, raising=True)
 
+    helper_calls: dict[str, int] = {"count": 0}
+
+    def exit_stub() -> None:
+        helper_calls["count"] += 1
+        raise SystemExit(0)
+
+    monkeypatch.setattr(cli_root, "exit_on_broken_pipe", exit_stub, raising=True)
+
     # Protect pytest's own capture file objects: if the implementation closes
     # sys.stdout/stderr, it will only close these fakes.
     fake_out = io.StringIO()
@@ -97,3 +105,4 @@ def test_main_handles_broken_pipe(monkeypatch: pytest.MonkeyPatch) -> None:
     # Use `.args[0]` instead of `.code` to keep static type checkers happy
     assert excinfo.value.args[0] == 0
     assert broken_cli.called_with == ["scan"]
+    assert helper_calls["count"] == 1
