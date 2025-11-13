@@ -206,4 +206,4 @@ exclude_print = [
 # Tag settings
 # ============================================
 include_tree_tags = "directory"
-include_file_tags = "file"
+include_file_tags = "files"
