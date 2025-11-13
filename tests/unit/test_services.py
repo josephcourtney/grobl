@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
+from grobl import services
 from grobl.constants import (
     ContentScope,
     PayloadFormat,
@@ -9,6 +11,9 @@ from grobl.constants import (
     TableStyle,
 )
 from grobl.services import ScanExecutor, ScanOptions
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _write_noop(_: str) -> None:  # pragma: no cover - trivial
@@ -106,3 +111,103 @@ def test_execute_summary_none_returns_minimal_structure(tmp_path):
     totals = summary["totals"]
     assert totals["total_lines"] == 1
     assert totals["total_characters"] == len("hello\n")
+
+
+def test_execute_delegates_payload_emission(monkeypatch, tmp_path):
+    sample = tmp_path / "strategy.txt"
+    sample.write_text("content\n", encoding="utf-8")
+
+    writes: list[str] = []
+    calls: list[dict[str, object]] = []
+
+    class _StubStrategy:
+        def emit(
+            self,
+            *,
+            builder: object,
+            context: object,
+            result: object,
+            sink: Callable[[str], None],
+            logger: object,
+            config: dict[str, object],
+        ) -> None:
+            calls.append({
+                "builder": builder,
+                "context": context,
+                "result": result,
+                "sink": sink,
+                "logger": logger,
+                "config": config,
+            })
+
+    stub_strategy = _StubStrategy()
+    monkeypatch.setattr(
+        services,
+        "_PAYLOAD_STRATEGIES",
+        {services.PayloadFormat.NONE: stub_strategy},
+        raising=True,
+    )
+
+    executor = ScanExecutor(sink=writes.append)
+    cfg = {"exclude_tree": [], "exclude_print": []}
+
+    executor.execute(
+        paths=[tmp_path],
+        cfg=cfg,
+        options=ScanOptions(
+            scope=services.ContentScope.ALL,
+            payload_format=services.PayloadFormat.NONE,
+            summary_format=services.SummaryFormat.NONE,
+            summary_style=services.TableStyle.AUTO,
+        ),
+    )
+
+    assert calls, "expected payload strategy to be invoked"
+    emitted = calls[0]
+    assert emitted["sink"].__self__ is writes
+    assert emitted["context"].scope is services.ContentScope.ALL
+    assert emitted["config"] is cfg
+
+
+def test_execute_uses_summary_helper(monkeypatch, tmp_path):
+    sample = tmp_path / "helper.txt"
+    sample.write_text("line\n", encoding="utf-8")
+
+    writes: list[str] = []
+    summary_calls: list[dict[str, object]] = []
+
+    def _build_summary_for_format(*, base_summary, fmt, renderer, builder, options, human_formatter):
+        summary_calls.append({
+            "base_summary": base_summary,
+            "fmt": fmt,
+            "renderer": renderer,
+            "builder": builder,
+            "options": options,
+            "human_formatter": human_formatter,
+        })
+        return "human output", {"marker": True}
+
+    monkeypatch.setattr(
+        services,
+        "build_summary_for_format",
+        _build_summary_for_format,
+        raising=True,
+    )
+
+    executor = ScanExecutor(sink=writes.append)
+    cfg = {"exclude_tree": [], "exclude_print": []}
+
+    human, summary = executor.execute(
+        paths=[tmp_path],
+        cfg=cfg,
+        options=ScanOptions(
+            scope=services.ContentScope.ALL,
+            payload_format=services.PayloadFormat.NONE,
+            summary_format=services.SummaryFormat.HUMAN,
+            summary_style=services.TableStyle.COMPACT,
+        ),
+    )
+
+    assert human == "human output"
+    assert summary == {"marker": True}
+    assert summary_calls, "expected summary helper to be invoked"
