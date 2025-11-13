@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.21] - 2025-11-23
+
+### Changed
+- centralize summary totals and inclusion semantics across builders, renderers, summaries, and CLI diagnostics
+
 ## [1.0.20] - 2025-11-22
 
 ### Changed
