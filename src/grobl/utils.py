@@ -1,5 +1,6 @@
 """Generic utility helpers."""
 
+from dataclasses import dataclass
 from os.path import commonpath  # <-- needed by find_common_ancestor
 from pathlib import Path
 
@@ -9,7 +10,21 @@ from grobl.errors import (
     PathNotFoundError,
 )
 
-__all__ = ["find_common_ancestor", "is_text", "read_text"]
+__all__ = [
+    "TextDetectionResult",
+    "detect_text",
+    "find_common_ancestor",
+    "is_text",
+    "read_text",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class TextDetectionResult:
+    """Outcome of probing whether a file is textual."""
+
+    is_text: bool
+    content: str | None = None
 
 
 def find_common_ancestor(paths: list[Path]) -> Path:
@@ -31,25 +46,33 @@ def find_common_ancestor(paths: list[Path]) -> Path:
     return root
 
 
-def is_text(file_path: Path) -> bool:
-    """
-    Determine if file is a text file.
-
-    Heuristic: check early binary markers, then try partial UTF-8 decode.
-    Avoids reading entire file.
-    """
+def detect_text(file_path: Path, *, probe_size: int = 4096) -> TextDetectionResult:
+    """Probe ``file_path`` to determine if it is text and prefetch its contents."""
     try:
-        with file_path.open("rb") as f:
-            chunk = f.read(4096)
+        with file_path.open("rb") as fh:
+            chunk = fh.read(probe_size)
             if b"\x00" in chunk:
-                return False
+                return TextDetectionResult(is_text=False)
             try:
-                chunk.decode("utf-8")
+                decoded_chunk = chunk.decode("utf-8")
             except UnicodeDecodeError:
-                return False
+                return TextDetectionResult(is_text=False)
+            remainder = fh.read()
+            if b"\x00" in remainder:
+                return TextDetectionResult(is_text=False)
+            if remainder:
+                decoded_remainder = remainder.decode("utf-8", errors="ignore")
+                content = decoded_chunk + decoded_remainder
+            else:
+                content = decoded_chunk
     except OSError:
-        return False
-    return True
+        return TextDetectionResult(is_text=False)
+    return TextDetectionResult(is_text=True, content=content)
+
+
+def is_text(file_path: Path) -> bool:
+    """Return ``True`` if :func:`detect_text` classifies ``file_path`` as text."""
+    return detect_text(file_path).is_text
 
 
 def read_text(file_path: Path) -> str:

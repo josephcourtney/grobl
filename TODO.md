@@ -2,3 +2,6 @@
 - [x] Update the CLI default-command fallback to correctly route option flags to the scan command.
 - [x] Remove the resolved CLI issue entry and record the fix in the changelog with a patch version bump.
 - [x] Increment the project patch version to reflect the CLI fix.
+- [x] Add regression tests ensuring text detection reuses prefetched content and avoids redundant reads.
+- [x] Implement detector-prefetch plumbing so text files are read only once during scans.
+- [x] Document the fix, remove the resolved issue entry, and bump the patch version.
