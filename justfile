@@ -37,10 +37,10 @@ export VERBOSE        := env("VERBOSE", "0")
 
 # Tool wrappers
 UV      := "uv"
-RUFF    := "uv run ruff"
-PYTEST  := "uv run pytest"
-TYPES   := "uv run ty"
-SHOWCOV := "uv run showcov"
+RUFF    := "./.venv/bin/ruff"
+PYTEST  := "./.venv/bin/pytest"
+TYPES   := "./.venv/bin/ty"
+SHOWCOV := "./.venv/bin/showcov"
 
 # Plumbing (private)
 [private]
@@ -87,7 +87,7 @@ typecheck *ARGS:
   @{{TYPES}} check {{ARGS}} || true
 
 # Test
-test *ARGS:
+test:
   @{{PYTEST}} || true
 
 # Show coverage summary
@@ -109,6 +109,15 @@ sdist:
 # Build wheel
 wheel:
   @{{UV}} build --wheel
+
+# Build Documentation
+build-docs:
+  ./.venv/bin/mkdocs build
+
+# Build Documentation
+docs: build-docs
+  ./.venv/bin/mkdocs serve &
+  python3 -m webbrowser http://127.0.0.1:8000
 
 # Clean temporary files and caches
 clean:
@@ -141,5 +150,5 @@ scour: clean stash-untracked
 check: setup-frozen lint-no-fix typecheck format-no-fix test cov-summary
 
 # Fix all auto-fixable linting and formatting errors, check types, and run tests
-fix: setup lint format typecheck test cov-summary
+fix: setup lint format typecheck build-docs test cov-summary
 
