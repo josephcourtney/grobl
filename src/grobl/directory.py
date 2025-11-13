@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from pathspec import PathSpec
 
@@ -11,7 +11,6 @@ from pathspec import PathSpec
 # consistent across the codebase and the tests that assert on them.
 LAST_CONNECTOR = "└── "
 BRANCH_CONNECTOR = "├── "
-CONFIG_WITHOUT_SPEC_LENGTH = 3
 
 
 class TreeCallback(Protocol):
@@ -27,6 +26,28 @@ class TreeCallback(Protocol):
         *,
         is_last: bool,
     ) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class TraverseConfig:
+    """Configuration controlling directory traversal filtering."""
+
+    paths: list[Path]
+    patterns: list[str]
+    base: Path
+    spec: PathSpec | None = None
+
+    def with_spec(self) -> "TraverseConfig":
+        """Return a configuration with a compiled PathSpec."""
+        if self.spec is not None:
+            return self
+        compiled = PathSpec.from_lines("gitwildmatch", self.patterns)
+        return TraverseConfig(
+            paths=self.paths,
+            patterns=self.patterns,
+            base=self.base,
+            spec=compiled,
+        )
 
 
 @dataclass(slots=True)
@@ -204,17 +225,14 @@ def _to_git_path(p: Path, *, is_dir: bool) -> str:
     return s + ("/" if is_dir and not s.endswith("/") else "")
 
 
-def filter_items(
-    items: list[Path], paths: list[Path], patterns: list[str], base: Path, spec: PathSpec | None = None
-) -> list[Path]:
-    """Filter ``items`` against ``paths`` and ``patterns`` using gitignore semantics."""
-    # Compile once per call if not provided (keeps backward compatibility for direct calls in tests)
-    spec = spec or PathSpec.from_lines("gitwildmatch", patterns)
+def filter_items(items: list[Path], config: TraverseConfig) -> list[Path]:
+    """Filter ``items`` using ``config`` paths and patterns with gitignore semantics."""
+    spec = config.spec or PathSpec.from_lines("gitwildmatch", config.patterns)
     results: list[Path] = []
     for item in items:
-        if not any(item.is_relative_to(p) for p in paths):
+        if not any(item.is_relative_to(p) for p in config.paths):
             continue
-        rel = item.relative_to(base)
+        rel = item.relative_to(config.base)
         rel_git = _to_git_path(rel, is_dir=item.is_dir())
         if spec.match_file(rel_git):
             continue
@@ -224,17 +242,13 @@ def filter_items(
 
 def traverse_dir(
     path: Path,
-    config: tuple[list[Path], list[str], Path] | tuple[list[Path], list[str], Path, PathSpec],
+    config: TraverseConfig,
     callback: TreeCallback,
     prefix: str = "",
 ) -> None:
     """Depth-first traversal applying ``callback`` to each item."""
-    if len(config) == CONFIG_WITHOUT_SPEC_LENGTH:
-        paths, patterns, base = cast(tuple[list[Path], list[str], Path], config)  # noqa: TC006 - runtime tuple unpacking
-        spec: PathSpec | None = None
-    else:
-        paths, patterns, base, spec = cast(tuple[list[Path], list[str], Path, PathSpec], config)  # noqa: TC006 - runtime tuple unpacking
-    items = filter_items(list(path.iterdir()), paths, patterns, base, spec)
+    config = config.with_spec()
+    items = filter_items(list(path.iterdir()), config)
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1
         callback(item, prefix, is_last=is_last)
