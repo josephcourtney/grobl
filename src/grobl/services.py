@@ -18,7 +18,7 @@ from .constants import (
 from .core import ScanResult, run_scan
 from .formatter import human_summary
 from .logging_utils import StructuredLogEvent, get_logger, log_event
-from .renderers import DirectoryRenderer, build_llm_payload
+from .renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
 from .summary import SummaryContext, build_sink_payload_json, build_summary
 
 if TYPE_CHECKING:
@@ -142,6 +142,14 @@ class ScanExecutor:
                 scope=options.scope,
                 tree_tag=ttag,
                 file_tag=ftag,
+            )
+            if payload:
+                self._sink(payload)
+        elif options.payload_format is PayloadFormat.MARKDOWN:
+            payload = build_markdown_payload(
+                builder=builder,
+                common=result.common,
+                scope=options.scope,
             )
             if payload:
                 self._sink(payload)

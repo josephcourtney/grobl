@@ -67,7 +67,7 @@ The `grobl` entry point behaves like `grobl scan` when no subcommand is given.
 
 ### `grobl scan [OPTIONS] [PATHS...]`
 
-Main command: traverse paths and build LLM/JSON-friendly output.
+Main command: traverse paths and build LLM/MARKDOWN/JSON-friendly output.
 
 * If `PATHS` is omitted, the current directory is used.
 * If you pass only a single file, grobl treats its **parent directory** as the tree root (the file is still included).
@@ -180,10 +180,11 @@ Scope affects:
 ### Payload: heavy output
 
 ```bash
---payload {llm,json,none}
+--payload {llm,markdown,json,none}
 ```
 
 * `llm` (default): emit an XML-like, LLM-oriented payload (see **LLM payload format** below)
+* `markdown`: emit a Markdown payload containing a directory tree and per-file blocks with metadata headers and fenced contents
 * `json`: emit a structured JSON payload (see **JSON formats** below)
 * `none`: do not emit any payload; only build a summary (if enabled)
 

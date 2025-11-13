@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+## [1.0.9] - 2025-11-14
+
+### Changed
+- add inclusion annotations to markdown directory trees indicating which files are included in the payload
+- omit markdown file metadata fields when values are obvious defaults or not defined (e.g. language unknown, kind=full)
+- trim extraneous trailing newlines from markdown file payload blocks to avoid blank lines before closing fences
+
+
 ## [1.0.8] - 2025-11-13
 
 ### Added

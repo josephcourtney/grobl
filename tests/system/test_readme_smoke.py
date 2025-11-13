@@ -59,7 +59,7 @@ def test_readme_init(tmp_path: Path) -> None:
 def test_readme_documents_scan_flags() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
     assert "--scope {all,tree,files}" in text
-    assert "--payload {llm,json,none}" in text
+    assert "--payload {llm,markdown,json,none}" in text
     assert "--summary {human,json,none}" in text
     assert "--summary-style {auto,full,compact,none}" in text
     assert "--sink {auto,clipboard,stdout,file}" in text

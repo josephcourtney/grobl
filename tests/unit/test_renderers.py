@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from grobl.config import load_default_config
 from grobl.constants import ContentScope
+from grobl.core import run_scan
 from grobl.directory import DirectoryTreeBuilder
-from grobl.renderers import DirectoryRenderer, build_llm_payload
+from grobl.renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -92,3 +95,133 @@ def test_build_llm_payload_respects_scope(tmp_path: Path) -> None:
     )
     assert "<directory" not in payload_files
     assert "<file" in payload_files
+
+
+def _extract_tree_section(markdown: str) -> list[str]:
+    start_marker = "```tree"
+    end_marker = "```"
+
+    start = markdown.index(start_marker) + len(start_marker)
+    # skip the newline immediately after the ```tree fence
+    if markdown[start : start + 1] == "\n":
+        start += 1
+    end = markdown.index(end_marker, start)
+    body = markdown[start:end]
+    return body.splitlines()
+
+
+def _extract_begin_file_lines(markdown: str) -> list[str]:
+    return [line for line in markdown.splitlines() if line.startswith("%%%% BEGIN_FILE ")]
+
+
+def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:
+    root = tmp_path / "proj"
+    root.mkdir()
+
+    (root / "1.txt").write_text("one\n", encoding="utf-8")
+
+    a = root / "a"
+    a.mkdir()
+    (a / "2.txt").write_text("two\n", encoding="utf-8")
+
+    d = a / "d"
+    d.mkdir()
+    (d / "3.txt").write_text("three\n", encoding="utf-8")
+
+    b = root / "b"
+    b.mkdir()
+    (b / "skip.txt").write_text("skip\n", encoding="utf-8")
+
+    c = root / "c"
+    c.mkdir()
+    (c / "4.txt").write_text("four\n", encoding="utf-8")
+
+    cfg = load_default_config()
+    # Ensure that files under 'b/' are present in the tree but have no contents
+    # captured in the payload.
+    exclude_print = list(cfg.get("exclude_print", []))
+    exclude_print.append("b/**")
+    cfg["exclude_print"] = exclude_print
+
+    result = run_scan(paths=[root], cfg=cfg)
+    markdown = build_markdown_payload(builder=result.builder, common=result.common, scope=ContentScope.ALL)
+
+    tree_lines = _extract_tree_section(markdown)
+
+    # Root line
+    assert tree_lines[0] == "proj/"
+
+    line_1 = next(line for line in tree_lines if "1.txt" in line)
+    line_2 = next(line for line in tree_lines if "2.txt" in line)
+    line_3 = next(line for line in tree_lines if "3.txt" in line)
+    line_4 = next(line for line in tree_lines if "4.txt" in line)
+    line_b_dir = next(line for line in tree_lines if "b/" in line)
+    line_b_file = next(line for line in tree_lines if "skip.txt" in line)
+
+    assert "[INCLUDED:FULL]" in line_1
+    assert "[INCLUDED:FULL]" in line_2
+    assert "[INCLUDED:FULL]" in line_3
+    assert "[INCLUDED:FULL]" in line_4
+
+    # Files and the directory whose subtree is entirely excluded from printing
+    # should be marked as not included.
+    assert "[NOT_INCLUDED]" in line_b_dir
+    assert "[NOT_INCLUDED]" in line_b_file
+
+
+def test_markdown_metadata_omits_obvious_fields(tmp_path: Path) -> None:
+    root = tmp_path / "proj"
+    root.mkdir()
+
+    script = root / "script.py"
+    script.write_text('print("hi")\n', encoding="utf-8")
+
+    unknown = root / "data.custom"
+    unknown.write_text("payload\n", encoding="utf-8")
+
+    cfg = load_default_config()
+    result = run_scan(paths=[root], cfg=cfg)
+    markdown = build_markdown_payload(builder=result.builder, common=result.common, scope=ContentScope.ALL)
+
+    header_lines = _extract_begin_file_lines(markdown)
+
+    script_header = next(line for line in header_lines if 'path="script.py"' in line)
+    unknown_header = next(line for line in header_lines if 'path="data.custom"' in line)
+
+    # path, language, lines, chars should all be present for recognised languages.
+    assert 'path="script.py"' in script_header
+    assert 'language="python"' in script_header
+    assert 'lines="' in script_header
+    assert 'chars="' in script_header
+    # Default kind="full" should not be emitted.
+    assert 'kind="full"' not in script_header
+
+    # For unknown extensions, omit language altogether.
+    assert 'path="data.custom"' in unknown_header
+    assert "language=" not in unknown_header
+    assert 'lines="' in unknown_header
+    assert 'chars="' in unknown_header
+
+
+def test_markdown_trims_trailing_newlines_in_code_blocks(tmp_path: Path) -> None:
+    root = tmp_path / "proj"
+    root.mkdir()
+
+    script = root / "script.py"
+    # Trailing newline is common in source files; it should not produce an extra
+    # blank line before the closing fence.
+    script.write_text('print("hi")\n', encoding="utf-8")
+
+    cfg = load_default_config()
+    result = run_scan(paths=[root], cfg=cfg)
+    markdown = build_markdown_payload(builder=result.builder, common=result.common, scope=ContentScope.ALL)
+
+    lines = markdown.splitlines()
+    fence_idx = next(i for i, line in enumerate(lines) if line.startswith("```python"))
+
+    # Expect the pattern:
+    # ```python
+    # print("hi")
+    # ```
+    assert lines[fence_idx + 1] == 'print("hi")'
+    assert lines[fence_idx + 2] == "```"

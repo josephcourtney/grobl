@@ -16,7 +16,7 @@ from grobl.constants import (
 
 def test_enum_values_and_config_keys() -> None:
     assert {m.value for m in ContentScope} == {"all", "tree", "files"}
-    assert {p.value for p in PayloadFormat} == {"llm", "json", "none"}
+    assert {p.value for p in PayloadFormat} == {"llm", "markdown", "json", "none"}
     assert {s.value for s in PayloadSink} == {"auto", "clipboard", "stdout", "file"}
     assert {t.value for t in TableStyle} == {"auto", "full", "compact", "none"}
     assert {f.value for f in SummaryFormat} == {"human", "json", "none"}
