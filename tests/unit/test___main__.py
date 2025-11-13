@@ -65,6 +65,30 @@ def test_cli_defaults_to_scan_when_no_subcommand(monkeypatch: pytest.MonkeyPatch
     assert called["paths"] == ("alpha", "beta")
 
 
+def test_cli_default_scan_does_not_use_protected_args(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    called: dict[str, tuple[str, ...]] = {}
+
+    @click.command()
+    @click.argument("paths", nargs=-1)
+    def fake_scan(paths: tuple[str, ...]) -> None:
+        called["paths"] = paths
+
+    monkeypatch.setitem(cli_root.cli.commands, "scan", fake_scan)
+    monkeypatch.setattr(cli_root, "scan", fake_scan, raising=False)
+
+    def _raise_protected(self: click.Context) -> list[str]:
+        msg = "protected args should not be accessed"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(click.Context, "protected_args", property(_raise_protected), raising=False)
+
+    result = runner.invoke(cli_root.cli, ["alpha", "beta"])
+
+    assert result.exit_code == 0
+    assert called["paths"] == ("alpha", "beta")
+
+
 def test_main_handles_broken_pipe(monkeypatch: pytest.MonkeyPatch) -> None:
     class BrokenCLI:
         def __init__(self) -> None:

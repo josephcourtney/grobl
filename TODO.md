@@ -30,3 +30,8 @@
 - [x] Add regression tests confirming `read_config` merges legacy `.grobl.config.toml` files when `.grobl.toml` is missing.
 - [x] Update the configuration loader to layer legacy `.grobl.config.toml` files into the precedence chain.
 - [x] Record the legacy configuration loading fix (TODO/ISSUES/changelog), remove the resolved issue entry, and bump the patch version.
+- [x] Add a regression test ensuring the root CLI default-command fallback operates when `click.Context.protected_args` is
+      unavailable.
+- [x] Update the root CLI default-command fallback to stop accessing `click.Context.protected_args` while preserving argument
+      forwarding semantics.
+- [x] Document the `protected_args` compatibility fix, remove the resolved issue entry, and bump the patch version.
