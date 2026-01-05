@@ -17,10 +17,10 @@ from grobl.constants import (
     SummaryFormat,
     TableStyle,
 )
-from grobl.errors import ConfigLoadError, PathNotFoundError
+from grobl.errors import ConfigLoadError
 from grobl.output import build_writer_from_config
 from grobl.tty import resolve_table_style
-from grobl.utils import find_common_ancestor
+from grobl.utils import resolve_repo_root
 
 from .common import (
     ScanParams,
@@ -101,14 +101,8 @@ def scan(
     cwd = Path()
     requested_paths = paths or (Path(),)
 
-    try:
-        common_base = find_common_ancestor(list(requested_paths) or [cwd])
-    except (ValueError, PathNotFoundError):
-        common_base = cwd
-    if common_base.is_file():
-        common_base = common_base.parent
-
-    config_base = resolve_config_base(base_path=common_base, explicit_config=config_path)
+    repo_root = resolve_repo_root(cwd=cwd, paths=requested_paths)
+    config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
     params = ScanParams(
         ignore_defaults=ignore_defaults,
@@ -125,6 +119,7 @@ def scan(
         summary=SummaryFormat(summary),
         sink=PayloadSink(sink),
         paths=requested_paths,
+        repo_root=repo_root,
         pattern_base=config_base,
     )
 

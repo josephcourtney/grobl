@@ -49,6 +49,7 @@ class ScanParams:
     summary: SummaryFormat
     sink: PayloadSink
     paths: tuple[Path, ...]
+    repo_root: Path
     pattern_base: Path | None = None
 
 
@@ -113,6 +114,7 @@ def _execute_with_handling(
                 payload_format=params.payload,
                 summary_format=params.summary,
                 summary_style=summary_style,
+                repo_root=params.repo_root,
                 pattern_base=params.pattern_base,
             ),
         )

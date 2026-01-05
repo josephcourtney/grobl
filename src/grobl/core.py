@@ -36,11 +36,34 @@ class ScanResult:
     common: Path
 
 
+def _coerce_to_directory(path: Path) -> Path:
+    return path.parent if path.is_file() else path
+
+
+def _determine_builder_base(common: Path, resolved: list[Path], repo_root: Path | None) -> Path:
+    if repo_root is None:
+        return common
+    candidate = _coerce_to_directory(repo_root.resolve(strict=False))
+    if all(p.is_relative_to(candidate) for p in resolved):
+        return candidate
+    return common
+
+
+def _determine_match_base(match_base: Path | None, resolved: list[Path], default: Path) -> Path:
+    if match_base is None:
+        return default
+    normalized = _coerce_to_directory(match_base.resolve())
+    if all(p.is_relative_to(normalized) for p in resolved):
+        return normalized
+    return default
+
+
 def run_scan(
     *,
     paths: list[Path],
     cfg: dict[str, Any],
     match_base: Path | None = None,
+    repo_root: Path | None = None,
     dependencies: ScanDependencies | None = None,
     handlers: FileHandlerRegistry | None = None,
 ) -> ScanResult:
@@ -50,9 +73,7 @@ def run_scan(
 
     missing = [p for p in paths if not p.exists()]
     if missing:
-        missing_str = ", ".join(sorted(str(p) for p in missing))
-        msg = f"scan paths do not exist: {missing_str}"
-        raise ValueError(msg)
+        raise ValueError("scan paths do not exist: " + ", ".join(sorted(str(p) for p in missing)))
 
     start = perf_counter()
     resolved = [p.resolve() for p in paths]
@@ -62,19 +83,11 @@ def run_scan(
         # itself. Normalise to the containing directory so relative paths and
         # directory traversal operate on a directory base.
         common = common.parent
-    if match_base is None:
-        match_base = common
-    else:
-        match_base = match_base.resolve()
-        if match_base.is_file():
-            match_base = match_base.parent
-        if not all(p.is_relative_to(match_base) for p in resolved):
-            match_base = common
+    builder_base = _determine_builder_base(common, resolved, repo_root)
+    match_base = _determine_match_base(match_base, resolved, builder_base)
 
     excl_tree = list(cfg.get(CONFIG_EXCLUDE_TREE, []))
     excl_print = list(cfg.get(CONFIG_EXCLUDE_PRINT, []))
-    # Compile gitignore-style specs once per run
-    tree_spec = PathSpec.from_lines("gitwildmatch", excl_tree)
     log_event(
         logger,
         StructuredLogEvent(
@@ -89,15 +102,14 @@ def run_scan(
         ),
     )
 
-    builder = DirectoryTreeBuilder(base_path=common, exclude_patterns=excl_tree)
-    deps = ScanDependencies.default() if dependencies is None else dependencies
+    builder = DirectoryTreeBuilder(base_path=builder_base, exclude_patterns=excl_tree)
     registry = FileHandlerRegistry.default() if handlers is None else handlers
     context = FileProcessingContext(
         builder=builder,
         common=common,
         match_base=match_base,
         print_spec=PathSpec.from_lines("gitwildmatch", excl_print),
-        dependencies=deps,
+        dependencies=ScanDependencies.default() if dependencies is None else dependencies,
     )
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
@@ -112,7 +124,12 @@ def run_scan(
     try:
         traverse_dir(
             common,
-            TraverseConfig(paths=resolved, patterns=excl_tree, base=match_base, spec=tree_spec),
+            TraverseConfig(
+                paths=resolved,
+                patterns=excl_tree,
+                base=match_base,
+                spec=PathSpec.from_lines("gitwildmatch", excl_tree),
+            ),
             collect,
         )
     except KeyboardInterrupt as _:
@@ -128,14 +145,14 @@ def run_scan(
         # Surface the partial state so the CLI can print proper diagnostics.
         raise ScanInterrupted(builder, common) from _
 
-    duration = perf_counter() - start
+    # duration is emitted inline below to avoid extra locals
     log_event(
         logger,
         StructuredLogEvent(
             name="scan.complete",
             message="completed directory traversal",
             context={
-                "duration_seconds": duration,
+                "duration_seconds": perf_counter() - start,
                 "files_processed": len(builder.file_tree_entries()),
                 "tree_line_count": len(builder.tree_output()),
             },

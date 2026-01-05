@@ -44,6 +44,7 @@ def test_execute_emits_json_payload_and_summary(tmp_path):
             payload_format=PayloadFormat.JSON,
             summary_format=SummaryFormat.JSON,
             summary_style=TableStyle.NONE,
+            repo_root=tmp_path,
         ),
     )
 
@@ -77,6 +78,7 @@ def test_execute_skips_payload_when_disabled(tmp_path):
             payload_format=PayloadFormat.NONE,
             summary_format=SummaryFormat.HUMAN,
             summary_style=TableStyle.COMPACT,
+            repo_root=tmp_path,
         ),
     )
 
@@ -103,6 +105,7 @@ def test_execute_summary_none_returns_minimal_structure(tmp_path):
             payload_format=PayloadFormat.NONE,
             summary_format=SummaryFormat.NONE,
             summary_style=TableStyle.AUTO,
+            repo_root=tmp_path,
         ),
     )
 
@@ -163,6 +166,7 @@ def test_execute_delegates_payload_emission(monkeypatch, tmp_path):
             payload_format=services.PayloadFormat.NONE,
             summary_format=services.SummaryFormat.NONE,
             summary_style=services.TableStyle.AUTO,
+            repo_root=tmp_path,
         ),
     )
 
@@ -209,6 +213,7 @@ def test_execute_uses_summary_helper(monkeypatch, tmp_path):
             payload_format=services.PayloadFormat.NONE,
             summary_format=services.SummaryFormat.HUMAN,
             summary_style=services.TableStyle.COMPACT,
+            repo_root=tmp_path,
         ),
     )
 

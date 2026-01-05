@@ -34,6 +34,7 @@ class ScanOptions:
     payload_format: PayloadFormat
     summary_format: SummaryFormat
     summary_style: TableStyle
+    repo_root: Path
     pattern_base: Path | None = None
 
 
@@ -260,7 +261,12 @@ class ScanExecutor:
                 },
             ),
         )
-        result = self._deps.scan(paths=paths, cfg=cfg, match_base=options.pattern_base)
+        result = self._deps.scan(
+            paths=paths,
+            cfg=cfg,
+            match_base=options.pattern_base,
+            repo_root=options.repo_root,
+        )
 
         builder = result.builder
         context = SummaryContext(

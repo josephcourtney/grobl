@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.28] - 2026-01-05
+
+### Changed
+- use git-root-aware repo resolution for config discovery and traversal base to keep output roots and ordering deterministic
+
 ## [1.0.27] - 2026-01-05
 
 ### Changed

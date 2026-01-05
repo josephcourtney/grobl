@@ -94,6 +94,7 @@ def _params_for(tmp_path: Path) -> ccommon.ScanParams:
         summary=SummaryFormat.HUMAN,
         sink=PayloadSink.AUTO,
         paths=(tmp_path,),
+        repo_root=tmp_path,
     )
 
 

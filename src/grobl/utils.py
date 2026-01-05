@@ -1,5 +1,6 @@
 """Generic utility helpers."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from os.path import commonpath  # <-- needed by find_common_ancestor
 from pathlib import Path
@@ -16,6 +17,7 @@ __all__ = [
     "find_common_ancestor",
     "is_text",
     "read_text",
+    "resolve_repo_root",
 ]
 
 
@@ -40,6 +42,35 @@ def find_common_ancestor(paths: list[Path]) -> Path:
         msg = ERROR_MSG_NO_COMMON_ANCESTOR
         raise PathNotFoundError(msg) from e
     return root
+
+
+def _git_root_for_cwd(cwd: Path) -> Path | None:
+    """Return the git worktree root for ``cwd`` if available."""
+    current = cwd.resolve()
+    for candidate in (current, *current.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def resolve_repo_root(*, cwd: Path, paths: Sequence[Path]) -> Path:
+    """Return the repo root for the current run using git & path fallbacks."""
+    candidates = list(paths) or [cwd]
+    git_root = _git_root_for_cwd(cwd)
+    if git_root is not None:
+        resolved = [p.resolve(strict=False) for p in candidates]
+        if all(p.is_relative_to(git_root) for p in resolved):
+            return git_root
+
+    try:
+        common = find_common_ancestor(candidates)
+    except (ValueError, PathNotFoundError):
+        return cwd
+
+    if common.is_file():
+        return common.parent
+
+    return common
 
 
 def detect_text(file_path: Path, *, probe_size: int = 4096) -> TextDetectionResult:

@@ -5,9 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from grobl import utils
 from grobl.config import apply_runtime_ignores
 from grobl.errors import PathNotFoundError
-from grobl.utils import detect_text, find_common_ancestor, is_text
+from grobl.utils import detect_text, find_common_ancestor, is_text, resolve_repo_root
 
 pytestmark = pytest.mark.small
 
@@ -140,3 +141,39 @@ def test_common_ancestor_config_base(tmp_path: Path) -> None:
 
     common = find_common_ancestor([p1, p2])
     assert common == base
+
+
+def test_resolve_repo_root_prefers_git_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    child = repo_root / "src"
+    child.mkdir()
+    monkeypatch.setattr(utils, "_git_root_for_cwd", lambda *_: repo_root)
+
+    got = resolve_repo_root(cwd=repo_root, paths=(child,))
+    assert got == repo_root
+
+
+def test_resolve_repo_root_ignores_git_root_when_paths_outside(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    fork = tmp_path / "external"
+    fork.mkdir()
+    monkeypatch.setattr(utils, "_git_root_for_cwd", lambda *_: repo_root)
+
+    got = resolve_repo_root(cwd=repo_root, paths=(fork,))
+    assert got == fork
+
+
+def test_resolve_repo_root_falls_back_to_cwd_when_common_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(utils, "_git_root_for_cwd", lambda *_: None)
+    monkeypatch.setattr(
+        utils, "find_common_ancestor", lambda _: (_ for _ in ()).throw(PathNotFoundError("boom"))
+    )
+
+    got = resolve_repo_root(cwd=tmp_path, paths=(tmp_path / "missing",))
+    assert got == tmp_path
