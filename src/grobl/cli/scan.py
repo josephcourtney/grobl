@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, cast
 
 import click
 
@@ -16,6 +17,8 @@ from grobl.config import (
     resolve_config_base,
 )
 from grobl.constants import (
+    CONFIG_EXCLUDE_PRINT,
+    CONFIG_EXCLUDE_TREE,
     EXIT_CONFIG,
     ContentScope,
     PayloadFormat,
@@ -304,6 +307,15 @@ def _normalize_summary_destination(
     return destination
 
 
+def _string_sequence_from_config(cfg: dict[str, object], key: str) -> Sequence[str]:
+    """Return a typed string sequence for the given config key, defaulting to empty."""
+    value = cfg.get(key)
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        if all(isinstance(item, str) for item in value):
+            return cast(tuple[str, ...], tuple(value))
+    return ()
+
+
 def _ensure_paths_within_repo(
     *,
     repo_root: Path,
@@ -377,8 +389,8 @@ def _assemble_layered_ignores(
 ) -> LayeredIgnoreMatcher:
     default_cfg = load_default_config()
     runtime_edits = apply_runtime_ignore_edits(
-        base_tree=list(cfg.get("exclude_tree", [])),
-        base_print=list(cfg.get("exclude_print", [])),
+        base_tree=list(_string_sequence_from_config(cfg, CONFIG_EXCLUDE_TREE)),
+        base_print=list(_string_sequence_from_config(cfg, CONFIG_EXCLUDE_PRINT)),
         add_ignore=params.add_ignore,
         remove_ignore=params.remove_ignore,
         add_ignore_files=params.add_ignore_file,
