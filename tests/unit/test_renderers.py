@@ -16,6 +16,7 @@ from grobl.renderers import (
     build_markdown_snapshot,
     format_begin_file_header,
 )
+from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small
 
@@ -182,7 +183,13 @@ def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:  
     exclude_print.append("b/**")
     cfg["exclude_print"] = exclude_print
 
-    result = run_scan(paths=[root], cfg=cfg)
+    ignores = build_ignore_matcher(
+        repo_root=root,
+        scan_paths=[root],
+        tree_patterns=cfg.get("exclude_tree", []),
+        print_patterns=cfg.get("exclude_print", []),
+    )
+    result = run_scan(paths=[root], cfg=cfg, ignores=ignores)
     markdown = build_markdown_payload(builder=result.builder, common=result.common, scope=ContentScope.ALL)
 
     tree_lines = _extract_tree_section(markdown)
@@ -265,7 +272,13 @@ def test_markdown_metadata_omits_obvious_fields(tmp_path: Path) -> None:
     unknown.write_text("payload\n", encoding="utf-8")
 
     cfg = load_default_config()
-    result = run_scan(paths=[root], cfg=cfg)
+    ignores = build_ignore_matcher(
+        repo_root=root,
+        scan_paths=[root],
+        tree_patterns=cfg.get("exclude_tree", []),
+        print_patterns=cfg.get("exclude_print", []),
+    )
+    result = run_scan(paths=[root], cfg=cfg, ignores=ignores)
     markdown = build_markdown_payload(builder=result.builder, common=result.common, scope=ContentScope.ALL)
 
     header_lines = _extract_begin_file_lines(markdown)
@@ -298,7 +311,13 @@ def test_markdown_trims_trailing_newlines_in_code_blocks(tmp_path: Path) -> None
     script.write_text('print("hi")\n', encoding="utf-8")
 
     cfg = load_default_config()
-    result = run_scan(paths=[root], cfg=cfg)
+    ignores = build_ignore_matcher(
+        repo_root=root,
+        scan_paths=[root],
+        tree_patterns=cfg.get("exclude_tree", []),
+        print_patterns=cfg.get("exclude_print", []),
+    )
+    result = run_scan(paths=[root], cfg=cfg, ignores=ignores)
     markdown = build_markdown_payload(builder=result.builder, common=result.common, scope=ContentScope.ALL)
 
     lines = markdown.splitlines()

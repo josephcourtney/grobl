@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_cli_json_tree_payload(tmp_path: Path) -> None:
-    d = tmp_path / "dir"
+def test_cli_json_tree_payload(repo_root: Path) -> None:
+    d = repo_root / "dir"
     d.mkdir()
     (d / "a.txt").write_text("aa", encoding="utf-8")
     runner = CliRunner()
@@ -23,7 +23,7 @@ def test_cli_json_tree_payload(tmp_path: Path) -> None:
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--scope",
             "tree",
             "--format",
@@ -38,7 +38,7 @@ def test_cli_json_tree_payload(tmp_path: Path) -> None:
     output = res.output.strip()
     data = json.loads(output)
     assert data["scope"] == "tree"
-    assert data["root"] == str(tmp_path)
+    assert data["root"] == str(repo_root)
     assert "summary" in data
     assert "totals" in data["summary"]
     # entries should include dir and file paths
@@ -47,17 +47,17 @@ def test_cli_json_tree_payload(tmp_path: Path) -> None:
     assert "dir/a.txt" in paths or "a.txt" in paths  # depending on tree ordering when base is tmp_path
 
 
-def test_cli_json_files_payload(tmp_path: Path) -> None:
-    (tmp_path / "inc.txt").write_text("hello", encoding="utf-8")
-    (tmp_path / "skip.txt").write_text("skip", encoding="utf-8")
-    cfg = tmp_path / "explicit.toml"
+def test_cli_json_files_payload(repo_root: Path) -> None:
+    (repo_root / "inc.txt").write_text("hello", encoding="utf-8")
+    (repo_root / "skip.txt").write_text("skip", encoding="utf-8")
+    cfg = repo_root / "explicit.toml"
     cfg.write_text("", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--scope",
             "files",
             "--format",
@@ -80,14 +80,14 @@ def test_cli_json_files_payload(tmp_path: Path) -> None:
     assert "inc.txt" in sfiles
 
 
-def test_cli_json_all_payload(tmp_path: Path) -> None:
-    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
+def test_cli_json_all_payload(repo_root: Path) -> None:
+    (repo_root / "x.txt").write_text("x", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--scope",
             "all",
             "--format",

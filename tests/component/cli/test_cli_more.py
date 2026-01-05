@@ -14,25 +14,25 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_explicit_full_table_even_when_not_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_explicit_full_table_even_when_not_tty(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Force non-tty but request full table explicitly
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: False)
-    (tmp_path / "f.txt").write_text("data", encoding="utf-8")
+    (repo_root / "f.txt").write_text("data", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
-        ["scan", str(tmp_path), "--summary", "table", "--summary-style", "full", "--output", "-"],
+        ["scan", str(repo_root), "--summary", "table", "--summary-style", "full", "--output", "-"],
     )
     assert res.exit_code == 0
     assert " Project Summary " in res.stderr
 
 
-def test_quiet_suppresses_summary_output(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("data", encoding="utf-8")
+def test_quiet_suppresses_summary_output(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("data", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
-        ["scan", str(tmp_path), "--summary", "none", "--output", "-"],
+        ["scan", str(repo_root), "--summary", "none", "--output", "-"],
     )
     assert res.exit_code == 0
     out = res.output

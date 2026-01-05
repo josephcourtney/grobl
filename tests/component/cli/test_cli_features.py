@@ -17,16 +17,16 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_summary_scope_choice_is_rejected(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello", encoding="utf-8")
+def test_summary_scope_choice_is_rejected(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello", encoding="utf-8")
     runner = CliRunner()
-    result = runner.invoke(cli, ["scan", "--scope", "summary", str(tmp_path)])
+    result = runner.invoke(cli, ["scan", "--scope", "summary", str(repo_root)])
     assert result.exit_code != 0
     assert "Invalid value for '--scope'" in result.output
 
 
-def test_cli_scan_accepts_file_path(tmp_path: Path) -> None:
-    target = tmp_path / "solo.txt"
+def test_cli_scan_accepts_file_path(repo_root: Path) -> None:
+    target = repo_root / "solo.txt"
     target.write_text("hello\n", encoding="utf-8")
     runner = CliRunner()
     result = runner.invoke(cli, ["scan", str(target)])
@@ -55,7 +55,7 @@ def test_interrupt_diagnostics_prints_debug_info(tmp_path: Path, capsys: pytest.
     assert "DirectoryTreeBuilder(" in out
 
 
-def test_non_tty_auto_sink_prefers_stdout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_non_tty_auto_sink_prefers_stdout(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from grobl import output as output_mod
 
     monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: False, raising=True)
@@ -66,13 +66,13 @@ def test_non_tty_auto_sink_prefers_stdout(tmp_path: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr(output_mod.pyperclip, "copy", explode, raising=True)
 
-    (tmp_path / "f.txt").write_text("data", encoding="utf-8")
+    (repo_root / "f.txt").write_text("data", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--summary",
             "none",
             "--format",
@@ -85,10 +85,10 @@ def test_non_tty_auto_sink_prefers_stdout(tmp_path: Path, monkeypatch: pytest.Mo
     assert res.output.strip().startswith("{")
 
 
-def test_tty_auto_sink_prefers_clipboard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_tty_auto_sink_prefers_clipboard(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from grobl import output as output_mod
 
-    (tmp_path / "payload.txt").write_text("payload", encoding="utf-8")
+    (repo_root / "payload.txt").write_text("payload", encoding="utf-8")
     monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
 
@@ -100,7 +100,7 @@ def test_tty_auto_sink_prefers_clipboard(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(output_mod.pyperclip, "copy", fake_copy, raising=True)
 
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path)])
+    res = runner.invoke(cli, ["scan", str(repo_root)])
 
     assert res.exit_code == 0
     assert captured, "clipboard copy should be used when stdout is a TTY"
@@ -109,14 +109,14 @@ def test_tty_auto_sink_prefers_clipboard(tmp_path: Path, monkeypatch: pytest.Mon
     assert "Total lines" in res.stderr
 
 
-def test_auto_table_compact_when_not_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_auto_table_compact_when_not_tty(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Force TTY helper to return False regardless of Click's runner internals
     from grobl import tty
 
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: False)
-    (tmp_path / "f.txt").write_text("data", encoding="utf-8")
+    (repo_root / "f.txt").write_text("data", encoding="utf-8")
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path), "--summary", "table", "--summary-style", "auto"])
+    res = runner.invoke(cli, ["scan", str(repo_root), "--summary", "table", "--summary-style", "auto"])
     assert res.exit_code == 0
     assert not res.stdout
     summary_out = res.stderr
@@ -125,14 +125,14 @@ def test_auto_table_compact_when_not_tty(tmp_path: Path, monkeypatch: pytest.Mon
     assert " Project Summary " not in summary_out
 
 
-def test_cli_flags_matrix_smoke(tmp_path: Path) -> None:
-    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
+def test_cli_flags_matrix_smoke(repo_root: Path) -> None:
+    (repo_root / "x.txt").write_text("x", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--scope",
             "all",
             "--summary-style",
@@ -152,14 +152,14 @@ def test_cli_flags_matrix_smoke(tmp_path: Path) -> None:
     assert res.exit_code == 0
 
 
-def test_cli_requires_some_output(tmp_path: Path) -> None:
-    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
+def test_cli_requires_some_output(repo_root: Path) -> None:
+    (repo_root / "x.txt").write_text("x", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "none",
             "--summary",
@@ -170,32 +170,32 @@ def test_cli_requires_some_output(tmp_path: Path) -> None:
     assert "payload and summary" in res.output
 
 
-def test_cli_copy_and_output_mutually_exclusive(tmp_path: Path) -> None:
-    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
+def test_cli_copy_and_output_mutually_exclusive(repo_root: Path) -> None:
+    (repo_root / "x.txt").write_text("x", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--copy",
             "--output",
-            str(tmp_path / "payload.ndjson"),
+            str(repo_root / "payload.ndjson"),
         ],
     )
     assert res.exit_code != 0
     assert "--copy cannot be combined with --output" in res.output
 
 
-def test_cli_summary_json_printed_when_payload_saved(tmp_path: Path) -> None:
-    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
-    payload_file = tmp_path / "payload.json"
+def test_cli_summary_json_printed_when_payload_saved(repo_root: Path) -> None:
+    (repo_root / "x.txt").write_text("x", encoding="utf-8")
+    payload_file = repo_root / "payload.json"
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "json",
             "--summary",
@@ -209,18 +209,18 @@ def test_cli_summary_json_printed_when_payload_saved(tmp_path: Path) -> None:
     payload = json.loads(payload_file.read_text(encoding="utf-8"))
     assert payload["scope"] == "all"
     summary = json.loads(res.stderr.strip())
-    assert summary["root"] == str(tmp_path)
+    assert summary["root"] == str(repo_root)
     assert summary["style"] == "auto"
 
 
-def test_cli_summary_none_suppresses_summary(tmp_path: Path) -> None:
-    (tmp_path / "x.txt").write_text("x", encoding="utf-8")
+def test_cli_summary_none_suppresses_summary(repo_root: Path) -> None:
+    (repo_root / "x.txt").write_text("x", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "json",
             "--summary",
@@ -235,14 +235,14 @@ def test_cli_summary_none_suppresses_summary(tmp_path: Path) -> None:
     assert "Total lines" not in res.output
 
 
-def test_summary_style_requires_table_selection(tmp_path: Path) -> None:
-    (tmp_path / "trace.txt").write_text("hit", encoding="utf-8")
+def test_summary_style_requires_table_selection(repo_root: Path) -> None:
+    (repo_root / "trace.txt").write_text("hit", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--summary",
             "json",
             "--summary-style",
@@ -253,14 +253,14 @@ def test_summary_style_requires_table_selection(tmp_path: Path) -> None:
     assert "--summary-style is only valid when --summary table" in res.stderr
 
 
-def test_summary_defaults_to_stderr_when_payload_to_stdout(tmp_path: Path) -> None:
-    (tmp_path / "data.txt").write_text("content", encoding="utf-8")
+def test_summary_defaults_to_stderr_when_payload_to_stdout(repo_root: Path) -> None:
+    (repo_root / "data.txt").write_text("content", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "json",
             "--summary",
@@ -274,14 +274,14 @@ def test_summary_defaults_to_stderr_when_payload_to_stdout(tmp_path: Path) -> No
     assert "Total lines" in res.stderr
 
 
-def test_summary_to_stdout_flag(tmp_path: Path) -> None:
-    (tmp_path / "data.txt").write_text("more", encoding="utf-8")
+def test_summary_to_stdout_flag(repo_root: Path) -> None:
+    (repo_root / "data.txt").write_text("more", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--summary",
             "table",
             "--summary-to",
@@ -294,14 +294,14 @@ def test_summary_to_stdout_flag(tmp_path: Path) -> None:
     assert "Total lines" in res.stdout
 
 
-def test_summary_to_file_destination(tmp_path: Path) -> None:
-    summary_path = tmp_path / "summary.txt"
+def test_summary_to_file_destination(repo_root: Path) -> None:
+    summary_path = repo_root / "summary.txt"
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "none",
             "--summary",
@@ -316,21 +316,23 @@ def test_summary_to_file_destination(tmp_path: Path) -> None:
     assert summary_path.read_text(encoding="utf-8").startswith("Total lines")
 
 
-def test_summary_to_file_requires_output_path(tmp_path: Path) -> None:
+def test_summary_to_file_requires_output_path(repo_root: Path) -> None:
     runner = CliRunner()
     res = runner.invoke(
         cli,
-        ["scan", str(tmp_path), "--summary", "table", "--summary-to", "file"],
+        ["scan", str(repo_root), "--summary", "table", "--summary-to", "file"],
     )
     assert res.exit_code != 0
     assert "--summary-output is required when --summary-to file" in res.stderr
 
 
-def test_summary_auto_suppresses_when_stdout_not_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_summary_auto_suppresses_when_stdout_not_tty(
+    repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from grobl import tty
 
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: False, raising=True)
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path)])
+    res = runner.invoke(cli, ["scan", str(repo_root)])
     assert res.exit_code == 0
     assert not res.stderr

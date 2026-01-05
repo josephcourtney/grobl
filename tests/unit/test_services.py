@@ -13,15 +13,22 @@ from grobl.constants import (
     TableStyle,
 )
 from grobl.services import ScanExecutor, ScanOptions
+from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
 
 def _write_noop(_: str) -> None:  # pragma: no cover - trivial
     pass
+
+
+def _base_cfg(tmp_path: Path) -> dict[str, object]:
+    ignores = build_ignore_matcher(repo_root=tmp_path, scan_paths=[tmp_path])
+    return {"exclude_tree": [], "exclude_print": [], "_ignores": ignores}
 
 
 def test_execute_emits_json_payload_and_summary(tmp_path):
@@ -34,7 +41,7 @@ def test_execute_emits_json_payload_and_summary(tmp_path):
         writes.append(content)
 
     executor = ScanExecutor(sink=_sink)
-    cfg = {"exclude_tree": [], "exclude_print": []}
+    cfg = _base_cfg(tmp_path)
 
     human, summary = executor.execute(
         paths=[tmp_path],
@@ -68,7 +75,7 @@ def test_execute_skips_payload_when_disabled(tmp_path):
     writes: list[str] = []
 
     executor = ScanExecutor(sink=writes.append)
-    cfg = {"exclude_tree": [], "exclude_print": []}
+    cfg = _base_cfg(tmp_path)
 
     human, summary = executor.execute(
         paths=[tmp_path],
@@ -95,7 +102,7 @@ def test_execute_summary_none_returns_minimal_structure(tmp_path):
     writes: list[str] = []
 
     executor = ScanExecutor(sink=writes.append)
-    cfg = {"exclude_tree": [], "exclude_print": []}
+    cfg = _base_cfg(tmp_path)
 
     human, summary = executor.execute(
         paths=[tmp_path],
@@ -156,7 +163,7 @@ def test_execute_delegates_payload_emission(monkeypatch, tmp_path):
     )
 
     executor = ScanExecutor(sink=writes.append)
-    cfg = {"exclude_tree": [], "exclude_print": []}
+    cfg = _base_cfg(tmp_path)
 
     executor.execute(
         paths=[tmp_path],
@@ -203,7 +210,7 @@ def test_execute_uses_summary_helper(monkeypatch, tmp_path):
     )
 
     executor = ScanExecutor(sink=writes.append)
-    cfg = {"exclude_tree": [], "exclude_print": []}
+    cfg = _base_cfg(tmp_path)
 
     human, summary = executor.execute(
         paths=[tmp_path],

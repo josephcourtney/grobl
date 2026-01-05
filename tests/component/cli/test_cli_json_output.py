@@ -14,17 +14,17 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_cli_format_json_pretty_and_schema(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\nworld\n", encoding="utf-8")
+def test_cli_format_json_pretty_and_schema(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\nworld\n", encoding="utf-8")
     # simple binary
-    (tmp_path / "bin.dat").write_bytes(b"\x00\x01\x02")
+    (repo_root / "bin.dat").write_bytes(b"\x00\x01\x02")
 
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "json",
             "--summary",

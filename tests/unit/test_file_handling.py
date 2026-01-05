@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from pathspec import PathSpec
 
 from grobl.directory import DirectoryTreeBuilder
 from grobl.file_handling import FileProcessingContext, ScanDependencies, TextFileHandler
 from grobl.utils import TextDetectionResult
+from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small
 
@@ -31,7 +31,6 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
     skip.write_text("skip\n", encoding="utf-8")
 
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    spec = PathSpec.from_lines("gitwildmatch", ["skip.txt"])
     reader_calls: list[Path] = []
 
     def detector(path: Path) -> TextDetectionResult:
@@ -42,11 +41,15 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
         return path.read_text(encoding="utf-8")
 
     deps = _deps(detector=detector, reader=reader)
+    ignores = build_ignore_matcher(
+        repo_root=tmp_path,
+        scan_paths=[tmp_path],
+        print_patterns=["skip.txt"],
+    )
     ctx = FileProcessingContext(
         builder=builder,
         common=tmp_path,
-        match_base=tmp_path,
-        print_spec=spec,
+        ignores=ignores,
         dependencies=deps,
     )
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import click
@@ -310,9 +310,10 @@ def _normalize_summary_destination(
 def _string_sequence_from_config(cfg: dict[str, object], key: str) -> Sequence[str]:
     """Return a typed string sequence for the given config key, defaulting to empty."""
     value = cfg.get(key)
-    if isinstance(value, Sequence) and not isinstance(value, str):
-        if all(isinstance(item, str) for item in value):
-            return cast(tuple[str, ...], tuple(value))
+    if (isinstance(value, Sequence) and not isinstance(value, str)) and all(
+        isinstance(item, str) for item in value
+    ):
+        return cast("tuple[str, ...]", tuple(value))
     return ()
 
 
@@ -397,11 +398,14 @@ def _assemble_layered_ignores(
         unignore=params.unignore,
         no_ignore=params.no_ignore,
     )
+    include_defaults = not params.ignore_defaults and not params.no_ignore
+    include_config = not no_ignore_config and not params.no_ignore
+
     return build_layered_ignores(
         repo_root=repo_root,
         scan_paths=scan_paths,
-        include_defaults=not params.ignore_defaults,
-        include_config=not no_ignore_config,
+        include_defaults=include_defaults,
+        include_config=include_config,
         runtime_tree_patterns=runtime_edits.tree_patterns,
         runtime_print_patterns=runtime_edits.print_patterns,
         default_cfg=default_cfg,

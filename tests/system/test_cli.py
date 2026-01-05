@@ -46,18 +46,18 @@ def test_cli_scan_accepts_filesystem_root(monkeypatch: pytest.MonkeyPatch) -> No
     runner = CliRunner()
     result = runner.invoke(cli, ["scan", "/"])
 
-    assert result.exit_code == 0
-    assert observed["base_path"] == Path("/")
+    assert result.exit_code != 0
+    assert "scan paths must be within the resolved repository root" in result.output
 
 
 def test_cli_root_invocation_forwards_scan_options(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     base.mkdir()
     (base / "src").mkdir()
     (base / "src" / "keep.txt").write_text("keep\n", encoding="utf-8")
@@ -88,28 +88,28 @@ def test_cli_root_invocation_forwards_scan_options(
 
 
 def test_cli_default_scan_outputs_summary_and_payload(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    (tmp_path / "sample.txt").write_text("content\n", encoding="utf-8")
+    (repo_root / "sample.txt").write_text("content\n", encoding="utf-8")
     runner = CliRunner()
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
     monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
-    result = runner.invoke(cli, ["scan", str(tmp_path)])
+    result = runner.invoke(cli, ["scan", str(repo_root)])
     assert result.exit_code == 0
     assert not result.stdout
     assert "Total lines" in result.stderr
     assert "test_cli_default_scan_outputs_0/" in result.stderr
 
 
-def test_cli_scan_rejects_payload_and_summary_none(tmp_path: Path) -> None:
-    (tmp_path / "sample.txt").write_text("content\n", encoding="utf-8")
+def test_cli_scan_rejects_payload_and_summary_none(repo_root: Path) -> None:
+    (repo_root / "sample.txt").write_text("content\n", encoding="utf-8")
     runner = CliRunner()
     result = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "none",
             "--summary",
@@ -120,8 +120,8 @@ def test_cli_scan_rejects_payload_and_summary_none(tmp_path: Path) -> None:
     assert "payload and summary" in result.output
 
 
-def test_cli_multiple_paths_uses_common_ancestor_in_json_root(tmp_path: Path) -> None:
-    base = tmp_path / "proj"
+def test_cli_multiple_paths_uses_common_ancestor_in_json_root(repo_root: Path) -> None:
+    base = repo_root / "proj"
     a_dir = base / "a"
     b_dir = base / "b"
     a_dir.mkdir(parents=True)
@@ -149,14 +149,14 @@ def test_cli_multiple_paths_uses_common_ancestor_in_json_root(tmp_path: Path) ->
 
 
 def test_cli_modes_human_payload_variants(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Isolate from any user/global grobl config
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     base.mkdir()
     (base / "x.txt").write_text("x\n", encoding="utf-8")
 
@@ -193,13 +193,13 @@ def test_cli_modes_human_payload_variants(
 
 
 def test_cli_ignore_file_hides_matching_entries(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     base.mkdir()
     (base / "keep.txt").write_text("keep\n", encoding="utf-8")
     (base / "skip.txt").write_text("skip\n", encoding="utf-8")
@@ -207,7 +207,7 @@ def test_cli_ignore_file_hides_matching_entries(
     logs.mkdir()
     (logs / "app.log").write_text("log\n", encoding="utf-8")
 
-    ignore_file = tmp_path / "ignore.txt"
+    ignore_file = repo_root / "ignore.txt"
     ignore_file.write_text("# comment\nlogs/**\nskip.txt\n", encoding="utf-8")
 
     runner = CliRunner()
@@ -236,13 +236,13 @@ def test_cli_ignore_file_hides_matching_entries(
 
 
 def test_cli_add_and_remove_ignore_roundtrip(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     d = base / "dir"
     d.mkdir(parents=True)
     (d / "keep.txt").write_text("k\n", encoding="utf-8")
@@ -298,13 +298,13 @@ def test_cli_add_and_remove_ignore_roundtrip(
 
 
 def test_cli_no_ignore_includes_default_excluded_dir(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     base.mkdir()
     venv = base / ".venv"
     venv.mkdir()
@@ -351,13 +351,13 @@ def test_cli_no_ignore_includes_default_excluded_dir(
 
 
 def test_cli_config_tag_customisation_applies_to_llm_payload(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     base.mkdir()
     (base / "x.txt").write_text("x\n", encoding="utf-8")
 
@@ -392,13 +392,13 @@ def test_cli_config_tag_customisation_applies_to_llm_payload(
 
 
 def test_cli_exclude_print_hides_contents_but_keeps_metadata(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     base.mkdir()
     (base / "keep.txt").write_text("keep-contents\n", encoding="utf-8")
     (base / "secret.txt").write_text("secret-contents\n", encoding="utf-8")
@@ -435,13 +435,13 @@ def test_cli_exclude_print_hides_contents_but_keeps_metadata(
 
 
 def test_cli_binary_file_summary_marks_binary_flag(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
-    base = tmp_path / "proj"
+    base = repo_root / "proj"
     base.mkdir()
     (base / "blob.bin").write_bytes(b"\x00\x01\x02\x03")
     (base / "text.txt").write_text("hi\n", encoding="utf-8")
@@ -474,8 +474,8 @@ def test_cli_binary_file_summary_marks_binary_flag(
     assert text["chars"] > 0
 
 
-def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("data\n", encoding="utf-8")
+def test_cli_verbose_and_log_level_flags(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("data\n", encoding="utf-8")
     runner = CliRunner()
 
     res_verbose = runner.invoke(
@@ -483,7 +483,7 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
         [
             "-v",
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--summary",
             "none",
             "--output",
@@ -498,7 +498,7 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
             "--log-level",
             "DEBUG",
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--summary",
             "none",
             "--output",
@@ -516,34 +516,33 @@ def test_cli_unknown_command_errors() -> None:
 
 
 def test_cli_path_like_token_defaults_to_scan(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    (tmp_path / "data.txt").write_text("value\n", encoding="utf-8")
+    (repo_root / "data.txt").write_text("value\n", encoding="utf-8")
     runner = CliRunner()
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
     monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
-    result = runner.invoke(cli, [str(tmp_path)])
+    result = runner.invoke(cli, [str(repo_root)])
     assert result.exit_code == 0
     assert "data.txt" in result.stderr
 
 
-def test_cli_dash_prefixed_token_defaults_to_scan(tmp_path: Path) -> None:
-    (tmp_path / "keep.txt").write_text("keep\n", encoding="utf-8")
+def test_cli_dash_prefixed_token_defaults_to_scan(repo_root: Path) -> None:
+    (repo_root / "keep.txt").write_text("keep\n", encoding="utf-8")
     runner = CliRunner()
-    result = runner.invoke(cli, ["--summary", "json", str(tmp_path)])
+    result = runner.invoke(cli, ["--summary", "json", str(repo_root)])
     assert result.exit_code == 0
     assert '"root"' in result.output
 
 
 def test_cli_existing_path_token_defaults_to_scan(
-    tmp_path: Path,
+    repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    target = tmp_path / "existing"
+    target = repo_root / "existing"
     target.write_text("payload\n", encoding="utf-8")
     runner = CliRunner()
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
     monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
     result = runner.invoke(cli, ["existing"])

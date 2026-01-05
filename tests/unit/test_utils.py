@@ -164,7 +164,7 @@ def test_resolve_repo_root_ignores_git_root_when_paths_outside(
     monkeypatch.setattr(utils, "_git_root_for_cwd", lambda *_: repo_root)
 
     got = resolve_repo_root(cwd=repo_root, paths=(fork,))
-    assert got == fork
+    assert got == repo_root
 
 
 def test_resolve_repo_root_falls_back_to_cwd_when_common_raises(

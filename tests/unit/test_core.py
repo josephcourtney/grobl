@@ -15,11 +15,24 @@ from grobl.file_handling import (
     ScanDependencies,
 )
 from grobl.utils import TextDetectionResult
+from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
+
+
+def _make_ignores(paths: Sequence[Path], *, repo_root: Path, cfg: dict[str, object] | None = None):
+    tree_patterns = tuple(cfg.get("exclude_tree", [])) if cfg else ()
+    print_patterns = tuple(cfg.get("exclude_print", [])) if cfg else ()
+    return build_ignore_matcher(
+        repo_root=repo_root,
+        scan_paths=list(paths),
+        tree_patterns=tree_patterns,
+        print_patterns=print_patterns,
+    )
 
 
 def test_file_collection_and_metadata(tmp_path: Path) -> None:
@@ -29,7 +42,8 @@ def test_file_collection_and_metadata(tmp_path: Path) -> None:
     (tmp_path / "bin.dat").write_bytes(b"\x00\x01\x02\x03")
 
     cfg = {"exclude_tree": [], "exclude_print": ["skip.txt"]}
-    res = run_scan(paths=[tmp_path], cfg=cfg)
+    ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
+    res = run_scan(paths=[tmp_path], cfg=cfg, ignores=ignores)
     b = res.builder
     meta = dict(b.metadata_items())
 
@@ -51,7 +65,8 @@ def test_exclude_print_with_gitignore_semantics(tmp_path: Path) -> None:
     from grobl.core import run_scan
 
     cfg = {"exclude_tree": [], "exclude_print": ["**/*.md"]}
-    res = run_scan(paths=[tmp_path], cfg=cfg)
+    ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
+    res = run_scan(paths=[tmp_path], cfg=cfg, ignores=ignores)
     # The .md file should have included=False in metadata
     meta = dict(res.builder.metadata_items())
     assert meta["notes/readme.md"][2] is False
@@ -62,7 +77,8 @@ def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
     target = tmp_path / "solo.txt"
     target.write_text("line1\nline2\n", encoding="utf-8")
 
-    res = run_scan(paths=[target], cfg={})
+    ignores = _make_ignores([target], repo_root=tmp_path)
+    res = run_scan(paths=[target], cfg={}, ignores=ignores)
 
     assert res.common == tmp_path
     tree = res.builder.tree_output()
@@ -82,7 +98,9 @@ def test_run_scan_uses_match_base_for_gitignore_anchors(tmp_path: Path) -> None:
     (tmp_path / "foo" / "keep.txt").write_text("ok\n", encoding="utf-8")
 
     cfg = {"exclude_tree": ["/root_only.txt", "foo/**/bar.txt"], "exclude_print": []}
-    res = run_scan(paths=[tmp_path / "foo"], cfg=cfg, match_base=tmp_path)
+    path_list = [tmp_path / "foo"]
+    ignores = _make_ignores(path_list, repo_root=tmp_path, cfg=cfg)
+    res = run_scan(paths=path_list, cfg=cfg, match_base=tmp_path, ignores=ignores)
     tree = "\n".join(res.builder.tree_output())
 
     assert "bar.txt" not in tree
@@ -93,7 +111,11 @@ def test_run_scan_uses_match_base_for_gitignore_anchors(tmp_path: Path) -> None:
 def test_run_scan_rejects_missing_paths(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist"
     with pytest.raises(ValueError, match="scan paths do not exist"):
-        run_scan(paths=[missing], cfg={})
+        run_scan(
+            paths=[missing],
+            cfg={},
+            ignores=_make_ignores([missing], repo_root=tmp_path),
+        )
 
 
 def test_unignore_allows_specific_paths(tmp_path: Path) -> None:
@@ -111,7 +133,8 @@ def test_unignore_allows_specific_paths(tmp_path: Path) -> None:
         unignore=("tests/fixtures/**/.gitignore",),
         no_ignore=False,
     )
-    res = run_scan(paths=[tmp_path], cfg=cfg, match_base=tmp_path)
+    ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
+    res = run_scan(paths=[tmp_path], cfg=cfg, match_base=tmp_path, ignores=ignores)
     tree = "\n".join(res.builder.tree_output())
     assert tree.count(".gitignore") == 1
 
@@ -134,7 +157,8 @@ def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
         text_reader=fake_read,
     )
 
-    res = run_scan(paths=[tmp_path], cfg={}, dependencies=deps)
+    ignores = _make_ignores([tmp_path], repo_root=tmp_path)
+    res = run_scan(paths=[tmp_path], cfg={}, dependencies=deps, ignores=ignores)
     assert reads == [sample]
     meta = dict(res.builder.metadata_items())
     assert meta["note.txt"][0] == 1
@@ -159,6 +183,7 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
             return FileAnalysis(lines=0, chars=0, include_content=False)
 
     handlers = FileHandlerRegistry.default().extend((ZeroHandler(),))
-    res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers)
+    ignores = _make_ignores([tmp_path], repo_root=tmp_path)
+    res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers, ignores=ignores)
     meta = dict(res.builder.metadata_items())
     assert meta["blob.bin"][1] == 0

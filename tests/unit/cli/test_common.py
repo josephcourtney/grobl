@@ -17,6 +17,7 @@ from grobl.constants import (
 )
 from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError, ScanInterrupted
+from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small
 
@@ -98,12 +99,20 @@ def _params_for(tmp_path: Path) -> ccommon.ScanParams:
     )
 
 
+def _cfg_with_ignores(tmp_path: Path) -> dict[str, object]:
+    return {
+        "exclude_tree": [],
+        "exclude_print": [],
+        "_ignores": build_ignore_matcher(repo_root=tmp_path, scan_paths=[tmp_path]),
+    }
+
+
 def test__execute_with_handling_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ccommon, "ScanExecutor", _DummyExecOK)
     writes: list[str] = []
     human, js = ccommon._execute_with_handling(
         params=_params_for(tmp_path),
-        cfg={},
+        cfg=_cfg_with_ignores(tmp_path),
         cwd=tmp_path,
         write_fn=writes.append,
         summary_style=TableStyle.COMPACT,
@@ -119,7 +128,7 @@ def test__execute_with_handling_path_error(monkeypatch: pytest.MonkeyPatch, tmp_
     with pytest.raises(SystemExit) as excinfo:
         ccommon._execute_with_handling(
             params=_params_for(tmp_path),
-            cfg={},
+            cfg=_cfg_with_ignores(tmp_path),
             cwd=tmp_path,
             write_fn=lambda _: None,
             summary_style=TableStyle.COMPACT,
@@ -136,7 +145,7 @@ def test__execute_with_handling_usage_error(monkeypatch: pytest.MonkeyPatch, tmp
     with pytest.raises(SystemExit) as exc:
         ccommon._execute_with_handling(
             params=_params_for(tmp_path),
-            cfg={},
+            cfg=_cfg_with_ignores(tmp_path),
             cwd=tmp_path,
             write_fn=lambda _: None,
             summary_style=TableStyle.COMPACT,
@@ -160,7 +169,7 @@ def test__execute_with_handling_scan_interrupted(monkeypatch: pytest.MonkeyPatch
     with pytest.raises(SystemExit) as exc:
         ccommon._execute_with_handling(
             params=_params_for(tmp_path),
-            cfg={"exclude_tree": []},
+            cfg=_cfg_with_ignores(tmp_path),
             cwd=tmp_path,
             write_fn=lambda _: None,
             summary_style=TableStyle.FULL,
@@ -180,7 +189,7 @@ def test__execute_with_handling_keyboard_interrupt(monkeypatch: pytest.MonkeyPat
     with pytest.raises(SystemExit) as exc:
         ccommon._execute_with_handling(
             params=_params_for(tmp_path),
-            cfg={"exclude_tree": []},
+            cfg=_cfg_with_ignores(tmp_path),
             cwd=tmp_path,
             write_fn=lambda _: None,
             summary_style=TableStyle.FULL,

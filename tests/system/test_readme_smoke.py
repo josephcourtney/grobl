@@ -10,15 +10,15 @@ from grobl.cli import cli
 pytestmark = pytest.mark.medium
 
 
-def test_readme_scan_quick_start(tmp_path: Path) -> None:
+def test_readme_scan_quick_start(repo_root: Path) -> None:
     # README suggests: grobl (defaults to scan current dir). We emulate with explicit path.
-    (tmp_path / "a.txt").write_text("data", encoding="utf-8")
+    (repo_root / "a.txt").write_text("data", encoding="utf-8")
     runner = CliRunner()
     res = runner.invoke(
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--scope",
             "tree",
             "--summary",
@@ -30,11 +30,11 @@ def test_readme_scan_quick_start(tmp_path: Path) -> None:
     assert res.exit_code == 0
 
 
-def test_readme_output_to_file(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("data", encoding="utf-8")
-    out = tmp_path / "context.txt"
+def test_readme_output_to_file(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("data", encoding="utf-8")
+    out = repo_root / "context.txt"
     runner = CliRunner()
-    res = runner.invoke(cli, ["scan", str(tmp_path), "--output", str(out)])
+    res = runner.invoke(cli, ["scan", str(repo_root), "--output", str(out)])
     assert res.exit_code == 0
     assert out.exists()
     # Simplify truthy check per linter guidance
