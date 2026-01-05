@@ -6,6 +6,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 type LogValue = str | int | float | bool | list[LogValue] | dict[str, LogValue] | None
 
@@ -15,7 +16,9 @@ def _serialise_value(value: object) -> LogValue:
     if isinstance(value, Path):
         return value.as_posix()
     if isinstance(value, set):
-        return sorted(_serialise_value(v) for v in value)
+        serialised = [_serialise_value(v) for v in value]
+        serialised.sort(key=str)
+        return cast("LogValue", serialised)
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return [_serialise_value(v) for v in value]
     if isinstance(value, Mapping):

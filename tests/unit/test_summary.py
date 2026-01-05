@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from grobl.constants import ContentScope, TableStyle
 from grobl.directory import DirectoryTreeBuilder
 from grobl.summary import SummaryContext, build_sink_payload_json, build_summary
+
+pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from pathlib import Path

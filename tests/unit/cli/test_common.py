@@ -19,6 +19,8 @@ from grobl.constants import (
 from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError, ScanInterrupted
 
+pytestmark = pytest.mark.small
+
 if TYPE_CHECKING:
     from typing import Any
 

@@ -10,6 +10,8 @@ import pytest
 from grobl.constants import PayloadSink
 from grobl.output import build_writer_from_config
 
+pytestmark = pytest.mark.small
+
 if TYPE_CHECKING:
     from pathlib import Path
 

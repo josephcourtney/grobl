@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+import pytest
 from pathspec import PathSpec
 
 from grobl.directory import (
@@ -10,6 +11,8 @@ from grobl.directory import (
     TreeCallback,
     traverse_dir,
 )
+
+pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from pathlib import Path

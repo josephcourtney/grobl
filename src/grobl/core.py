@@ -40,6 +40,7 @@ def run_scan(
     *,
     paths: list[Path],
     cfg: dict[str, Any],
+    match_base: Path | None = None,
     dependencies: ScanDependencies | None = None,
     handlers: FileHandlerRegistry | None = None,
 ) -> ScanResult:
@@ -61,13 +62,19 @@ def run_scan(
         # itself. Normalise to the containing directory so relative paths and
         # directory traversal operate on a directory base.
         common = common.parent
+    if match_base is None:
+        match_base = common
+    else:
+        match_base = match_base.resolve()
+        if match_base.is_file():
+            match_base = match_base.parent
+        if not all(p.is_relative_to(match_base) for p in resolved):
+            match_base = common
 
     excl_tree = list(cfg.get(CONFIG_EXCLUDE_TREE, []))
     excl_print = list(cfg.get(CONFIG_EXCLUDE_PRINT, []))
     # Compile gitignore-style specs once per run
     tree_spec = PathSpec.from_lines("gitwildmatch", excl_tree)
-    print_spec = PathSpec.from_lines("gitwildmatch", excl_print)
-
     log_event(
         logger,
         StructuredLogEvent(
@@ -88,7 +95,8 @@ def run_scan(
     context = FileProcessingContext(
         builder=builder,
         common=common,
-        print_spec=print_spec,
+        match_base=match_base,
+        print_spec=PathSpec.from_lines("gitwildmatch", excl_print),
         dependencies=deps,
     )
 
@@ -104,7 +112,7 @@ def run_scan(
     try:
         traverse_dir(
             common,
-            TraverseConfig(paths=resolved, patterns=excl_tree, base=common, spec=tree_spec),
+            TraverseConfig(paths=resolved, patterns=excl_tree, base=match_base, spec=tree_spec),
             collect,
         )
     except KeyboardInterrupt as _:

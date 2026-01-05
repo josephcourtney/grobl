@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+import pytest
+
 from grobl import services
 from grobl.constants import (
     ContentScope,
@@ -11,6 +13,8 @@ from grobl.constants import (
     TableStyle,
 )
 from grobl.services import ScanExecutor, ScanOptions
+
+pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from collections.abc import Callable

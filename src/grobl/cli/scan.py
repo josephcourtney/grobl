@@ -8,7 +8,7 @@ from pathlib import Path
 
 import click
 
-from grobl.config import load_and_adjust_config
+from grobl.config import load_and_adjust_config, resolve_config_base
 from grobl.constants import (
     EXIT_CONFIG,
     ContentScope,
@@ -96,6 +96,18 @@ def scan(
     """Run a directory scan based on CLI flags and paths, then emit/copy output."""
     ctx = click.get_current_context()
 
+    cwd = Path()
+    requested_paths = paths or (Path(),)
+
+    try:
+        common_base = find_common_ancestor(list(requested_paths) or [cwd])
+    except (ValueError, PathNotFoundError):
+        common_base = cwd
+    if common_base.is_file():
+        common_base = common_base.parent
+
+    config_base = resolve_config_base(base_path=common_base, explicit_config=config_path)
+
     params = ScanParams(
         ignore_defaults=ignore_defaults,
         no_ignore=no_ignore,
@@ -109,7 +121,8 @@ def scan(
         payload=PayloadFormat(payload),
         summary=SummaryFormat(summary),
         sink=PayloadSink(sink),
-        paths=paths or (Path(),),
+        paths=requested_paths,
+        pattern_base=config_base,
     )
 
     if params.payload is PayloadFormat.NONE and params.summary is SummaryFormat.NONE:
@@ -120,16 +133,9 @@ def scan(
         msg = "--sink file requires --output to be provided"
         raise click.UsageError(msg, ctx=ctx)
 
-    cwd = Path()
-
-    try:
-        common_base = find_common_ancestor(list(params.paths) or [cwd])
-    except (ValueError, PathNotFoundError):
-        common_base = cwd
-
     try:
         cfg = load_and_adjust_config(
-            base_path=common_base,
+            base_path=config_base,
             explicit_config=params.config_path,
             ignore_defaults=params.ignore_defaults,
             add_ignore=params.add_ignore,

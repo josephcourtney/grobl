@@ -15,6 +15,8 @@ from grobl.file_handling import (
 )
 from grobl.utils import TextDetectionResult
 
+pytestmark = pytest.mark.small
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -69,6 +71,22 @@ def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
     lines, _, included = meta["solo.txt"]
     assert lines == 2
     assert included is True
+
+
+def test_run_scan_uses_match_base_for_gitignore_anchors(tmp_path: Path) -> None:
+    (tmp_path / "root_only.txt").write_text("root\n", encoding="utf-8")
+    (tmp_path / "foo" / "a").mkdir(parents=True)
+    (tmp_path / "foo" / "a" / "bar.txt").write_text("blocked\n", encoding="utf-8")
+    (tmp_path / "foo" / "root_only.txt").write_text("keep\n", encoding="utf-8")
+    (tmp_path / "foo" / "keep.txt").write_text("ok\n", encoding="utf-8")
+
+    cfg = {"exclude_tree": ["/root_only.txt", "foo/**/bar.txt"], "exclude_print": []}
+    res = run_scan(paths=[tmp_path / "foo"], cfg=cfg, match_base=tmp_path)
+    tree = "\n".join(res.builder.tree_output())
+
+    assert "bar.txt" not in tree
+    assert "keep.txt" in tree
+    assert "root_only.txt" in tree
 
 
 def test_run_scan_rejects_missing_paths(tmp_path: Path) -> None:

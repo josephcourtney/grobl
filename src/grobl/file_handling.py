@@ -37,6 +37,7 @@ class FileProcessingContext:
 
     builder: DirectoryTreeBuilder
     common: Path
+    match_base: Path
     print_spec: PathSpec
     dependencies: ScanDependencies
 
@@ -91,24 +92,27 @@ class BaseFileHandler:
 class TextFileHandler(BaseFileHandler):
     """Handle text files by capturing metadata and, optionally, contents."""
 
-    @staticmethod
-    def supports(*, path: Path, is_text_file: bool) -> bool:  # noqa: ARG004 - `path` unused
+    def supports(self, *, path: Path, is_text_file: bool) -> bool:
+        _ = self
+        _ = path
         return is_text_file
 
-    @staticmethod
     def _analyze(
+        self,
         *,
         path: Path,
         context: FileProcessingContext,
-        is_text_file: bool,  # noqa: ARG004 - template signature
+        is_text_file: bool,
         detection: TextDetectionResult,
     ) -> FileAnalysis:
+        _ = self
+        del is_text_file
         deps = context.dependencies
         content = deps.text_reader(path) if detection.content is None else detection.content
         line_count = len(content.splitlines())
         char_count = len(content)
-        rel = path.relative_to(context.common)
-        include = not context.print_spec.match_file(rel.as_posix())
+        rel_match = path.relative_to(context.match_base)
+        include = not context.print_spec.match_file(rel_match.as_posix())
         return FileAnalysis(
             lines=line_count,
             chars=char_count,
@@ -125,18 +129,21 @@ class TextFileHandler(BaseFileHandler):
 class BinaryFileHandler(BaseFileHandler):
     """Record metadata for binary files (size only, no contents)."""
 
-    @staticmethod
-    def supports(*, path: Path, is_text_file: bool) -> bool:  # noqa: ARG004
+    def supports(self, *, path: Path, is_text_file: bool) -> bool:
+        _ = self
+        _ = path
         return not is_text_file
 
-    @staticmethod
     def _analyze(
+        self,
         *,
         path: Path,
-        context: FileProcessingContext,  # noqa: ARG004
-        is_text_file: bool,  # noqa: ARG004
-        detection: TextDetectionResult,  # noqa: ARG004
+        context: FileProcessingContext,
+        is_text_file: bool,
+        detection: TextDetectionResult,
     ) -> FileAnalysis:
+        _ = self
+        del context, is_text_file, detection
         try:
             size = path.stat().st_size
         except OSError:

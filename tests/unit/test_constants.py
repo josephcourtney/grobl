@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import grobl.constants as const_mod
 from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
@@ -12,6 +14,8 @@ from grobl.constants import (
     SummaryFormat,
     TableStyle,
 )
+
+pytestmark = pytest.mark.small
 
 
 def test_enum_values_and_config_keys() -> None:

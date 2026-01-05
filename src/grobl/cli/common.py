@@ -48,6 +48,7 @@ class ScanParams:
     summary: SummaryFormat
     sink: PayloadSink
     paths: tuple[Path, ...]
+    pattern_base: Path | None = None
 
 
 def iter_legacy_references(base: Path) -> Iterator[tuple[Path, int, str]]:
@@ -111,6 +112,7 @@ def _execute_with_handling(
                 payload_format=params.payload,
                 summary_format=params.summary,
                 summary_style=summary_style,
+                pattern_base=params.pattern_base,
             ),
         )
     except PathNotFoundError as e:

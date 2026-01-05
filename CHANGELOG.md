@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [1.0.24] - 2025-11-26
+
+### Fixed
+- fix ignore pattern matching to use the config root when scanning subpaths
+- fix gitignore-style `foo/**/bar` patterns to honor config-root anchoring
+
 ## [1.0.23] - 2025-11-25
 
 ### Fixed

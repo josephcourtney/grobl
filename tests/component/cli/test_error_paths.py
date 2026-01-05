@@ -9,6 +9,8 @@ from click.testing import CliRunner
 from grobl.cli import cli
 from grobl.constants import EXIT_CONFIG, EXIT_USAGE
 
+pytestmark = pytest.mark.small
+
 
 def test_usage_error_invalid_scope(tmp_path: Path) -> None:
     (tmp_path / "f.txt").write_text("x", encoding="utf-8")

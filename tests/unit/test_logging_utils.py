@@ -3,16 +3,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+import pytest
+
 from grobl.logging_utils import (
     StructuredLogEvent,
     get_logger,
     log_event,
 )
 
+pytestmark = pytest.mark.small
+
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def test_serialise_and_mask(tmp_path: Path) -> None:

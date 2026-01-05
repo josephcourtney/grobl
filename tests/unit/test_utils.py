@@ -5,16 +5,17 @@ from pathlib import Path
 
 import pytest
 
+from grobl.config import apply_runtime_ignores
 from grobl.errors import PathNotFoundError
 from grobl.utils import detect_text, find_common_ancestor, is_text
+
+pytestmark = pytest.mark.small
 
 try:  # import at module level; skip the whole module if unavailable
     from hypothesis import given
     from hypothesis import strategies as st
 except ImportError:  # pragma: no cover - tooling availability
     pytest.skip("hypothesis not available", allow_module_level=True)
-
-from grobl.config import apply_runtime_ignores
 
 
 def test_find_common_ancestor_empty_raises() -> None:

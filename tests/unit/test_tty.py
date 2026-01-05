@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
+
+import pytest
 
 from grobl import tty
 from grobl.tty import TableStyle
 
-if TYPE_CHECKING:
-    import pytest
+pytestmark = pytest.mark.small
 
 
 def test_stdout_is_tty_handles_missing_attribute(monkeypatch: pytest.MonkeyPatch) -> None:

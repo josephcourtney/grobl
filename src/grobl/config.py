@@ -17,6 +17,7 @@ from grobl.errors import ConfigLoadError
 TOML_CONFIG = ".grobl.toml"
 # Legacy filename we still detect and optionally migrate:
 LEGACY_TOML_CONFIG = ".grobl.config.toml"
+PYPROJECT_TOML = "pyproject.toml"
 
 
 def load_default_config() -> dict[str, Any]:
@@ -56,6 +57,26 @@ def write_default_config(target_dir: Path) -> Path:
     toml_path = target_dir / TOML_CONFIG
     toml_path.write_text(text, encoding="utf-8")
     return toml_path
+
+
+def resolve_config_base(*, base_path: Path, explicit_config: Path | None = None) -> Path:
+    """Return the project config root for local matching/loading."""
+    if explicit_config is not None:
+        return explicit_config.resolve().parent
+
+    base = base_path.resolve()
+    if base.is_file():
+        base = base.parent
+
+    for candidate in (base, *base.parents):
+        if (candidate / TOML_CONFIG).exists():
+            return candidate
+        if (candidate / LEGACY_TOML_CONFIG).exists():
+            return candidate
+        if (candidate / PYPROJECT_TOML).exists():
+            return candidate
+
+    return base
 
 
 def _load_with_extends(path: Path, *, _visited: set[Path] | None = None) -> dict[str, Any]:

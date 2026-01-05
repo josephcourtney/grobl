@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from grobl.formatter import human_summary
+
+pytestmark = pytest.mark.small
 
 
 def test_human_summary_table_none_returns_empty() -> None:

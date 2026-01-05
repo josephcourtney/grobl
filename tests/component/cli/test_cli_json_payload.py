@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import CliRunner
 
 from grobl.cli import cli
+
+pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from pathlib import Path

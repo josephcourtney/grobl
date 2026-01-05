@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from grobl.config import load_default_config
 from grobl.constants import ContentScope
 from grobl.core import run_scan
@@ -14,6 +16,8 @@ from grobl.renderers import (
     build_markdown_snapshot,
     format_begin_file_header,
 )
+
+pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -4,9 +4,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.config import load_and_adjust_config
+from grobl.config import load_and_adjust_config, resolve_config_base
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
+
+pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -148,3 +150,24 @@ def test_missing_env_config_is_ignored(tmp_path: Path, monkeypatch: pytest.Monke
     )
 
     assert isinstance(cfg, dict)
+
+
+def test_resolve_config_base_prefers_explicit_path(tmp_path: Path) -> None:
+    base = tmp_path / "proj"
+    base.mkdir()
+    explicit = tmp_path / "cfg" / "grobl.toml"
+    explicit.parent.mkdir()
+    explicit.write_text("exclude_tree=['x']\n", encoding="utf-8")
+
+    resolved = resolve_config_base(base_path=base, explicit_config=explicit)
+    assert resolved == explicit.parent.resolve()
+
+
+def test_resolve_config_base_walks_up_to_config_root(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    nested = root / "a" / "b"
+    nested.mkdir(parents=True)
+    (root / ".grobl.toml").write_text("exclude_tree=['x']\n", encoding="utf-8")
+
+    resolved = resolve_config_base(base_path=nested, explicit_config=None)
+    assert resolved == root.resolve()

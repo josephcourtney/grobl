@@ -7,6 +7,8 @@ from click.testing import CliRunner
 
 from grobl.cli import scan as cli_scan
 
+pytestmark = pytest.mark.small
+
 
 @pytest.fixture(autouse=True)
 def _patch_scan_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:

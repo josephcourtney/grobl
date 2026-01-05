@@ -34,6 +34,7 @@ class ScanOptions:
     payload_format: PayloadFormat
     summary_format: SummaryFormat
     summary_style: TableStyle
+    pattern_base: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +260,7 @@ class ScanExecutor:
                 },
             ),
         )
-        result = self._deps.scan(paths=paths, cfg=cfg)
+        result = self._deps.scan(paths=paths, cfg=cfg, match_base=options.pattern_base)
 
         builder = result.builder
         context = SummaryContext(

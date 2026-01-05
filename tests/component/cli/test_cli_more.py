@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 from click.testing import CliRunner
 
 from grobl import tty
 from grobl.cli import cli
 
+pytestmark = pytest.mark.small
+
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
 
 def test_explicit_full_table_even_when_not_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

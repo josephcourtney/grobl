@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from grobl.cli import cli
+
+pytestmark = pytest.mark.medium
 
 
 def test_readme_scan_quick_start(tmp_path: Path) -> None:

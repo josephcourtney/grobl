@@ -11,6 +11,8 @@ from click.testing import CliRunner
 from grobl.cli import root as cli_root
 from grobl.cli.root import main as module_main
 
+pytestmark = pytest.mark.small
+
 
 def test_main_module_invokes_cli(monkeypatch):
     called = {}

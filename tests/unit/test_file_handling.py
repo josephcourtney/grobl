@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 from pathspec import PathSpec
 
 from grobl.directory import DirectoryTreeBuilder
 from grobl.file_handling import FileProcessingContext, ScanDependencies, TextFileHandler
 from grobl.utils import TextDetectionResult
+
+pytestmark = pytest.mark.small
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -39,7 +42,13 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
         return path.read_text(encoding="utf-8")
 
     deps = _deps(detector=detector, reader=reader)
-    ctx = FileProcessingContext(builder=builder, common=tmp_path, print_spec=spec, dependencies=deps)
+    ctx = FileProcessingContext(
+        builder=builder,
+        common=tmp_path,
+        match_base=tmp_path,
+        print_spec=spec,
+        dependencies=deps,
+    )
 
     handler = TextFileHandler()
     detection_inc = detector(inc)

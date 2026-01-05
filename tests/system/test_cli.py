@@ -9,6 +9,8 @@ from click.testing import CliRunner
 
 from grobl.cli import cli
 
+pytestmark = pytest.mark.medium
+
 
 def test_cli_help_and_scan_help() -> None:
     runner = CliRunner()

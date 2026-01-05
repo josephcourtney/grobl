@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import ScanInterrupted
+
+pytestmark = pytest.mark.small
 
 
 def test_scan_interrupted_carries_state() -> None:
