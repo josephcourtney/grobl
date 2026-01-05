@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.26] - 2025-11-27
+
+### Changed
+- align root CLI parsing/injection with the spec so unknown bare tokens error, path-like tokens invoke the default scan, and help/version output stay concise
+
 ## [1.0.25] - 2025-11-26
 
 ### Added

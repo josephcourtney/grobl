@@ -63,8 +63,9 @@ def test_cli_defaults_to_scan_when_no_subcommand(monkeypatch: pytest.MonkeyPatch
 
     result = runner.invoke(cli_root.cli, ["alpha", "beta"])
 
-    assert result.exit_code == 0
-    assert called["paths"] == ("alpha", "beta")
+    assert result.exit_code == 2
+    assert "Unknown command: alpha" in result.output
+    assert "paths" not in called
 
 
 def test_cli_default_scan_does_not_use_protected_args(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -87,8 +88,9 @@ def test_cli_default_scan_does_not_use_protected_args(monkeypatch: pytest.Monkey
 
     result = runner.invoke(cli_root.cli, ["alpha", "beta"])
 
-    assert result.exit_code == 0
-    assert called["paths"] == ("alpha", "beta")
+    assert result.exit_code == 2
+    assert "Unknown command: alpha" in result.output
+    assert "paths" not in called
 
 
 def test_main_handles_broken_pipe(monkeypatch: pytest.MonkeyPatch) -> None:

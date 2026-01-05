@@ -498,3 +498,39 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
         ],
     )
     assert res_debug.exit_code == 0
+
+
+def test_cli_unknown_command_errors() -> None:
+    runner = CliRunner()
+    result = runner.invoke(cli, ["foo"])
+    assert result.exit_code == 2
+    assert "Unknown command: foo" in result.output
+
+
+def test_cli_path_like_token_defaults_to_scan(tmp_path: Path) -> None:
+    (tmp_path / "data.txt").write_text("value\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(cli, [str(tmp_path)])
+    assert result.exit_code == 0
+    assert "<directory" in result.output
+
+
+def test_cli_dash_prefixed_token_defaults_to_scan(tmp_path: Path) -> None:
+    (tmp_path / "keep.txt").write_text("keep\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--summary", "json", str(tmp_path)])
+    assert result.exit_code == 0
+    assert '"root"' in result.output
+
+
+def test_cli_existing_path_token_defaults_to_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "existing"
+    target.write_text("payload\n", encoding="utf-8")
+    runner = CliRunner()
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(cli, ["existing"])
+    assert result.exit_code == 0
+    assert "existing" in result.output
