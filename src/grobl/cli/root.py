@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 # Threshold for -vv to map to DEBUG
+DEFAULT_COMMAND = "scan"
 VERBOSE_DEBUG_THRESHOLD = 2
 
 CLI_CONTEXT_SETTINGS = {
@@ -39,9 +40,17 @@ class RootGroup(click.Group):
         return super().parse_args(ctx, normalized)
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        super().format_help(ctx, formatter)
+        original_commands = self.commands
+        self.commands = {}
+        try:
+            super().format_help(ctx, formatter)
+        finally:
+            self.commands = original_commands
+
         formatter.write_paragraph()
-        formatter.write_text("Default command: scan. Use `grobl scan --help` for command details.")
+        formatter.write_text(
+            f"Default command: {DEFAULT_COMMAND}. Use `grobl {DEFAULT_COMMAND} --help` for command details."
+        )
 
 
 @click.group(cls=RootGroup, context_settings=CLI_CONTEXT_SETTINGS)
@@ -94,11 +103,11 @@ def _inject_default_scan(
     if not command_names:
         return normalized
 
-    scan_exists = "scan" in command_names
+    scan_exists = DEFAULT_COMMAND in command_names
     idx = _first_non_global_index(normalized)
     if idx is None:
         if scan_exists:
-            normalized.append("scan")
+            normalized.append(DEFAULT_COMMAND)
         return normalized
 
     token = normalized[idx]
@@ -106,7 +115,7 @@ def _inject_default_scan(
         return normalized
 
     if _should_inject_for_token(token):
-        normalized.insert(idx, "scan")
+        normalized.insert(idx, DEFAULT_COMMAND)
         return normalized
 
     msg = f"Unknown command: {token}"

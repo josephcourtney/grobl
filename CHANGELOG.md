@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [1.0.27] - 2026-01-05
+
+### Changed
+- ensure the root CLI help omits command listings, points users to `grobl scan --help`, and renders only once per invocation
+- ensure version flags emit just the semantic version string and add regression tests covering the concise help and version output
+
 ## [1.0.26] - 2025-11-27
 
 ### Changed
