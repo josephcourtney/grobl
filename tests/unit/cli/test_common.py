@@ -12,7 +12,6 @@ from grobl.constants import (
     EXIT_USAGE,
     ContentScope,
     PayloadFormat,
-    PayloadSink,
     SummaryFormat,
     TableStyle,
 )
@@ -91,8 +90,9 @@ def _params_for(tmp_path: Path) -> ccommon.ScanParams:
         summary_style=TableStyle.COMPACT,
         config_path=None,
         payload=PayloadFormat.LLM,
-        summary=SummaryFormat.HUMAN,
-        sink=PayloadSink.AUTO,
+        summary=SummaryFormat.TABLE,
+        payload_copy=True,
+        payload_output=None,
         paths=(tmp_path,),
         repo_root=tmp_path,
     )

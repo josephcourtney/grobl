@@ -19,7 +19,12 @@ from .core import ScanResult, run_scan
 from .formatter import human_summary
 from .logging_utils import StructuredLogEvent, get_logger, log_event
 from .renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
-from .summary import SummaryContext, build_sink_payload_json, build_summary
+from .summary import (
+    SummaryContext,
+    build_ndjson_payload,
+    build_sink_payload_json,
+    build_summary,
+)
 
 if TYPE_CHECKING:
     from logging import Logger
@@ -47,6 +52,7 @@ class ScanExecutorDependencies:
     sink_payload_builder: Callable[[SummaryContext], dict[str, Any]]
     llm_payload_builder: Callable[..., str]
     markdown_payload_builder: Callable[..., str]
+    ndjson_payload_builder: Callable[[SummaryContext], str]
 
     @classmethod
     def default(cls) -> ScanExecutorDependencies:
@@ -58,6 +64,7 @@ class ScanExecutorDependencies:
             sink_payload_builder=build_sink_payload_json,
             llm_payload_builder=build_llm_payload,
             markdown_payload_builder=build_markdown_payload,
+            ndjson_payload_builder=build_ndjson_payload,
         )
 
 
@@ -83,7 +90,7 @@ class JsonPayloadStrategy:
         *,
         builder: DirectoryTreeBuilder,
         context: SummaryContext,
-        result: ScanResult,  # noqa: ARG002 - retained for protocol symmetry
+        result: ScanResult,
         sink: Callable[[str], None],
         logger: Logger,
         config: dict[str, object],  # noqa: ARG002
@@ -98,6 +105,7 @@ class JsonPayloadStrategy:
                 context={
                     "tree_entries": len(builder.tree_output()),
                     "file_entries": len(builder.file_contents()),
+                    "common": str(result.common),
                 },
             ),
         )
@@ -122,6 +130,27 @@ class MarkdownPayloadStrategy:
             common=result.common,
             scope=context.scope,
         )
+        if payload:
+            sink(payload)
+
+
+@dataclass(slots=True)
+class NdjsonPayloadStrategy:
+    build_payload: Callable[[SummaryContext], str]
+
+    def emit(
+        self,
+        *,
+        builder: DirectoryTreeBuilder,
+        context: SummaryContext,
+        result: ScanResult,
+        sink: Callable[[str], None],
+        logger: Logger,  # noqa: ARG002
+        config: dict[str, object],  # noqa: ARG002
+    ) -> None:
+        _ = builder
+        _ = result
+        payload = self.build_payload(context)
         if payload:
             sink(payload)
 
@@ -220,6 +249,7 @@ def build_summary_for_format(
 _PAYLOAD_STRATEGIES: dict[PayloadFormat, StrategySource] = {
     PayloadFormat.JSON: lambda deps: JsonPayloadStrategy(deps.sink_payload_builder),
     PayloadFormat.MARKDOWN: lambda deps: MarkdownPayloadStrategy(deps.markdown_payload_builder),
+    PayloadFormat.NDJSON: lambda deps: NdjsonPayloadStrategy(deps.ndjson_payload_builder),
     PayloadFormat.LLM: lambda deps: LlmPayloadStrategy(deps.llm_payload_builder),
     PayloadFormat.NONE: NoopPayloadStrategy(),
 }

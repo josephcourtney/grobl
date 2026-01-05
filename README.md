@@ -42,7 +42,7 @@ Common workflows:
   With default options, when run interactively (stdout is a TTY):
 
   * The **payload** (tree + file contents, LLM-oriented) goes to the **clipboard**.
-  * A human **summary** is printed to **stdout**.
+  * A human **summary** is printed to **stderr** (the default summary destination).
 
 * Save payload to a file:
 
@@ -61,19 +61,19 @@ Common workflows:
 * Show only a summary table (no payload):
 
   ```bash
-  grobl scan --payload none --summary human
+grobl scan --format none --summary table
   ```
 
 * Emit only a JSON summary (no LLM payload):
 
   ```bash
-  grobl scan --payload none --summary json
+grobl scan --format none --summary json
   ```
 
 * Emit a JSON payload and no summary (machine-only):
 
   ```bash
-  grobl scan --payload json --summary none --sink stdout
+grobl scan --format json --summary none --output -
   ```
 
 ## Commands
@@ -164,7 +164,7 @@ All subcommands share a top-level CLI group:
 Examples:
 
 ```bash
-grobl -vv scan --summary human .
+grobl -vv scan --summary table .
 grobl --log-level=DEBUG scan .
 ```
 
@@ -195,69 +195,58 @@ Scope affects:
 ### Payload: heavy output
 
 ```bash
---payload {llm,markdown,json,none}
+--format {llm,markdown,json,ndjson,none}
 ```
 
 * `llm` (default): emit an XML-like, LLM-oriented payload (see **LLM payload format** below)
 * `markdown`: emit a Markdown payload containing a directory tree and per-file blocks with metadata headers and fenced contents
 * `json`: emit a structured JSON payload (see **JSON formats** below)
+* `ndjson`: emit the same summary data as JSON but as newline-delimited records with stable key ordering
 * `none`: do not emit any payload; only build a summary (if enabled)
 
-The payload is always written to the **payload sink** (see below), not to stderr. If you choose `--payload none` and also disable the summary (`--summary none`), grobl exits with a usage error (there would be nothing to do).
+The payload is always written to a clipboard or file destination (see below), not to stderr. If you choose `--format none` and also disable the summary (`--summary none`), grobl exits with a usage error (there would be nothing to do).
 
 ### Summary: light metadata output
 
 ```bash
---summary {human,json,none}
---summary-style {auto,full,compact,none}
+--summary {auto,none,table,json}
+--summary-style {auto,full,compact}
+--summary-to {stderr,stdout,file}
+--summary-output PATH
 ```
 
-* `--summary human` (default): print a human-readable summary to **stdout**
+* `--summary auto` (default): behave like `table` when stdout is a TTY and like `none` otherwise.
+* `--summary table`: print a human-readable summary to the selected destination.
+  * `--summary-style auto` (default) chooses `full` on TTYs and `compact` otherwise.
+  * `--summary-style full` renders the directory tree plus totals.
+  * `--summary-style compact` prints just the totals (`Total lines: ...`).
+* `--summary json`: print a JSON summary; the emitted object still records the requested table style in the `"style"` field.
+* `--summary none`: omit any summary output.
 
-  * `--summary-style auto` (default):
-
-    * `full` if stdout is a TTY
-    * `compact` otherwise
-  * `--summary-style full`: directory tree + table with totals
-  * `--summary-style compact`: totals only (`Total lines: ...`)
-  * `--summary-style none`: suppress the human summary table entirely
-* `--summary json`: print a JSON summary to stdout (schema described below)
-
-  * `--summary-style` is recorded as a `"style"` field but does not change the JSON structure.
-* `--summary none`: do not print any summary
+Summary routing uses `--summary-to`. The default destination is `stderr`, keeping the summary separate from payload streams.
+`--summary-to stdout` routes the summary into stdout (useful for simple scripts) and `--summary-to file` requires `--summary-output PATH` to write the summary to disk.
+When the payload already writes to stdout (for example via `--output -`), the summary remains on stderr unless you explicitly route it elsewhere.
 
 The summary is independent of the payload:
 
-* You can have a summary without a payload (`--payload none --summary json`).
-* You can have a payload without a summary (`--payload json --summary none`).
+* You can have a summary without a payload (`--format none --summary table`).
+* You can have a payload without a summary (`--format json --summary none`).
 
 There is no separate `--quiet` flag; `--summary none` is the explicit way to suppress summary printing.
 
-### Payload sink: where the payload goes
+### Payload destination: clipboard or file
 
 ```bash
---sink {auto,clipboard,stdout,file}
+--copy
 --output PATH
 ```
 
-* `--sink auto` (default):
+* When neither `--copy` nor `--output` is provided, the payload is written to the clipboard (the default).
+* `--copy` forces clipboard delivery and cannot be combined with `--output`.
+* `--output -` writes the payload to stdout.
+* `--output PATH` writes the payload to the specified file.
 
-  * If `--output PATH` is given: payload is written to that file.
-  * Else, if stdout is a TTY: payload is copied to the clipboard.
-  * Else: payload is written to stdout.
-* `--sink clipboard`:
-
-  * Attempt to copy the payload to the clipboard.
-  * If the clipboard backend fails (e.g., missing dependency), grobl logs a warning and falls back to stdout.
-* `--sink stdout`:
-
-  * Payload is written to stdout, regardless of TTY.
-* `--sink file`:
-
-  * Payload is written to `--output PATH`.
-  * If `--output` is omitted, this is a usage error.
-
-The **summary** is always printed to stdout (unless `--summary none`) regardless of the sink. This makes it easy to both pipe or capture payloads and still see a quick human or JSON summary.
+The **summary** is always printed to stdout (unless `--summary none`) regardless of the payload destination. This makes it easy to both pipe or capture payloads while still seeing a quick human or JSON summary.
 
 Examples:
 
@@ -266,19 +255,19 @@ Examples:
 grobl scan .
 
 # Payload to stdout, no summary (ideal for tools)
-grobl scan --payload json --summary none --sink stdout
+grobl scan --format json --summary none --output -
 
 # Human summary only (no payload)
-grobl scan --payload none --summary human
+grobl scan --format none --summary table
 
 # JSON summary only
-grobl scan --payload none --summary json
+grobl scan --format none --summary json
 
 # Payload to a file, human summary to stdout
 grobl scan --output context.txt
 
-# Payload to explicit file sink
-grobl scan --sink file --output context.txt
+# Payload to a file in a specific format
+grobl scan --format json --output context.txt
 ```
 
 ### Ignore and config controls
@@ -457,29 +446,18 @@ instead of `<directory>` / `<file>`.
 
    * A directory tree and file metadata/contents are fed into renderers.
    * A summary object is computed (totals + per-file entries).
-   * Depending on `--scope`, `--payload`, `--summary`, and `--sink`:
+   * Depending on `--scope`, `--format`, `--summary`, and the destination flags:
 
-     * An XML-like LLM payload or JSON payload is sent to the payload sink (file/clipboard/stdout).
+     * The selected payload is emitted to the clipboard or the requested file/stdout.
      * A human or JSON summary is printed to stdout (unless `--summary none`).
 
 ## Output destinations and clipboard behavior
 
-### Output precedence (sink = auto)
+grobl copies payloads to the clipboard by default. Use `--copy` to force clipboard delivery, or `--output PATH` (use `-` for stdout) to write directly to a file or the terminal. `--copy` and `--output` cannot be used together; doing so emits a usage error.
 
-With `--sink auto` (the default):
+When writing to the clipboard fails (e.g., missing backend), grobl logs a structured warning and re-raises the exception so the failure is visible to the caller.
 
-1. If `--output PATH` is provided, the payload is written to that file.
-2. Else if stdout is a TTY, the payload is copied to the clipboard.
-3. Else, the payload is written to stdout.
-
-Clipboard use is allowed only if:
-
-* stdout is a TTY, and
-* the chosen sink is `auto` or `clipboard`.
-
-If clipboard copying fails, grobl logs a structured warning and falls back to stdout without aborting the scan.
-
-The summary is printed to stdout independently of these decisions, unless suppressed by `--summary none`.
+The summary is printed to stdout independently, unless suppressed by `--summary none`.
 
 ### Broken pipes
 
@@ -492,7 +470,7 @@ This keeps it well-behaved in shell pipelines.
 
 ## LLM payload format (payload = llm)
 
-When `--payload llm` and scope includes the tree and/or files, grobl emits an XML-like payload suitable for LLM contexts.
+When `--format llm` and scope includes the tree and/or files, grobl emits an XML-like payload suitable for LLM contexts.
 
 ### Directory tree block
 
@@ -547,7 +525,7 @@ Which blocks appear is controlled by `--scope`:
 grobl uses JSON in two ways:
 
 1. **JSON summary** – printed to stdout when `--summary json`
-2. **JSON payload** – written to the payload sink when `--payload json`
+2. **JSON payload** – written to the selected destination when `--format json`
 
 ### JSON summary schema
 
@@ -604,15 +582,15 @@ Notes:
   * `included`: `true` if the file’s content is included in the payload
   * `binary`: `true` for files heuristically treated as binary (`lines == 0`, `chars > 0`, `included == false`)
 
-### JSON payload schema (payload = json)
+### JSON payload schema (format = json)
 
 Used when:
 
 ```bash
-grobl scan --payload json ...
+grobl scan --format json ...
 ```
 
-In these cases, grobl writes a structured JSON payload to the sink (file/clipboard/stdout) with:
+In these cases, grobl writes a structured JSON payload to the selected destination with:
 
 ```json
 {
@@ -654,11 +632,11 @@ In these cases, grobl writes a structured JSON payload to the sink (file/clipboa
 * `tree` is present when `--scope` is `all` or `tree`, listing visited entries in traversal order.
 * `files` is present when `--scope` is `all` or `files`, listing captured file blobs.
 * `summary` matches the summary schema described above, embedded for convenience.
-* Whether a separate summary is printed to stdout is governed by `--summary`:
+* Whether a separate summary is printed depends on `--summary` and the requested destination (`--summary-to` defaults to stderr):
 
   * `--summary none` → no extra output
-  * `--summary json` → an additional summary JSON is printed to stdout
-  * `--summary human` → a human summary is printed to stdout
+  * `--summary json` → an additional summary JSON is printed to the summary destination (stderr by default)
+  * `--summary table` → a human summary is printed to the summary destination (stderr by default)
 
 ## Large repositories
 
@@ -667,8 +645,8 @@ For large projects:
 * Prefer exploring structure first:
 
   ```bash
-  grobl scan --scope tree --summary human
-  grobl scan --payload none --summary human
+  grobl scan --scope tree --summary table
+  grobl scan --format none --summary table
   ```
 
 * Use `--output` when expecting large payloads:
@@ -723,7 +701,7 @@ grobl uses stable exit codes:
   * Includes clean `BrokenPipeError` on stdout.
 * `2`: usage error
 
-  * Invalid flags or option values (e.g., unknown `--scope`, missing `--output` when `--sink file`, or `--payload none --summary none`).
+  * Invalid flags or option values (e.g., unknown `--scope`, combining `--copy` with `--output`, or `--format none --summary none`).
 * `3`: configuration load error
 
   * Bad TOML in config files or `pyproject.toml`.

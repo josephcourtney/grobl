@@ -7,11 +7,6 @@ from grobl.formatter import human_summary
 pytestmark = pytest.mark.small
 
 
-def test_human_summary_table_none_returns_empty() -> None:
-    out = human_summary(["a"], 3, 5, table="none")
-    assert not out
-
-
 def test_human_summary_compact_contains_totals() -> None:
     out = human_summary(["a"], 10, 20, table="compact")
     assert "Total lines: 10" in out

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 from click.testing import CliRunner
 
@@ -26,6 +24,7 @@ def test_scan_human_summary_uses_broken_pipe_helper(monkeypatch: pytest.MonkeyPa
         lambda **kwargs: ("summary output", {"root": "dummy"}),
         raising=True,
     )
+    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
 
     helper_calls: dict[str, int] = {"count": 0}
 
@@ -35,19 +34,16 @@ def test_scan_human_summary_uses_broken_pipe_helper(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(cli_scan, "exit_on_broken_pipe", exit_stub, raising=True)
 
-    print_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
-
-    def raising_print(*args: Any, **kwargs: Any) -> None:
-        print_calls.append((args, kwargs))
+    def raising_summary_writer(_: str) -> None:
         raise BrokenPipeError
 
-    monkeypatch.setattr(cli_scan, "print", raising_print, raising=False)
+    monkeypatch.setattr(cli_scan, "_build_summary_writer", lambda **_: raising_summary_writer, raising=True)
 
     result = runner.invoke(cli_scan.scan, [])
 
     assert result.exit_code == 0
     assert helper_calls["count"] == 1
-    assert print_calls, "expected print to be invoked before the helper ran"
+    # summary writer should be invoked and raise before the helper runs
 
 
 def test_scan_json_summary_uses_broken_pipe_helper(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,16 +64,13 @@ def test_scan_json_summary_uses_broken_pipe_helper(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(cli_scan, "exit_on_broken_pipe", exit_stub, raising=True)
 
-    print_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
-
-    def raising_print(*args: Any, **kwargs: Any) -> None:
-        print_calls.append((args, kwargs))
+    def raising_summary_writer(_: str) -> None:
         raise BrokenPipeError
 
-    monkeypatch.setattr(cli_scan, "print", raising_print, raising=False)
+    monkeypatch.setattr(cli_scan, "_build_summary_writer", lambda **_: raising_summary_writer, raising=True)
 
     result = runner.invoke(cli_scan.scan, ["--summary", "json"])
 
     assert result.exit_code == 0
     assert helper_calls["count"] == 1
-    assert print_calls, "expected print to be invoked before the helper ran"
+    # summary writer should be invoked and raise before the helper runs

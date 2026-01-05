@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json as _json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -78,3 +79,19 @@ def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
 
     payload["summary"] = build_summary(context)
     return payload
+
+
+def build_ndjson_payload(context: SummaryContext) -> str:
+    """Build an NDJSON payload orientated around the summary data."""
+    payload = build_sink_payload_json(context)
+    records: list[dict[str, Any]] = []
+    tree = payload.get("tree")
+    if tree is not None:
+        records.append({"type": "tree", "entries": tree})
+    files = payload.get("files")
+    if files is not None:
+        records.append({"type": "files", "entries": files})
+    records.append({"type": "summary", "summary": payload["summary"]})
+
+    lines = [_json.dumps(record, sort_keys=True, separators=(",", ":")) for record in records]
+    return "\n".join(lines) + "\n"

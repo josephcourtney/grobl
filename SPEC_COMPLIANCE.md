@@ -59,31 +59,15 @@ This is a section-by-section conformance assessment of the **current code** agai
 
 ### 4.1 Payload Formats
 
-* **Divergent:**
-
-  * Spec requires `--format {llm|markdown|json|ndjson|none}`.
-  * Current CLI uses `--payload` and supports only `llm|markdown|json|none` (`grobl/constants.py::PayloadFormat`; `grobl/cli/scan.py`).
-  * `ndjson` is missing entirely (enum, CLI, and rendering/emit strategy).
+* **Compliant:** The CLI exposes `--format` with the required values (`llm`, `markdown`, `json`, `ndjson`, `none`) via `grobl/constants.py::PayloadFormat` and `grobl/cli/scan.py`. NDJSON emission is implemented through `grobl/summary.py::build_ndjson_payload` and `grobl/services.py::NdjsonPayloadStrategy`.
 
 ### 4.2 Payload Destination (default + selection)
 
-* **Divergent:**
-
-  * Spec requires a single selected destination with defaults:
-
-    * default: clipboard
-    * `--output -` => stdout
-    * `--output PATH` => file
-    * `--copy` forces clipboard
-  * Current behavior is driven by `--sink` plus an output-chain fallback model (`grobl/output.py`):
-
-    * `PayloadSink.AUTO` writes to **clipboard (suppressed errors) then stdout** when stdout is a TTY; otherwise stdout only.
-    * `PayloadSink.CLIPBOARD` writes to **clipboard (suppressed errors) then stdout**.
-    * This violates spec §4.2 (“Exactly one payload destination MUST be selected”) and also violates the default behavior you specified (clipboard-only by default).
+* **Compliant:** Grobl defaults to clipboard delivery, `--output PATH` (with `-` for stdout) reroutes to a file or pipeline, and `--copy` forces clipboard delivery. The implementation sits in `grobl/cli/scan.py` and `grobl/output.py`, honoring exactly one destination per invocation.
 
 ### 4.3 Mutual Exclusivity (`--copy` vs `--output`)
 
-* **Divergent:** Neither `--copy` nor mutual exclusivity exists in current CLI. Instead, `--sink` + `--output` combinations are allowed.
+* **Compliant:** Passing `--copy` together with `--output` raises a usage error in `grobl/cli/scan.py`, enforcing the spec’s mutual exclusivity requirement.
 
 ---
 
@@ -91,32 +75,35 @@ This is a section-by-section conformance assessment of the **current code** agai
 
 ### 5.1 Summary Modes / 5.2 Auto Summary
 
-* **Divergent:**
+* **Compliant:**
 
-  * Spec requires `--summary {auto|none|table|json}` with `auto` based on stdout TTY.
-  * Current CLI uses `--summary {human|json|none}` (via `SummaryFormat`) and defaults to `human` unconditionally (`grobl/constants.py::SummaryFormat`; `grobl/cli/scan.py`).
-  * No `auto` mode exists.
+  * `grobl/constants.py::SummaryFormat` exposes `auto|none|table|json`, and `grobl/cli/scan.py` resolves `auto` to `table` or `none` by reusing `stdout_is_tty()` (`grobl/tty.py`) before invoking the scan executor.
+  * CLI defaults to `auto`, so interactive runs emit the human table while non-TTY invocations suppress the summary, as verified by `tests/component/cli/test_cli_features.py::test_summary_auto_suppresses_when_stdout_not_tty`.
 
 ### 5.3 Summary Style
 
-* **Divergent:**
+* **Compliant:**
 
-  * Spec: `--summary-style {auto|full|compact}` only valid when `--summary table`.
-  * Current CLI: `--summary-style {auto|full|compact|none}` is always accepted regardless of `--summary` mode; there is **no validation** that ties it to human/table summary only (`grobl/constants.py::TableStyle`; `grobl/cli/scan.py`).
+  * `--summary-style` is only accepted when `--summary table` is selected; attempts to mix the flag with any other mode raise a usage error near the CLI entry point (`grobl/cli/scan.py`).
+  * `grobl/tty.py::resolve_table_style` converts `auto` into `full`/`compact` depending on the TTY, and the resolved label is reflected in emitted summaries via `grobl/services.py::build_summary_for_format`.
+  * Regression coverage (`tests/component/cli/test_cli_features.py::test_summary_style_requires_table_selection`) ensures invalid combinations stay blocked.
 
 ### 5.4 Summary Destination (`--summary-to`, `--summary-output`)
 
-* **Divergent:** These flags and behaviors do not exist in current code.
+* **Compliant:**
+
+  * `--summary-to` accepts `stderr`, `stdout`, or `file`, and `--summary-output PATH` is required when the `file` destination is chosen; the CLI validates these combinations before running (`grobl/cli/scan.py`).
+  * `_build_summary_writer()` emits text to the requested stream or writes to the provided file while keeping the summary separate from the payload sink and raising clear errors when destinations are misused.
+  * Coverage such as `tests/component/cli/test_cli_features.py::test_summary_to_stdout_flag`, `...::test_summary_to_file_destination`, and `...::test_summary_to_file_requires_output_path` ensures each routing option behaves as expected.
 
 ---
 
 ## 6. Output Stream Separation
 
-* **Divergent (major):**
+* **Compliant:**
 
-  * Spec requires payload and summary to be independently routable, and summary MUST NOT contaminate payload unless explicitly routed together.
-  * Current CLI prints summary to **stdout** (both human and summary-json) after payload emission (`grobl/cli/scan.py`).
-  * Meanwhile payload may also go to stdout depending on sink selection (AUTO fallback, STDOUT sink, CLIPBOARD fallback). This contaminates pipelines.
+  * Payload sinks remain unchanged (`grobl/output.py::build_writer_from_config`), while `_build_summary_writer()` emits the summary to the destination selected via `--summary-to`/`--summary-output` (defaulting to stderr) so the two streams never collide unless explicitly configured.
+  * Tests such as `tests/component/cli/test_cli_features.py::test_summary_defaults_to_stderr_when_payload_to_stdout` and `...::test_summary_to_stdout_flag` confirm the separation and the explicit routing behavior.
 
 ---
 
@@ -251,8 +238,6 @@ This is a section-by-section conformance assessment of the **current code** agai
 ## Divergent (requires changes to meet spec)
 
 * Default-scan behavior: multiple fallback mechanisms; injection is not “safe”; unknown command does not reliably error.
-* Missing `--format`, missing `ndjson`, and old `--payload/--sink` interface remains.
-* Payload destination is not “exactly one”; stdout fallback violates the spec.
 * Summary routing and separation: summary currently prints to stdout and contaminates payload pipelines.
 * Repo root resolution (git root) does not exist; all repo-root-anchored behaviors (hierarchical config, ordering) are absent.
 * `.grobl.toml` hierarchy discovery and per-file-directory-relative ignore interpretation are not implemented.

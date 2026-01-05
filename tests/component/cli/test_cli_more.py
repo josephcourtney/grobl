@@ -21,10 +21,10 @@ def test_explicit_full_table_even_when_not_tty(tmp_path: Path, monkeypatch: pyte
     runner = CliRunner()
     res = runner.invoke(
         cli,
-        ["scan", str(tmp_path), "--summary-style", "full", "--sink", "stdout"],
+        ["scan", str(tmp_path), "--summary", "table", "--summary-style", "full", "--output", "-"],
     )
     assert res.exit_code == 0
-    assert " Project Summary " in res.output
+    assert " Project Summary " in res.stderr
 
 
 def test_quiet_suppresses_summary_output(tmp_path: Path) -> None:
@@ -32,7 +32,7 @@ def test_quiet_suppresses_summary_output(tmp_path: Path) -> None:
     runner = CliRunner()
     res = runner.invoke(
         cli,
-        ["scan", str(tmp_path), "--summary", "none", "--sink", "stdout"],
+        ["scan", str(tmp_path), "--summary", "none", "--output", "-"],
     )
     assert res.exit_code == 0
     out = res.output

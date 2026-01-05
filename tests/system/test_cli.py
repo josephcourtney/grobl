@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+from grobl import tty
 from grobl.cli import cli
+from grobl.cli import scan as cli_scan
 
 pytestmark = pytest.mark.medium
 
@@ -22,7 +24,7 @@ def test_cli_help_and_scan_help() -> None:
     assert scan_help.exit_code == 0
     # Spot-check that key options are documented
     assert "--scope" in scan_help.output
-    assert "--payload" in scan_help.output
+    assert "--format" in scan_help.output
     assert "--summary" in scan_help.output
 
 
@@ -70,8 +72,8 @@ def test_cli_root_invocation_forwards_scan_options(
             "tree",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
             "--ignore-defaults",
             "--add-ignore",
             "tests",
@@ -85,13 +87,19 @@ def test_cli_root_invocation_forwards_scan_options(
     assert "tests/" not in out
 
 
-def test_cli_default_scan_outputs_summary_and_payload(tmp_path: Path) -> None:
+def test_cli_default_scan_outputs_summary_and_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     (tmp_path / "sample.txt").write_text("content\n", encoding="utf-8")
     runner = CliRunner()
+    monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
+    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
     result = runner.invoke(cli, ["scan", str(tmp_path)])
     assert result.exit_code == 0
-    assert "<directory" in result.output
-    assert "Total lines" in result.output
+    assert not result.stdout
+    assert "Total lines" in result.stderr
+    assert "test_cli_default_scan_outputs_0/" in result.stderr
 
 
 def test_cli_scan_rejects_payload_and_summary_none(tmp_path: Path) -> None:
@@ -102,7 +110,7 @@ def test_cli_scan_rejects_payload_and_summary_none(tmp_path: Path) -> None:
         [
             "scan",
             str(tmp_path),
-            "--payload",
+            "--format",
             "none",
             "--summary",
             "none",
@@ -130,7 +138,7 @@ def test_cli_multiple_paths_uses_common_ancestor_in_json_root(tmp_path: Path) ->
             str(b_dir),
             "--summary",
             "json",
-            "--payload",
+            "--format",
             "none",
         ],
     )
@@ -156,8 +164,8 @@ def test_cli_modes_human_payload_variants(
     common_args = [
         "scan",
         str(base),
-        "--sink",
-        "stdout",
+        "--output",
+        "-",
         "--summary",
         "none",
     ]
@@ -212,8 +220,8 @@ def test_cli_ignore_file_hides_matching_entries(
             "tree",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
             "--ignore-defaults",
             "--ignore-file",
             str(ignore_file),
@@ -252,8 +260,8 @@ def test_cli_add_and_remove_ignore_roundtrip(
             "tree",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
             "--ignore-defaults",
             "--add-ignore",
             "dir/ignore.*",
@@ -274,8 +282,8 @@ def test_cli_add_and_remove_ignore_roundtrip(
             "tree",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
             "--ignore-defaults",
             "--add-ignore",
             "dir/ignore.*",
@@ -314,8 +322,8 @@ def test_cli_no_ignore_includes_default_excluded_dir(
             "tree",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
         ],
     )
     assert res_default.exit_code == 0
@@ -332,8 +340,8 @@ def test_cli_no_ignore_includes_default_excluded_dir(
             "tree",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
             "--no-ignore",
         ],
     )
@@ -370,8 +378,8 @@ def test_cli_config_tag_customisation_applies_to_llm_payload(
             "all",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
         ],
     )
     assert result.exit_code == 0
@@ -410,8 +418,8 @@ def test_cli_exclude_print_hides_contents_but_keeps_metadata(
             "all",
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
         ],
     )
     assert result.exit_code == 0
@@ -446,7 +454,7 @@ def test_cli_binary_file_summary_marks_binary_flag(
             str(base),
             "--summary",
             "json",
-            "--payload",
+            "--format",
             "none",
         ],
     )
@@ -478,8 +486,8 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
             str(tmp_path),
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
         ],
     )
     assert res_verbose.exit_code == 0
@@ -493,8 +501,8 @@ def test_cli_verbose_and_log_level_flags(tmp_path: Path) -> None:
             str(tmp_path),
             "--summary",
             "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
         ],
     )
     assert res_debug.exit_code == 0
@@ -507,12 +515,17 @@ def test_cli_unknown_command_errors() -> None:
     assert "Unknown command: foo" in result.output
 
 
-def test_cli_path_like_token_defaults_to_scan(tmp_path: Path) -> None:
+def test_cli_path_like_token_defaults_to_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     (tmp_path / "data.txt").write_text("value\n", encoding="utf-8")
     runner = CliRunner()
+    monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
+    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
     result = runner.invoke(cli, [str(tmp_path)])
     assert result.exit_code == 0
-    assert "<directory" in result.output
+    assert "data.txt" in result.stderr
 
 
 def test_cli_dash_prefixed_token_defaults_to_scan(tmp_path: Path) -> None:
@@ -531,6 +544,8 @@ def test_cli_existing_path_token_defaults_to_scan(
     target.write_text("payload\n", encoding="utf-8")
     runner = CliRunner()
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
+    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
     result = runner.invoke(cli, ["existing"])
     assert result.exit_code == 0
-    assert "existing" in result.output
+    assert "existing" in result.stderr

@@ -43,14 +43,14 @@ def test_execute_emits_json_payload_and_summary(tmp_path):
             scope=ContentScope.ALL,
             payload_format=PayloadFormat.JSON,
             summary_format=SummaryFormat.JSON,
-            summary_style=TableStyle.NONE,
+            summary_style=TableStyle.AUTO,
             repo_root=tmp_path,
         ),
     )
 
     assert not human
     assert summary["scope"] == ContentScope.ALL.value
-    assert summary["style"] == TableStyle.NONE.value
+    assert summary["style"] == TableStyle.AUTO.value
     assert writes, "expected JSON payload to be written"
 
     payload = json.loads(writes[0])
@@ -76,7 +76,7 @@ def test_execute_skips_payload_when_disabled(tmp_path):
         options=ScanOptions(
             scope=ContentScope.ALL,
             payload_format=PayloadFormat.NONE,
-            summary_format=SummaryFormat.HUMAN,
+            summary_format=SummaryFormat.TABLE,
             summary_style=TableStyle.COMPACT,
             repo_root=tmp_path,
         ),
@@ -211,7 +211,7 @@ def test_execute_uses_summary_helper(monkeypatch, tmp_path):
         options=ScanOptions(
             scope=services.ContentScope.ALL,
             payload_format=services.PayloadFormat.NONE,
-            summary_format=services.SummaryFormat.HUMAN,
+            summary_format=services.SummaryFormat.TABLE,
             summary_style=services.TableStyle.COMPACT,
             repo_root=tmp_path,
         ),

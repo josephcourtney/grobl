@@ -10,7 +10,7 @@ The `grobl` command groups functionality into subcommands. When invoked without 
 grobl
 ```
 
-With default options and an interactive terminal, grobl writes the payload to the clipboard and prints a human-readable summary to stdout.
+With default options and an interactive terminal, grobl writes the payload to the clipboard and prints a human-readable summary to stderr (the default summary destination).
 
 ### Save a payload to disk
 
@@ -23,15 +23,17 @@ Equivalent to `grobl scan . --output context.txt`. The payload is written to `co
 ### Emit only a summary
 
 ```bash
-grobl scan --payload none --summary human
+grobl scan --format none --summary table
 ```
 
 Skips payload generation and prints only the human summary.
 
+Use `--summary-to stdout` to combine the summary with stdout or `--summary-to file --summary-output PATH` to persist it elsewhere.
+
 ### Machine-oriented output
 
 ```bash
-grobl scan --payload json --summary none --sink stdout
+grobl scan --format json --summary none --output -
 ```
 
 Produces a JSON payload with no human summary and writes it directly to stdout.
@@ -72,6 +74,6 @@ All subcommands share the following options:
 Examples:
 
 ```bash
-grobl -vv scan --summary human .
+grobl -vv scan --summary table .
 grobl --log-level=DEBUG scan .
 ```

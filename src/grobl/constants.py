@@ -19,6 +19,7 @@ class PayloadFormat(StrEnum):
     LLM = "llm"
     MARKDOWN = "markdown"
     JSON = "json"
+    NDJSON = "ndjson"
     NONE = "none"
 
 
@@ -28,22 +29,21 @@ class TableStyle(StrEnum):
     AUTO = "auto"
     FULL = "full"
     COMPACT = "compact"
-    NONE = "none"
 
 
 class SummaryFormat(StrEnum):
     """Supported summary output formats."""
 
-    HUMAN = "human"
+    AUTO = "auto"
+    TABLE = "table"
     JSON = "json"
     NONE = "none"
 
 
-class PayloadSink(StrEnum):
-    """Destinations for payload output."""
+class SummaryDestination(StrEnum):
+    """Summary routing targets."""
 
-    AUTO = "auto"
-    CLIPBOARD = "clipboard"
+    STDERR = "stderr"
     STDOUT = "stdout"
     FILE = "file"
 

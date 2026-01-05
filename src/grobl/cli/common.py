@@ -16,7 +16,6 @@ from grobl.constants import (
     EXIT_USAGE,
     ContentScope,
     PayloadFormat,
-    PayloadSink,
     SummaryFormat,
     TableStyle,
 )
@@ -47,7 +46,8 @@ class ScanParams:
     config_path: Path | None
     payload: PayloadFormat
     summary: SummaryFormat
-    sink: PayloadSink
+    payload_copy: bool
+    payload_output: Path | None
     paths: tuple[Path, ...]
     repo_root: Path
     pattern_base: Path | None = None

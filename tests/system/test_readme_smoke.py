@@ -22,9 +22,9 @@ def test_readme_scan_quick_start(tmp_path: Path) -> None:
             "--scope",
             "tree",
             "--summary",
-            "human",
-            "--sink",
-            "stdout",
+            "table",
+            "--output",
+            "-",
         ],
     )
     assert res.exit_code == 0
@@ -62,9 +62,11 @@ def test_readme_init(tmp_path: Path) -> None:
 def test_readme_documents_scan_flags() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
     assert "--scope {all,tree,files}" in text
-    assert "--payload {llm,markdown,json,none}" in text
-    assert "--summary {human,json,none}" in text
-    assert "--summary-style {auto,full,compact,none}" in text
-    assert "--sink {auto,clipboard,stdout,file}" in text
+    assert "--format {llm,markdown,json,ndjson,none}" in text
+    assert "--summary {auto,none,table,json}" in text
+    assert "--summary-style {auto,full,compact}" in text
+    assert "--summary-to {stderr,stdout,file}" in text
+    assert "--summary-output PATH" in text
+    assert "--copy" in text
     assert "--output PATH" in text
     assert "--mode" not in text

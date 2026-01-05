@@ -37,14 +37,14 @@ patterns = [
 
 ## Output controls
 
-Payloads and summaries are configured separately. Set defaults in the `[output]` table of `.grobl.toml` to control formats and sinks:
+Payloads and summaries are configured separately. Set defaults in the `[output]` table of `.grobl.toml` to control formats:
 
 ```toml
 [output]
 payload_format = "markdown"
-payload_sink = "clipboard"
-summary_format = "human"
-summary_sink = "stdout"
+summary_format = "auto"
+
+`summary_format` accepts `auto`, `table`, `json`, or `none`; `auto` is the default behavior that prints a table when stdout is a TTY and suppresses output otherwise.
 ```
 
-Command-line options always override configuration file settings, allowing ad-hoc adjustments without editing the file.
+Destination flags (`--copy` / `--output`) always override configuration file settings, so you can send payloads to the clipboard, stdout, or a file per invocation.

@@ -25,14 +25,12 @@ def test_cli_format_json_pretty_and_schema(tmp_path: Path) -> None:
         [
             "scan",
             str(tmp_path),
-            "--payload",
+            "--format",
             "json",
             "--summary",
             "json",
-            "--summary-style",
-            "none",
-            "--sink",
-            "stdout",
+            "--output",
+            "-",
         ],
     )
     assert res.exit_code == 0
@@ -47,7 +45,7 @@ def test_cli_format_json_pretty_and_schema(tmp_path: Path) -> None:
     # schema basics
     assert set(data.keys()) == {"root", "scope", "summary", "tree", "files"}
     assert isinstance(data["files"], list)
-    assert summary["style"] == "none"
+    assert summary["style"] == "auto"
     # determinism: keys in entries are stable
     for entry in data["files"]:
         assert "name" in entry

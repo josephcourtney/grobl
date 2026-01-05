@@ -9,9 +9,6 @@ def human_summary(
     table: str = "full",
 ) -> str:
     """Build a human-readable summary table and return it as a string."""
-    if table == "none":
-        return ""
-
     if table == "compact":
         return f"Total lines: {total_lines}\nTotal characters: {total_chars}\n"
 

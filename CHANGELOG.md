@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+
+## [1.0.29] - 2026-01-06
+
+### Changed
+- align `--summary`/`--summary-style` options with the spec (auto/table/json/none) and gate table styles to `--summary table` so invalid combinations error early
+- route summary emission through dedicated destination flags (`--summary-to`/`--summary-output`) and writer helpers so payload and summary streams stay separate while expanding regression coverage for the new routing modes
+- update README/docs to describe the new summary semantics and destination flags alongside the default stderr routing
+
 ## [1.0.28] - 2026-01-05
 
 ### Changed
