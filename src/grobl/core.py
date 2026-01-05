@@ -107,19 +107,26 @@ def run_scan(
         dependencies=ScanDependencies.default() if dependencies is None else dependencies,
     )
 
-    def collect(item: Path, prefix: str, *, is_last: bool) -> None:
+    def collect(item: Path, prefix: str, *, is_last: bool) -> bool:
         excluded_tree = ignores.excluded_from_tree(item, is_dir=item.is_dir())
+
         if item.is_dir():
-            # Do not render excluded dirs in the tree, but still traverse into them
+            # Do not render excluded dirs in the tree.
             if not excluded_tree:
                 builder.add_directory(item, prefix, is_last=is_last)
-            return
+                return True
+
+            # Reviewer: "If there are no negations anywhere, excluded dirs can be pruned safely."
+            # (place here)
+            return ignores.tree_has_negations  # descend only if negations exist
 
         # file
         if excluded_tree:
-            return
+            return False
+
         builder.add_file_to_tree(item, prefix, is_last=is_last)
         registry.handle(path=item, context=context)
+        return False
 
     try:
         traverse_dir(

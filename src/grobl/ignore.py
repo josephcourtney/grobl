@@ -103,6 +103,8 @@ class LayeredIgnoreMatcher:
 
     tree_layers: tuple[CompiledLayer, ...]
     print_layers: tuple[CompiledLayer, ...]
+    tree_has_negations: bool
+    print_has_negations: bool
 
     @staticmethod
     def _matches(layers: tuple[CompiledLayer, ...], abs_path: Path, *, is_dir: bool) -> bool:
@@ -169,7 +171,15 @@ def build_layered_ignores(
     tree_layers.append(IgnoreLayer(base_dir=repo_root, patterns=tuple(runtime_tree_patterns)))
     print_layers.append(IgnoreLayer(base_dir=repo_root, patterns=tuple(runtime_print_patterns)))
 
+    compiled_tree = compile_layers(tree_layers)
+    compiled_print = compile_layers(print_layers)
+
+    tree_has_negations = any(p.negated for layer in compiled_tree for p in layer.patterns)
+    print_has_negations = any(p.negated for layer in compiled_print for p in layer.patterns)
+
     return LayeredIgnoreMatcher(
-        tree_layers=compile_layers(tree_layers),
-        print_layers=compile_layers(print_layers),
+        tree_layers=compiled_tree,
+        print_layers=compiled_print,
+        tree_has_negations=tree_has_negations,
+        print_has_negations=print_has_negations,
     )

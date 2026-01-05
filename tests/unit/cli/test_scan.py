@@ -10,7 +10,7 @@ pytestmark = pytest.mark.small
 
 @pytest.fixture(autouse=True)
 def _patch_scan_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli_scan, "read_config", lambda **_: {})
+    monkeypatch.setattr(cli_scan, "load_config", lambda **_: {})
     monkeypatch.setattr(cli_scan, "build_writer_from_config", lambda **_: lambda _payload: None)
     monkeypatch.setattr(cli_scan, "resolve_table_style", lambda style: style)
 

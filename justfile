@@ -11,7 +11,7 @@ set export := true
 # ----------------------------------------------------------------------
 
 MODE          := env("MODE", "dev")  # dev | debug | ci
-PYTHON_PACKAGE := env("PYTHON_PACKAGE", "borh")
+PYTHON_PACKAGE := env("PYTHON_PACKAGE", "grobl")
 PY_TESTPATH    := env("PY_TESTPATH", "tests")
 PY_SRC         := env("PY_SRC", "src")
 VERBOSE        := env("VERBOSE", "0")

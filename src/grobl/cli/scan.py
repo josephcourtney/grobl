@@ -12,13 +12,11 @@ import click
 
 from grobl.config import (
     apply_runtime_ignore_edits,
+    load_config,
     load_default_config,
-    read_config,
     resolve_config_base,
 )
 from grobl.constants import (
-    CONFIG_EXCLUDE_PRINT,
-    CONFIG_EXCLUDE_TREE,
     EXIT_CONFIG,
     ContentScope,
     PayloadFormat,
@@ -180,15 +178,10 @@ def scan(
         raise click.UsageError(msg, ctx=ctx)
 
     try:
-        cfg = read_config(
+        cfg = load_config(
             base_path=config_base,
             explicit_config=params.config_path,
             ignore_defaults=params.ignore_defaults,
-            add_ignore=params.add_ignore,
-            remove_ignore=params.remove_ignore,
-            add_ignore_files=params.add_ignore_file,
-            unignore=params.unignore,
-            no_ignore=params.no_ignore,
         )
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
@@ -200,7 +193,6 @@ def scan(
         scan_paths=requested_paths,
         params=params,
         no_ignore_config=no_ignore_config,
-        cfg=cfg,
     )
 
     summary, summary_json = _execute_with_handling(
@@ -386,18 +378,26 @@ def _assemble_layered_ignores(
     scan_paths: tuple[Path, ...],
     params: ScanParams,
     no_ignore_config: bool,
-    cfg: dict[str, object],
 ) -> LayeredIgnoreMatcher:
     default_cfg = load_default_config()
+
+    # Reviewer: "Runtime layer should represent CLI overrides only; do not re-apply
+    # merged config ignore lists at repo_root." (place here)
+
+    # Treat --remove-ignore as an alias for re-including (negation) at runtime.
+    # This makes it effective against earlier layers in a 'last match wins' model.
+    effective_unignore = tuple(params.unignore) + tuple(params.remove_ignore)
+
     runtime_edits = apply_runtime_ignore_edits(
-        base_tree=list(_string_sequence_from_config(cfg, CONFIG_EXCLUDE_TREE)),
-        base_print=list(_string_sequence_from_config(cfg, CONFIG_EXCLUDE_PRINT)),
+        base_tree=[],
+        base_print=[],
         add_ignore=params.add_ignore,
-        remove_ignore=params.remove_ignore,
+        remove_ignore=(),  # handled via effective_unignore
         add_ignore_files=params.add_ignore_file,
-        unignore=params.unignore,
+        unignore=effective_unignore,
         no_ignore=params.no_ignore,
     )
+
     include_defaults = not params.ignore_defaults and not params.no_ignore
     include_config = not no_ignore_config and not params.no_ignore
 

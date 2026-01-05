@@ -14,6 +14,7 @@ BRANCH_CONNECTOR = "├── "
 class TreeCallback(Protocol):
     """Directory traversal callback.
 
+    Return True to descend into a directory, False to prune recursion.
     The `is_last` parameter is keyword-only to force call-site clarity.
     """
 
@@ -23,7 +24,7 @@ class TreeCallback(Protocol):
         prefix: str,
         *,
         is_last: bool,
-    ) -> None: ...
+    ) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,8 +335,9 @@ def traverse_dir(
     items = filter_items(list(path.iterdir()), config)
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1
-        callback(item, prefix, is_last=is_last)
+        should_descend = callback(item, prefix, is_last=is_last)
+
         # Do not follow directory symlinks by default to avoid cycles
-        if item.is_dir() and not item.is_symlink():
+        if item.is_dir() and not item.is_symlink() and should_descend:
             next_prefix = "    " if is_last else "│   "
             traverse_dir(item, config, callback, prefix + next_prefix)

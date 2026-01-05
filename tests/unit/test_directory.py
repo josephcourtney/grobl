@@ -29,11 +29,12 @@ def test_symlink_directories_are_not_followed(tmp_path: Path) -> None:
 
     builder = DirectoryTreeBuilder(base_path=base, exclude_patterns=[])
 
-    def cb(item: Path, prefix: str, *, is_last: bool) -> None:
+    def cb(item: Path, prefix: str, *, is_last: bool) -> bool:
         if item.is_dir():
             builder.add_directory(item, prefix, is_last=is_last)
-        else:
-            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            return True
+        builder.add_file_to_tree(item, prefix, is_last=is_last)
+        return False
 
     config = TraverseConfig(paths=[base], base=base, repo_root=base)
     traverse_dir(base, config, cb)
@@ -78,15 +79,16 @@ def test_traversal_order_and_exclude_patterns(tmp_path: Path) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=["dir/ignore.*"])
     spec = PathSpec.from_lines("gitwildmatch", builder.exclude_patterns)
 
-    def cb(item: Path, prefix: str, *, is_last: bool) -> None:  # pragma: no cover - tiny callback
+    def cb(item: Path, prefix: str, *, is_last: bool) -> bool:  # pragma: no cover - tiny callback
         rel = item.relative_to(tmp_path)
         git_path = rel.as_posix()
         if spec.match_file(git_path):
-            return
+            return False
         if item.is_dir():
             builder.add_directory(item, prefix, is_last=is_last)
-        else:
-            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            return True
+        builder.add_file_to_tree(item, prefix, is_last=is_last)
+        return False
 
     config = TraverseConfig(paths=[tmp_path], base=tmp_path, repo_root=tmp_path)
     traverse_dir(tmp_path, config, cb)
@@ -176,15 +178,16 @@ def test_traverse_dir_accepts_precompiled_spec(tmp_path: Path) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
     spec = PathSpec.from_lines("gitwildmatch", ["ignored.txt"])
 
-    def cb(item: Path, prefix: str, *, is_last: bool) -> None:  # pragma: no cover - simple callback
+    def cb(item: Path, prefix: str, *, is_last: bool) -> bool:  # pragma: no cover - simple callback
         rel = item.relative_to(tmp_path)
         git_path = rel.as_posix()
         if spec.match_file(git_path):
-            return
+            return False
         if item.is_dir():
             builder.add_directory(item, prefix, is_last=is_last)
-        else:
-            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            return True
+        builder.add_file_to_tree(item, prefix, is_last=is_last)
+        return False
 
     config = TraverseConfig(paths=[tmp_path], base=tmp_path, repo_root=tmp_path)
     traverse_dir(tmp_path, config, cb)

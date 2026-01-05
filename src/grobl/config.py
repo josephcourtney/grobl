@@ -279,6 +279,24 @@ def apply_runtime_ignores(
     return cfg
 
 
+def load_config(
+    *,
+    base_path: Path,
+    explicit_config: Path | None,
+    ignore_defaults: bool,
+) -> dict[str, Any]:
+    """Read configuration sources and merge precedence, without applying CLI ignore edits.
+
+    Reviewer: "Keep ignore layering logic in ignore.py/cli.scan; avoid double-applying
+    patterns via config merging." (place above read_config)
+    """
+    return _load_config_sources(
+        base_path=base_path,
+        ignore_default=ignore_defaults,
+        explicit_config=explicit_config,
+    )
+
+
 def read_config(
     *,
     base_path: Path,
@@ -290,11 +308,15 @@ def read_config(
     unignore: tuple[str, ...] = (),
     no_ignore: bool = False,
 ) -> dict[str, Any]:
-    """Read config and apply ad-hoc ignore edits."""
-    base = _load_config_sources(
+    """Read config and apply ad-hoc ignore edits.
+
+    NOTE: Prefer `load_config()` for the layered ignore system used by the CLI scanner.
+    This function is kept for backward compatibility with older call patterns.
+    """
+    base = load_config(
         base_path=base_path,
-        ignore_default=ignore_defaults,
         explicit_config=explicit_config,
+        ignore_defaults=ignore_defaults,
     )
     return apply_runtime_ignores(
         base,
