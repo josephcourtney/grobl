@@ -7,12 +7,6 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
-from pathspec import PathSpec
-
-from grobl.constants import (
-    CONFIG_EXCLUDE_PRINT,
-    CONFIG_EXCLUDE_TREE,
-)
 from grobl.directory import DirectoryTreeBuilder, TraverseConfig, traverse_dir
 from grobl.errors import ERROR_MSG_EMPTY_PATHS, ScanInterrupted
 from grobl.file_handling import (
@@ -25,6 +19,8 @@ from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from grobl.ignore import LayeredIgnoreMatcher
 
 
 logger = get_logger(__name__)
@@ -62,6 +58,7 @@ def run_scan(
     *,
     paths: list[Path],
     cfg: dict[str, Any],
+    ignores: LayeredIgnoreMatcher,
     match_base: Path | None = None,
     repo_root: Path | None = None,
     dependencies: ScanDependencies | None = None,
@@ -86,8 +83,6 @@ def run_scan(
     builder_base = _determine_builder_base(common, resolved, repo_root)
     match_base = _determine_match_base(match_base, resolved, builder_base)
 
-    excl_tree = list(cfg.get(CONFIG_EXCLUDE_TREE, []))
-    excl_print = list(cfg.get(CONFIG_EXCLUDE_PRINT, []))
     log_event(
         logger,
         StructuredLogEvent(
@@ -96,28 +91,33 @@ def run_scan(
             context={
                 "path_count": len(resolved),
                 "paths": resolved,
-                "exclude_tree_count": len(excl_tree),
-                "exclude_print_count": len(excl_print),
+                "ignore_tree_layers": len(ignores.tree_layers),
+                "ignore_print_layers": len(ignores.print_layers),
+                "config_entry_count": len(cfg),
             },
         ),
     )
 
-    builder = DirectoryTreeBuilder(base_path=builder_base, exclude_patterns=excl_tree)
+    builder = DirectoryTreeBuilder(base_path=builder_base, exclude_patterns=[])
     registry = FileHandlerRegistry.default() if handlers is None else handlers
     context = FileProcessingContext(
         builder=builder,
         common=common,
-        match_base=match_base,
-        print_spec=PathSpec.from_lines("gitwildmatch", excl_print),
+        ignores=ignores,
         dependencies=ScanDependencies.default() if dependencies is None else dependencies,
     )
 
     def collect(item: Path, prefix: str, *, is_last: bool) -> None:
+        excluded_tree = ignores.excluded_from_tree(item, is_dir=item.is_dir())
         if item.is_dir():
-            builder.add_directory(item, prefix, is_last=is_last)
+            # Do not render excluded dirs in the tree, but still traverse into them
+            if not excluded_tree:
+                builder.add_directory(item, prefix, is_last=is_last)
             return
 
         # file
+        if excluded_tree:
+            return
         builder.add_file_to_tree(item, prefix, is_last=is_last)
         registry.handle(path=item, context=context)
 
@@ -126,9 +126,8 @@ def run_scan(
             common,
             TraverseConfig(
                 paths=resolved,
-                patterns=excl_tree,
                 base=match_base,
-                spec=PathSpec.from_lines("gitwildmatch", excl_tree),
+                repo_root=repo_root or builder_base,
             ),
             collect,
         )

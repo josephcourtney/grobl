@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from grobl.config import LEGACY_TOML_CONFIG, TOML_CONFIG
 from grobl.constants import (
@@ -21,6 +21,7 @@ from grobl.constants import (
 )
 from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError, ScanInterrupted
+from grobl.ignore import LayeredIgnoreMatcher
 from grobl.services import ScanExecutor, ScanOptions
 from grobl.utils import is_text
 
@@ -96,6 +97,13 @@ def exit_on_broken_pipe() -> None:
         raise SystemExit(0)
 
 
+def _raise_system_exit(code: int, exc: BaseException, *, message: object | None = None) -> NoReturn:
+    """Print any diagnostic text and exit with the provided status code."""
+    if message is not None:
+        print(message, file=sys.stderr)
+    raise SystemExit(code) from exc
+
+
 def _execute_with_handling(
     *,
     params: ScanParams,
@@ -106,6 +114,10 @@ def _execute_with_handling(
 ) -> tuple[str, dict[str, Any]]:
     try:
         executor = ScanExecutor(sink=write_fn)
+        ignores = cfg.get("_ignores")
+        if not isinstance(ignores, LayeredIgnoreMatcher):
+            msg = "internal error: layered ignores missing"
+            raise TypeError(msg)
         return executor.execute(
             paths=list(params.paths),
             cfg=cfg,
@@ -119,14 +131,12 @@ def _execute_with_handling(
             ),
         )
     except PathNotFoundError as e:
-        print(e, file=sys.stderr)
-        raise SystemExit(EXIT_PATH) from e
+        _raise_system_exit(EXIT_PATH, e, message=e)
     except ValueError as e:
-        print(e, file=sys.stderr)
-        raise SystemExit(EXIT_USAGE) from e
+        _raise_system_exit(EXIT_USAGE, e, message=e)
     except ScanInterrupted as si:
         print_interrupt_diagnostics(si.common, cfg, si.builder)
-        raise SystemExit(EXIT_INTERRUPT) from si
+        _raise_system_exit(EXIT_INTERRUPT, si)
     except KeyboardInterrupt as ki:
         print_interrupt_diagnostics(cwd, cfg, DirectoryTreeBuilder(base_path=cwd, exclude_patterns=[]))
-        raise SystemExit(EXIT_INTERRUPT) from ki
+        _raise_system_exit(EXIT_INTERRUPT, ki)

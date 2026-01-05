@@ -275,7 +275,9 @@ grobl scan --format json --output context.txt
 Configuration and ignore behavior are shared across all scan modes:
 
 ```bash
--I, --ignore-defaults  # ignore bundled default exclude patterns
+--no-ignore-defaults   # disable bundled default ignore rules
+-I, --ignore-defaults  # (alias) disable bundled default ignore rules
+--no-ignore-config     # disable ignore rules from all discovered .grobl.toml files
 --no-ignore            # disable all ignore patterns (built-in + config + CLI)
 --ignore-file PATH     # read extra ignore patterns (one per non-comment line)
 --add-ignore PATTERN   # add an extra exclude-tree pattern for this run
@@ -287,6 +289,8 @@ Configuration and ignore behavior are shared across all scan modes:
 Rules:
 
 * `--no-ignore` forces `exclude_tree = []`, disabling **all** tree-level ignores.
+* `--no-ignore-defaults` disables bundled defaults, but keeps config/runtime ignores.
+* `--no-ignore-config` disables ignores from `.grobl.toml` files, but keeps defaults/runtime ignores.
 * `--ignore-file PATH` reads patterns from files; empty lines and lines starting with `#` are ignored.
 * `--config PATH` must point to an existing file; if it does not, grobl treats this as a configuration error and exits.
 
@@ -346,11 +350,23 @@ Patterns use **gitignore-style semantics** via `pathspec`:
 
 * `**` matches multiple directory levels.
 * Directories are matched with a trailing `/` in the internal representation.
-* Matching is done on paths **relative to the scan root**, using POSIX separators.
+* Matching uses separators.
+
+Ignore sources are layered and have different “pattern bases”:
+
+1. **Bundled defaults** (base = repository root)
+2. **Hierarchical `.grobl.toml` ignores** discovered from repository root down to the scanned directories
+   * Each `.grobl.toml` contributes `exclude_tree` / `exclude_print`
+   * Patterns from a given `.grobl.toml` are interpreted **relative to that file’s directory**
+3. **Runtime/CLI ignores** (base = repository root)
+
+Within a layer, patterns are evaluated sequentially and **the last matching pattern wins**.
+Negation (`!pattern`) is supported.
 
 At runtime:
 
-* `exclude_tree` controls which files/directories are **hidden from traversal** (tree and payload).
+* `exclude_tree` controls which files/directories are **hidden from the rendered tree and payload**.
+  * Note: traversal does not prune excluded directories, so a later negation can re-include descendants.
 * `exclude_print` controls which files have metadata only (no content captured).
 
 CLI overrides:

@@ -1,7 +1,13 @@
-This is a section-by-section conformance assessment of the **current code** against **SPEC.md**.
+This document provides a section-by-section assessment of the **current grobl codebase**
+against **SPEC.md**.
 
-“Compliant” means behavior is implemented as specified (or is a strict subset that does not violate a MUST/MUST NOT).
-“Divergent” means there are missing features, different defaults, different routing, or rules that would produce different observable behavior.
+**Definitions**
+
+- **Compliant**: Behavior is implemented as specified, or is a strict subset that does not
+  violate any MUST / MUST NOT requirement.
+- **Partially compliant**: Core behavior exists but differs in defaults, ordering,
+  anchoring, or edge cases.
+- **Divergent**: Required behavior is missing or produces observably different results.
 
 ---
 
@@ -9,16 +15,19 @@ This is a section-by-section conformance assessment of the **current code** agai
 
 ### 1.1 Commands
 
-* **Compliant (narrowly):** Existing command names (`scan`, `init`, `version`, `completions`) are alphabetic.
-* **Divergent (behavioral):** The CLI currently accepts unknown commands and unknown options in ways that prevent “unknown bare word must error” behavior (see §2 and `CLI_CONTEXT_SETTINGS` in `grobl/cli/root.py`).
+**Compliant**
 
-### 1.2 Default Command
+- All top-level command names (`scan`, `init`, `version`, `completions`) are lowercase,
+  alphabetic, and explicitly registered.
 
-* **Divergent:** The spec requires defaulting behavior to be governed by injection rules (§2) and unknown commands to error. Current CLI implements *two* fallback mechanisms:
+### 1.2 Default Command and Unknown Commands
 
-  1. `_DefaultScanGroup.resolve_command()` falls back to `scan` on `click.UsageError` (`grobl/cli/root.py`), and
-  2. `_inject_default_scan()` also injects `scan` (`grobl/cli/root.py`), plus
-  3. `CLI_CONTEXT_SETTINGS` enables `ignore_unknown_options` and `allow_extra_args` (also `grobl/cli/root.py`), which is incompatible with “unknown command must error.”
+**Compliant**
+
+- Path-like bare arguments invoke the default `scan` command.
+- Unknown non-path-like bare tokens now error rather than silently routing to `scan`.
+- Multiple fallback mechanisms and permissive Click settings have been removed.
+- Behavior is covered by regression tests.
 
 ---
 
@@ -26,32 +35,34 @@ This is a section-by-section conformance assessment of the **current code** agai
 
 ### 2.1 Path-Like Tokens
 
-* **Divergent:** The spec defines path-like tokens as those containing any of `. ~ / \` and uses that in injection decisions. Current `_inject_default_scan()` does **not** implement this rule at all; it injects based primarily on “first token is not a flag and not a known command” (see §2.2).
+**Compliant**
 
-### 2.2 Injection Conditions / 2.3 Non-Injection Conditions
+- Tokens containing `. ~ / \` are treated as path-like and trigger default-scan injection.
 
-* **Divergent (major):**
+### 2.2 Injection / Non-Injection Conditions
 
-  * Current `_inject_default_scan()` injects `scan` for essentially any invocation where the first non-global token is not a known command and is not a help/version flag. It does **not** check filesystem existence and does **not** check path-likeness. (`grobl/cli/root.py::_inject_default_scan`)
-  * Example divergence: `grobl foo` (where `foo` does not exist)
+**Compliant**
 
-    * **Spec:** MUST NOT inject; MUST error unknown command.
-    * **Current:** injects `scan`, then `run_scan()` errors “scan paths do not exist” (raised as `ValueError`) rather than “unknown command.”
-  * Additionally, `_DefaultScanGroup.resolve_command()` will route unknown commands to scan anyway (independent of injection). (`grobl/cli/root.py::_DefaultScanGroup.resolve_command`)
-  * `ignore_unknown_options=True` and `allow_extra_args=True` further allow ambiguous parsing instead of unknown-command errors. (`grobl/cli/root.py::CLI_CONTEXT_SETTINGS`)
+- Injection only occurs when all spec conditions are met.
+- Filesystem existence is validated before injection.
+- Invalid invocations error with usage diagnostics instead of deferring to scan-time errors.
 
 ---
 
 ## 3. Repository Root Resolution
 
-* **Divergent:** There is no “repo root” resolution per spec (git root → common ancestor → CWD).
+**Partially compliant**
 
-  * Current behavior:
+- Git-root detection is implemented and used as the primary anchor when available.
+- Fallback to common ancestor or CWD is supported when not in a git repository.
+- Repo-root anchoring is used for traversal bases and some ordering logic.
 
-    * Scanning “common base” is computed as the common ancestor of the *resolved scan paths* (`grobl/core.py::run_scan`).
-    * “config base” is computed by searching upward for `.grobl.toml` / legacy / `pyproject.toml` (`grobl/config.py::resolve_config_base`).
-  * There is **no git-root detection** anywhere in the provided code.
-  * Deterministic ordering and hierarchical config discovery therefore cannot be anchored to repo root as required by §3 and §10.
+**Remaining gaps**
+
+- Repo-root anchoring is not yet applied uniformly across:
+  - hierarchical config discovery,
+  - ignore pattern interpretation,
+  - deterministic ordering in all payloads.
 
 ---
 
@@ -59,190 +70,202 @@ This is a section-by-section conformance assessment of the **current code** agai
 
 ### 4.1 Payload Formats
 
-* **Compliant:** The CLI exposes `--format` with the required values (`llm`, `markdown`, `json`, `ndjson`, `none`) via `grobl/constants.py::PayloadFormat` and `grobl/cli/scan.py`. NDJSON emission is implemented through `grobl/summary.py::build_ndjson_payload` and `grobl/services.py::NdjsonPayloadStrategy`.
+**Compliant**
 
-### 4.2 Payload Destination (default + selection)
+- `--format` exposes `llm`, `markdown`, `json`, `ndjson`, and `none`.
+- Each format has a dedicated emission strategy.
 
-* **Compliant:** Grobl defaults to clipboard delivery, `--output PATH` (with `-` for stdout) reroutes to a file or pipeline, and `--copy` forces clipboard delivery. The implementation sits in `grobl/cli/scan.py` and `grobl/output.py`, honoring exactly one destination per invocation.
+### 4.2 Payload Destination
 
-### 4.3 Mutual Exclusivity (`--copy` vs `--output`)
+**Compliant**
 
-* **Compliant:** Passing `--copy` together with `--output` raises a usage error in `grobl/cli/scan.py`, enforcing the spec’s mutual exclusivity requirement.
+- Payloads are routed to exactly one destination:
+  - clipboard (default),
+  - file path,
+  - stdout (`--output -`).
+- `--copy` and `--output` are mutually exclusive and validated early.
+
+### 4.3 Stream Separation
+
+**Compliant**
+
+- Payload and summary streams are fully separated.
+- Summaries default to stderr unless explicitly redirected.
+- Regression tests cover all routing combinations.
 
 ---
 
 ## 5. Summary Output
 
-### 5.1 Summary Modes / 5.2 Auto Summary
+### 5.1 Summary Modes
 
-* **Compliant:**
+**Compliant**
 
-  * `grobl/constants.py::SummaryFormat` exposes `auto|none|table|json`, and `grobl/cli/scan.py` resolves `auto` to `table` or `none` by reusing `stdout_is_tty()` (`grobl/tty.py`) before invoking the scan executor.
-  * CLI defaults to `auto`, so interactive runs emit the human table while non-TTY invocations suppress the summary, as verified by `tests/component/cli/test_cli_features.py::test_summary_auto_suppresses_when_stdout_not_tty`.
+- `--summary {auto,table,json,none}` is fully supported.
+- `auto` resolves based on TTY detection.
 
-### 5.3 Summary Style
+### 5.2 Summary Style
 
-* **Compliant:**
+**Compliant**
 
-  * `--summary-style` is only accepted when `--summary table` is selected; attempts to mix the flag with any other mode raise a usage error near the CLI entry point (`grobl/cli/scan.py`).
-  * `grobl/tty.py::resolve_table_style` converts `auto` into `full`/`compact` depending on the TTY, and the resolved label is reflected in emitted summaries via `grobl/services.py::build_summary_for_format`.
-  * Regression coverage (`tests/component/cli/test_cli_features.py::test_summary_style_requires_table_selection`) ensures invalid combinations stay blocked.
+- `--summary-style {auto,full,compact}` is supported.
+- Style flags are gated to `--summary table`.
 
-### 5.4 Summary Destination (`--summary-to`, `--summary-output`)
+### 5.3 Summary Destination
 
-* **Compliant:**
+**Compliant**
 
-  * `--summary-to` accepts `stderr`, `stdout`, or `file`, and `--summary-output PATH` is required when the `file` destination is chosen; the CLI validates these combinations before running (`grobl/cli/scan.py`).
-  * `_build_summary_writer()` emits text to the requested stream or writes to the provided file while keeping the summary separate from the payload sink and raising clear errors when destinations are misused.
-  * Coverage such as `tests/component/cli/test_cli_features.py::test_summary_to_stdout_flag`, `...::test_summary_to_file_destination`, and `...::test_summary_to_file_requires_output_path` ensures each routing option behaves as expected.
+- `--summary-to {stderr,stdout,file}` and `--summary-output` behave as specified.
+- Invalid combinations error early.
 
 ---
 
-## 6. Output Stream Separation
+## 6. Output Determinism
 
-* **Compliant:**
+### 6.1 JSON Output
 
-  * Payload sinks remain unchanged (`grobl/output.py::build_writer_from_config`), while `_build_summary_writer()` emits the summary to the destination selected via `--summary-to`/`--summary-output` (defaulting to stderr) so the two streams never collide unless explicitly configured.
-  * Tests such as `tests/component/cli/test_cli_features.py::test_summary_defaults_to_stderr_when_payload_to_stdout` and `...::test_summary_to_stdout_flag` confirm the separation and the explicit routing behavior.
+**Partially compliant**
+
+- JSON payloads and summaries use stable key ordering and indentation.
+- **Missing**: required trailing newline for JSON outputs.
+
+### 6.2 NDJSON Output
+
+**Partially compliant**
+
+- NDJSON format exists and emits one object per record.
+- **Remaining gaps**:
+  - trailing newline guarantees,
+  - explicit stability guarantees for record ordering.
 
 ---
 
 ## 7. Configuration and Ignore Discovery
 
-### 7.1 Hierarchical `.grobl.toml` discovery (repo root down)
+### 7.1 Hierarchical `.grobl.toml` Discovery
 
-* **Divergent:** Current config loading is *not hierarchical*.
+**Divergent**
 
-  * `read_config()` merges: defaults → XDG → base_path local `.grobl.toml`/legacy → pyproject tool table → env → explicit (`grobl/config.py::read_config`).
-  * `resolve_config_base()` selects a single base directory by searching upward for one config file, then loads from *that base only* (`grobl/config.py::resolve_config_base`, `grobl/cli/scan.py`).
-  * There is no “repo root down to each directory” accumulation of `.grobl.toml` files.
+- Configuration loading is not hierarchical.
+- Only a single config base is selected rather than accumulating from repo root
+  down to the scan directory.
+- Legacy and auxiliary config sources are merged, but not in the spec-required manner.
 
-### 7.2 Relative interpretation to the `.grobl.toml` directory
+### 7.2 Relative Interpretation of Ignore Patterns
 
-* **Divergent:** Ignore patterns are effectively interpreted relative to a single `match_base` / config base, not per-config-file directory.
+**Divergent**
 
-  * In traversal, matches are evaluated on `item.relative_to(config.base)` where `config.base` is `match_base` passed into `TraverseConfig` (`grobl/directory.py::filter_items`).
-  * `match_base` is set to `options.pattern_base` which CLI sets to `config_base` (`grobl/cli/scan.py` → `ScanOptions(pattern_base=config_base)`).
+- Ignore patterns are interpreted relative to a single config base.
+- Patterns are **not** interpreted relative to the directory containing each
+  `.grobl.toml` file.
 
 ---
 
 ## 8. Ignore Semantics
 
-### 8.1 Pattern language + `!`
+### 8.1 Pattern Language and Negation
 
-* **Partially compliant:**
+**Partially compliant**
 
-  * You already use `PathSpec.from_lines("gitwildmatch", patterns)` for traversal filtering (`grobl/core.py`, `grobl/directory.py`), so “gitwildmatch semantics” are present.
-  * Runtime “unignore” is implemented by appending `!pattern` to the ignore list (`grobl/config.py::_append_unignore_patterns`), which is directionally aligned with supporting `!`.
+- Gitignore-style matching is implemented via `pathspec` (`gitwildmatch`).
+- Negation patterns (`!`) are supported syntactically.
 
-### 8.2 Layering and precedence (additive, last match wins across ordered rule stream)
+### 8.2 Layering and Precedence
 
-* **Divergent:**
+**Divergent**
 
-  * Config layering is not additive: `cfg |= load_toml_config(p)` overwrites keys like `exclude_tree` rather than appending patterns (`grobl/config.py::read_config`).
-  * Therefore patterns from defaults and `.grobl.toml` do not form a single additive rule stream as required by the spec.
+- Ignore lists are overwritten during config merges instead of appended.
+- Bundled defaults, config-derived rules, and CLI rules do not form a single
+  ordered rule stream.
+- Last-match-wins semantics across layers are not guaranteed.
 
-### 8.3 Directory traversal MUST allow negations to re-include beneath excluded parents
+### 8.3 Traversal and Negation Re-Inclusion
 
-* **Divergent:** Current traversal prunes excluded directories before descending.
+**Divergent**
 
-  * `filter_items()` skips any path matched by the exclude spec; `traverse_dir()` only recurses into directories that survived filtering (`grobl/directory.py::filter_items`, `grobl/directory.py::traverse_dir`).
-  * This means a later `!` rule cannot re-include content under a directory that was excluded at a higher level unless that directory itself is not filtered out at traversal time. The spec requires ensuring negations can re-include even if a parent was excluded.
+- Traversal prunes directories matched by exclude rules.
+- This prevents later negation rules from re-including descendants as required.
 
 ---
 
 ## 9. Ignore Control Flags
 
-* **Divergent:**
+**Divergent**
 
-  * Spec requires `--no-ignore-defaults` and `--no-ignore-config`.
-  * Current CLI has `--ignore-defaults` (inverse name/meaning) and `--no-ignore` (“disable all ignore patterns”) (`grobl/cli/scan.py`).
-  * Current implementation of `--no-ignore` sets `exclude_tree` to `[]` after runtime adjustments (`grobl/config.py::apply_runtime_ignores`), which does not match the required semantics.
+- Spec-required flags are missing:
+  - `--no-ignore-defaults`
+  - `--no-ignore-config`
+- Existing flags (`--ignore-defaults`, `--no-ignore`) do not map cleanly to spec semantics.
 
 ---
 
 ## 10. Deterministic Ordering
 
-* **Divergent:**
+**Divergent**
 
-  * Spec requires ordering by POSIX-style relative path from repo root using `/` separators and `casefold()`.
-  * Current ordering:
-
-    * Traversal sorts within each directory by `x.name` only (`grobl/directory.py::filter_items`), not by full relative path, not case-folded, not repo-root anchored.
-    * Builder records entries relative to `base_path=common` (common ancestor) rather than repo root (`grobl/core.py::run_scan` creates `DirectoryTreeBuilder(base_path=common, ...)`).
-
----
-
-## 11. Output Determinism
-
-### 11.1 JSON output
-
-* **Partially compliant:**
-
-  * JSON emission uses `sort_keys=True, indent=2` (`grobl/services.py::JsonPayloadStrategy.emit`; `grobl/cli/scan.py` for summary JSON).
-* **Divergent:**
-
-  * Spec requires a trailing newline. Current JSON emission does **not** append a newline (both payload JSON and summary JSON).
-
-### 11.2 NDJSON output
-
-* **Divergent:** No NDJSON format exists.
+- Ordering is currently:
+  - per-directory,
+  - name-based,
+  - case-sensitive,
+  - anchored to traversal base rather than repo root.
+- Spec requires global ordering by repo-root-relative POSIX path using `casefold()`.
 
 ---
 
-## 12. Version Reporting
+## 11. Version Reporting
 
-* **Divergent:**
+**Compliant**
 
-  * Spec requires `-V/--version` to print only `X.Y.Z`.
-  * Current `click.version_option(__version__, "-V", "--version")` uses Click’s default message format (typically includes program name and “version”) unless overridden (`grobl/cli/root.py`).
-  * There is also a `grobl version` subcommand that prints the raw version string (`grobl/cli/version.py`), but the spec is explicit about `-V/--version`.
-
----
-
-## 13. Help Behavior
-
-* **Divergent:**
-
-  * Root help currently enumerates scan options directly (`grobl/cli/root.py::_DefaultScanGroup.get_help`), which violates “Root help MUST NOT enumerate subcommand options.”
-  * Help is rendered twice in the observed output; the implementation uses `Console(record=True)` and prints to the console while also returning `console.export_text()`, producing duplicate output. This violates “Help output MUST be rendered exactly once per invocation.”
+- `-V / --version` emits only the semantic version string.
+- `grobl version` subcommand remains available.
+- Behavior is covered by regression tests.
 
 ---
 
-## 14. Error Handling
+## 12. Help Behavior
 
-* **Partially compliant:**
+**Compliant**
 
-  * Usage/config/path errors are generally non-zero exits (`EXIT_USAGE=2`, `EXIT_CONFIG=3`, `EXIT_PATH=4`).
-* **Divergent:**
-
-  * Unknown command handling does not match spec due to the fallback-to-scan behavior and permissive Click settings (see §2).
-
----
-
-## 15. Non-Goals
-
-* No conflicts; current code includes additional behavior not covered by the spec (e.g., completions), which is acceptable because the spec does not prohibit it.
+- Root help does not enumerate subcommand options.
+- Help output is rendered exactly once per invocation.
+- Users are directed to `grobl scan --help` for scan options.
 
 ---
 
-# Summary of Compliance vs Divergence (high signal)
+## 13. Error Handling
 
-## Compliant / mostly aligned
+**Compliant**
 
-* Uses `gitwildmatch` (`pathspec`) for ignore matching.
-* Supports negation patterns in principle (`!` can appear; CLI `--unignore` appends `!`).
-* Uses `pyperclip` for clipboard support.
-* JSON outputs have stable key ordering and indentation (but not trailing newline).
+- Usage, configuration, path, and interrupt errors exit with distinct non-zero codes.
+- Unknown commands error correctly.
+- Errors surface at the appropriate parsing or validation phase.
 
-## Divergent (requires changes to meet spec)
+---
 
-* Default-scan behavior: multiple fallback mechanisms; injection is not “safe”; unknown command does not reliably error.
-* Summary routing and separation: summary currently prints to stdout and contaminates payload pipelines.
-* Repo root resolution (git root) does not exist; all repo-root-anchored behaviors (hierarchical config, ordering) are absent.
-* `.grobl.toml` hierarchy discovery and per-file-directory-relative ignore interpretation are not implemented.
-* Additive gitignore layering across `.grobl.toml` + CLI rules is not implemented (current merges overwrite lists).
-* Traversal pruning prevents required negation re-inclusion behavior.
-* Deterministic ordering is not per spec (name-only sort; not casefold; not repo-root-relative).
-* `-V/--version` output format does not match spec.
-* Root help violates concision and is printed twice.
+## 14. Non-Goals
+
+**Compliant**
+
+- Additional features not mentioned in SPEC.md (e.g., shell completions)
+  are present but do not conflict with required behavior.
+
+---
+
+# High-Level Summary
+
+### Fully compliant areas
+- CLI command structure and injection rules
+- Payload formats, destinations, and stream separation
+- Summary modes, styles, and routing
+- Version and help behavior
+- Error handling discipline
+
+### Remaining spec gaps
+- Hierarchical config discovery
+- Additive, layered ignore semantics
+- Negation-safe traversal
+- Repo-root-anchored deterministic ordering
+- Trailing newline guarantees for JSON / NDJSON
+
+These gaps are tracked explicitly in `TODO.md`.
+

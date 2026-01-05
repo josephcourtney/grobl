@@ -58,10 +58,7 @@ def resolve_repo_root(*, cwd: Path, paths: Sequence[Path]) -> Path:
     candidates = list(paths) or [cwd]
     git_root = _git_root_for_cwd(cwd)
     if git_root is not None:
-        resolved = [p.resolve(strict=False) for p in candidates]
-        if all(p.is_relative_to(git_root) for p in resolved):
-            return git_root
-
+        return git_root
     try:
         common = find_common_ancestor(candidates)
     except (ValueError, PathNotFoundError):

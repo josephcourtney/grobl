@@ -2,6 +2,10 @@
 # Files/folders whose *presence* isn't helpful
 # ============================================
 exclude_tree = [
+  ".ropeproject/",
+  "uv.lock",
+  ".artifacts",
+
   # ---------------- project-specific ----------------
   "./best practices - automated testing.md",
   "./best practices - command line interfaces.md",
@@ -12,7 +16,7 @@ exclude_tree = [
   # ---------------- secrets ----------------
   ".envrc",
   ".direnv",
-  ".env",                 # runtime secrets, not useful to include
+  ".env",    # runtime secrets, not useful to include
 
   # ---------------- version control ----------------
   # git
@@ -34,7 +38,7 @@ exclude_tree = [
   ".vscode",
   "*.sublime-workspace",
   "*.sublime-project",
-  ".history",             # VSCode local history
+  ".history",            # VSCode local history
 
   # ---------------- OS junk ----------------
   ".DS_Store",
@@ -52,24 +56,24 @@ exclude_tree = [
   ".hypothesis",
   ".tox",
   ".nox",
-  ".ruff_cache",          # Ruff linter cache
-  ".cache",               # Generic cache dir
+  ".ruff_cache",      # Ruff linter cache
+  ".cache",           # Generic cache dir
   ".pnpm-store",
   ".parcel-cache",
-  "__pypackages__",       # PEP 582 local package installs
+  "__pypackages__",   # PEP 582 local package installs
 
   # ---------------- build artifacts ----------------
   "dist",
   "build",
-  "target",               # Rust, Maven, etc.
-  "wheels",               # Python distribution wheels
-  "mutants",              # mutation testing artifacts
-  "htmlcov",              # coverage HTML reports
-  "site/",                # MkDocs static site
+  "target",  # Rust, Maven, etc.
+  "wheels",  # Python distribution wheels
+  "mutants", # mutation testing artifacts
+  "htmlcov", # coverage HTML reports
+  "site/",   # MkDocs static site
 
   # ---------------- coverage ----------------
-  ".coverage",            # coverage.py raw db
-  ".coverage.*",          # coverage.py shards
+  ".coverage",     # coverage.py raw db
+  ".coverage.*",   # coverage.py shards
   ".coverage.xml",
   "coverage.xml",
 
@@ -80,15 +84,15 @@ exclude_tree = [
   "Pods",
 
   # ---------------- Frontend frameworks ----------------
-  ".next",                # Next.js build output
-  ".nuxt",                # Nuxt build output
-  ".svelte-kit",          # SvelteKit build output
+  ".next",       # Next.js build output
+  ".nuxt",       # Nuxt build output
+  ".svelte-kit", # SvelteKit build output
 
   # ---------------- Build systems / infra ----------------
-  ".gradle",              # Gradle cache
-  ".terraform",           # Terraform state
+  ".gradle",            # Gradle cache
+  ".terraform",         # Terraform state
   ".terraform*",
-  ".ipynb_checkpoints",   # Jupyter notebook temp dirs
+  ".ipynb_checkpoints", # Jupyter notebook temp dirs
 
   # ---------------- misc fixtures ----------------
   "tests/fixtures/*.yaml", # vcrpy recordings (non-essential for AI)
@@ -117,8 +121,8 @@ exclude_print = [
   "build",
 
   # ---------------- assets / binaries ----------------
-  "*.lproj",              # Xcode localization
-  "*.xcassets",           # Xcode assets
+  "*.lproj",    # Xcode localization
+  "*.xcassets", # Xcode assets
   "*.pdf",
   "*.png",
   "*.jpg",
@@ -136,7 +140,7 @@ exclude_print = [
   "composer.lock",
   "Gemfile.lock",
   "uv.lock",
-  "ruff.default.toml",    # auto-generated lint defaults, not hand-authored
+  "ruff.default.toml", # auto-generated lint defaults, not hand-authored
   "ruff.toml",
 
   # ---------------- tooling configs ----------------
@@ -149,4 +153,3 @@ exclude_print = [
 # ============================================
 include_tree_tags = "directory"
 include_file_tags = "file"
-

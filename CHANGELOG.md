@@ -1,5 +1,27 @@
 ## [Unreleased]
 
+### Changed
+- refactor the `grobl scan` entrypoint by centralizing path validation, summary option coercion, and layered-ignore assembly helpers
+- split raw config loading into `_load_config_sources` so runtime ignore edits can focus on CLI overrides while keeping precedence documentation intact
+- tighten scan execution by logging actual config sizes and enforcing typed `_ignores` before delegating to `run_scan`
+
+## [1.0.30] - 2026-01-06
+### Changed
+- finish the spec-aligned CLI surface for payload emission:
+  - standardize `--format` to `llm|markdown|json|ndjson|none`
+  - enforce payload destination selection via `--copy` xor `--output` (including `--output -` for stdout) with clipboard as the default sink when no destination is provided
+  - ensure payload and summary streams remain independent by routing summaries via `--summary-to`/`--summary-output`
+- align summary semantics with the spec:
+  - implement `--summary {auto,table,json,none}` and `--summary-style {auto,full,compact}`
+  - gate `--summary-style` to `--summary table` so invalid combinations fail fast
+  - expand regression coverage for routing (stderr/stdout/file) and TTY-driven `auto` behavior
+- bring the root CLI behavior in line with the spec:
+  - ensure unknown bare tokens error (rather than silently defaulting to `scan`)
+  - apply path-like default-scan injection rules
+  - keep root help concise and render it exactly once per invocation
+  - make `-V/--version` emit only the semantic version string with regression tests
+- adopt git-root-aware repo resolution to anchor config discovery and traversal bases for deterministic roots and ordering
+
 
 ## [1.0.29] - 2026-01-06
 

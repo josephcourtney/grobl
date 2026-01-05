@@ -1,7 +1,7 @@
 # =================================== project ====================================
 [project]
-name = "grobl"
-version = "1.0.29"
+  name = "grobl"
+  version = "1.0.30"
   description = "A tool to copy directory structure and file contents as a single string."
   readme = "README.md"
   authors = [
@@ -58,7 +58,7 @@ version = "1.0.29"
     "urllib3>=2.6.0",
     "vulture>=2.14",
     "wily>=1.12.2",
-]
+  ]
 
 # =================================== build ====================================
 [build-system]

@@ -17,6 +17,7 @@ from .constants import (
 )
 from .core import ScanResult, run_scan
 from .formatter import human_summary
+from .ignore import LayeredIgnoreMatcher
 from .logging_utils import StructuredLogEvent, get_logger, log_event
 from .renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
 from .summary import (
@@ -96,7 +97,7 @@ class JsonPayloadStrategy:
         config: dict[str, object],  # noqa: ARG002
     ) -> None:
         payload_json = self.build_payload(context)
-        sink(_json.dumps(payload_json, sort_keys=True, indent=2))
+        sink(_json.dumps(payload_json, sort_keys=True, indent=2) + "\n")
         log_event(
             logger,
             StructuredLogEvent(
@@ -291,9 +292,16 @@ class ScanExecutor:
                 },
             ),
         )
+
+        ignores = cfg.get("_ignores")
+        if not isinstance(ignores, LayeredIgnoreMatcher):
+            msg = "internal error: layered ignores missing"
+            raise TypeError(msg)
+
         result = self._deps.scan(
             paths=paths,
             cfg=cfg,
+            ignores=ignores,
             match_base=options.pattern_base,
             repo_root=options.repo_root,
         )

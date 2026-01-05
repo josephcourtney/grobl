@@ -6,6 +6,7 @@ import importlib.resources
 import os
 import sys
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -149,7 +150,7 @@ def _merge_pyproject_cfg(pyproject_path: Path, cfg: dict[str, Any]) -> dict[str,
     return cfg
 
 
-def read_config(
+def _load_config_sources(
     *,
     base_path: Path,
     ignore_default: bool = False,
@@ -228,6 +229,35 @@ def _append_unignore_patterns(exclude: list[str], unignore: tuple[str, ...]) -> 
             exclude.append(negated)
 
 
+@dataclass(frozen=True, slots=True)
+class RuntimeIgnoreEdits:
+    """Runtime ignore edits applied on top of a base pattern list."""
+
+    tree_patterns: list[str]
+    print_patterns: list[str]
+
+
+def apply_runtime_ignore_edits(
+    *,
+    base_tree: list[str],
+    base_print: list[str],
+    add_ignore: tuple[str, ...],
+    remove_ignore: tuple[str, ...],
+    add_ignore_files: tuple[Path, ...] = (),
+    unignore: tuple[str, ...] = (),
+    no_ignore: bool = False,
+) -> RuntimeIgnoreEdits:
+    tree = list(base_tree)
+    _append_ignore_file_patterns(tree, add_ignore_files)
+    _append_unique(tree, add_ignore)
+    _remove_patterns(tree, remove_ignore)
+    _append_unignore_patterns(tree, unignore)
+    if no_ignore:
+        tree = []
+    # No CLI flags currently modify exclude_print; keep as-is for now.
+    return RuntimeIgnoreEdits(tree_patterns=tree, print_patterns=list(base_print))
+
+
 def apply_runtime_ignores(
     cfg: dict[str, Any],
     *,
@@ -249,7 +279,7 @@ def apply_runtime_ignores(
     return cfg
 
 
-def load_and_adjust_config(
+def read_config(
     *,
     base_path: Path,
     explicit_config: Path | None,
@@ -261,7 +291,11 @@ def load_and_adjust_config(
     no_ignore: bool = False,
 ) -> dict[str, Any]:
     """Read config and apply ad-hoc ignore edits."""
-    base = read_config(base_path=base_path, ignore_default=ignore_defaults, explicit_config=explicit_config)
+    base = _load_config_sources(
+        base_path=base_path,
+        ignore_default=ignore_defaults,
+        explicit_config=explicit_config,
+    )
     return apply_runtime_ignores(
         base,
         add_ignore=add_ignore,

@@ -24,13 +24,13 @@ def test_usage_error_invalid_scope(tmp_path: Path) -> None:
 def test_path_accepts_filesystem_root_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
     observed: dict[str, Path] = {}
 
-    def fake_load_and_adjust_config(**kwargs: object) -> dict[str, object]:
+    def fake_read_config(**kwargs: object) -> dict[str, object]:
         base_path = kwargs.get("base_path")
         assert isinstance(base_path, Path)
         observed["base_path"] = base_path
         return {}
 
-    monkeypatch.setattr("grobl.cli.scan.load_and_adjust_config", fake_load_and_adjust_config)
+    monkeypatch.setattr("grobl.cli.scan.read_config", fake_read_config)
     monkeypatch.setattr("grobl.cli.scan.build_writer_from_config", lambda **_: lambda _text: None)
     monkeypatch.setattr("grobl.cli.scan.resolve_table_style", lambda style: style)
     monkeypatch.setattr("grobl.cli.scan._execute_with_handling", lambda **_: ("", {}))

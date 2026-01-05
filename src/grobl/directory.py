@@ -5,8 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from pathspec import PathSpec
-
 # Tree rendering glyphs are captured as constants to keep string literals
 # consistent across the codebase and the tests that assert on them.
 LAST_CONNECTOR = "└── "
@@ -33,21 +31,17 @@ class TraverseConfig:
     """Configuration controlling directory traversal filtering."""
 
     paths: list[Path]
-    patterns: list[str]
     base: Path
-    spec: PathSpec | None = None
+    repo_root: Path
 
-    def with_spec(self) -> "TraverseConfig":
-        """Return a configuration with a compiled PathSpec."""
-        if self.spec is not None:
-            return self
-        compiled = PathSpec.from_lines("gitwildmatch", self.patterns)
-        return TraverseConfig(
-            paths=self.paths,
-            patterns=self.patterns,
-            base=self.base,
-            spec=compiled,
-        )
+    def ordering_key(self, p: Path) -> str:
+        """Deterministic ordering: POSIX relpath from repo_root, case-folded."""
+        try:
+            rel = p.relative_to(self.repo_root)
+        except ValueError:
+            # Caller should prevent this; fall back to absolute.
+            rel = p
+        return rel.as_posix().casefold()
 
 
 @dataclass(slots=True)
@@ -321,18 +315,13 @@ def _to_git_path(p: Path, *, is_dir: bool) -> str:
 
 
 def filter_items(items: list[Path], config: TraverseConfig) -> list[Path]:
-    """Filter ``items`` using ``config`` paths and patterns with gitignore semantics."""
-    spec = config.spec or PathSpec.from_lines("gitwildmatch", config.patterns)
+    """Filter ``items`` to those under requested paths; ordering is deterministic."""
     results: list[Path] = []
     for item in items:
         if not any(item.is_relative_to(p) for p in config.paths):
             continue
-        rel = item.relative_to(config.base)
-        rel_git = _to_git_path(rel, is_dir=item.is_dir())
-        if spec.match_file(rel_git):
-            continue
         results.append(item)
-    return sorted(results, key=lambda x: x.name)
+    return sorted(results, key=config.ordering_key)
 
 
 def traverse_dir(
@@ -342,7 +331,6 @@ def traverse_dir(
     prefix: str = "",
 ) -> None:
     """Depth-first traversal applying ``callback`` to each item."""
-    config = config.with_spec()
     items = filter_items(list(path.iterdir()), config)
     for idx, item in enumerate(items):
         is_last = idx == len(items) - 1

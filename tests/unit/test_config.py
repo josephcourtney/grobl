@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.config import apply_runtime_ignores, load_and_adjust_config, resolve_config_base
+from grobl.config import apply_runtime_ignores, read_config, resolve_config_base
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
@@ -45,7 +45,7 @@ def test_config_precedence_explicit_overrides_env_and_local(
     explicit_cfg = tmp_path / "explicit.toml"
     write_toml(explicit_cfg, "exclude_tree=['from-explicit']\n")
 
-    cfg = load_and_adjust_config(
+    cfg = read_config(
         base_path=base,
         explicit_config=explicit_cfg,
         ignore_defaults=True,
@@ -61,7 +61,7 @@ def test_runtime_ignore_files_and_no_ignore(tmp_path: Path) -> None:
     ignore_file = tmp_path / "ignore.txt"
     ignore_file.write_text("# comment\nfoo\nbar\n\n", encoding="utf-8")
 
-    cfg = load_and_adjust_config(
+    cfg = read_config(
         base_path=base,
         explicit_config=None,
         ignore_defaults=True,
@@ -74,7 +74,7 @@ def test_runtime_ignore_files_and_no_ignore(tmp_path: Path) -> None:
     assert set(cfg.get("exclude_tree", [])) == {"foo", "bar", "baz"}
 
     # Now disable all ignores
-    cfg2 = load_and_adjust_config(
+    cfg2 = read_config(
         base_path=base,
         explicit_config=None,
         ignore_defaults=True,
@@ -114,7 +114,7 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
     p2.write_text("2", encoding="utf-8")
 
     common = find_common_ancestor([p1, p2])
-    cfg = load_and_adjust_config(
+    cfg = read_config(
         base_path=common,
         explicit_config=None,
         ignore_defaults=True,
@@ -131,7 +131,7 @@ def test_legacy_config_file_is_loaded(tmp_path: Path) -> None:
     legacy = base / ".grobl.config.toml"
     legacy.write_text("exclude_tree=['from-legacy']\n", encoding="utf-8")
 
-    cfg = load_and_adjust_config(
+    cfg = read_config(
         base_path=base,
         explicit_config=None,
         ignore_defaults=True,
@@ -147,7 +147,7 @@ def test_missing_explicit_config_raises(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist.toml"
 
     with pytest.raises(ConfigLoadError):
-        load_and_adjust_config(
+        read_config(
             base_path=tmp_path,
             explicit_config=missing,
             ignore_defaults=True,
@@ -161,7 +161,7 @@ def test_missing_env_config_is_ignored(tmp_path: Path, monkeypatch: pytest.Monke
     missing = tmp_path / "env-missing.toml"
     monkeypatch.setenv("GROBL_CONFIG_PATH", str(missing))
 
-    cfg = load_and_adjust_config(
+    cfg = read_config(
         base_path=tmp_path,
         explicit_config=None,
         ignore_defaults=True,

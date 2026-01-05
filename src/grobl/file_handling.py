@@ -11,9 +11,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
     from pathlib import Path
 
-    from pathspec import PathSpec
-
     from .directory import DirectoryTreeBuilder
+    from .ignore import LayeredIgnoreMatcher
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,8 +36,7 @@ class FileProcessingContext:
 
     builder: DirectoryTreeBuilder
     common: Path
-    match_base: Path
-    print_spec: PathSpec
+    ignores: LayeredIgnoreMatcher
     dependencies: ScanDependencies
 
 
@@ -111,8 +109,8 @@ class TextFileHandler(BaseFileHandler):
         content = deps.text_reader(path) if detection.content is None else detection.content
         line_count = len(content.splitlines())
         char_count = len(content)
-        rel_match = path.relative_to(context.match_base)
-        include = not context.print_spec.match_file(rel_match.as_posix())
+        # exclude_print is evaluated with per-layer bases; decide on absolute path
+        include = not context.ignores.excluded_from_print(path, is_dir=False)
         return FileAnalysis(
             lines=line_count,
             chars=char_count,

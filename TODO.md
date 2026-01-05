@@ -1,47 +1,60 @@
-- [ ] Replace payload CLI with spec-compliant `--format` and destinations
-  - [ ] Update payload enum and CLI flags
-    - [ ] Rename `--payload` to `--format` with `llm|markdown|json|ndjson|none`
-    - [ ] Add NDJSON payload strategy with stable key ordering
-  - [ ] Add `--copy` and `--output` destinations with mutual exclusivity
-    - [ ] Enforce `--copy` xor `--output`
-    - [ ] Implement `--output -` for stdout, file path otherwise
-    - [ ] Default to clipboard when no destination provided
-  - [ ] Remove payload sink fallback chaining
-    - [ ] Ensure exactly one destination is selected for payload output
-    - [ ] Update output strategy factory to emit to only the selected target
-  - [ ] Add tests for payload destinations and NDJSON output shape
-- [ ] Implement hierarchical config discovery and ignore semantics
-  - [ ] Discover `.grobl.toml` from repo root down to each scan directory
-    - [ ] Accumulate configs in root-to-leaf order for each scan path
-    - [ ] Avoid legacy/pyproject configs unless explicitly required by spec
-  - [ ] Interpret ignore patterns relative to each config file’s directory
-    - [ ] Convert to repo-root-relative gitignore patterns for matching
-  - [ ] Implement additive ignore layering with last-match-wins
-    - [ ] Preserve bundled defaults, then config chain, then CLI ignores
-    - [ ] Ensure `!` negations override earlier excludes
-  - [ ] Add ignore control flags from spec
-    - [ ] Implement `--no-ignore-defaults` to disable bundled defaults
-    - [ ] Implement `--no-ignore-config` to disable all `.grobl.toml` ignores
-  - [ ] Add tests for hierarchy, relative interpretation, and negation precedence
-- [ ] Fix traversal to allow negated re-includes under excluded parents
-  - [ ] Adjust traversal to avoid pruning directories that might be re-included
-    - [ ] Ensure traversal still descends when later rules could negate exclusions
-    - [ ] Add targeted tests for `!` rules under excluded directories
-- [ ] Enforce deterministic ordering per spec
-  - [ ] Order all paths by repo-root-relative POSIX path with `casefold()`
-    - [ ] Normalize separators to `/` before comparisons
-    - [ ] Apply ordering consistently across traversal, tree, and payloads
-  - [ ] Add tests for case-insensitive ordering and root anchoring
-- [ ] Ensure JSON/NDJSON determinism requirements
-  - [ ] Add trailing newline for JSON payload and summary JSON
-  - [ ] Emit NDJSON records as single lines with stable key ordering
-  - [ ] Add tests for newline presence and line-delimited NDJSON output
-- [ ] Update tests, coverage tooling, and changelog/versioning
-  - [ ] Add regression tests for all new CLI behaviors and output routing
-    - [ ] Include unknown command errors, injection rules, and version output
-    - [ ] Include config hierarchy, ignore flags, and traversal negation
-  - [ ] Run `./.venv/bin/just` lint/format/typecheck/test and coverage commands
-    - [ ] Confirm `ty` availability or emit patch fallback if missing
-    - [ ] Verify coverage does not decrease (warn if it does)
-  - [ ] Update `CHANGELOG.md` and bump `pyproject.toml` version
-    - [ ] Add entries under proper Keep a Changelog sections
+- [ ] Implement true repo-root–down `.grobl.toml` accumulation
+  - [ ] Discover all `.grobl.toml` files from repo root → scan root
+  - [ ] Apply configs in root-to-leaf order (additive, last-wins)
+  - [ ] Preserve legacy `.grobl.config.toml` handling only where required by spec
+- [ ] Make ignore lists additive instead of overwrite-based
+  - [ ] Preserve bundled defaults
+  - [ ] Append config-derived rules
+  - [ ] Append CLI-derived rules last
+- [ ] Ensure `!` negations override earlier excludes across all layers
+- [ ] Interpret ignore patterns relative to each config file’s directory
+  - [ ] Normalize patterns to repo-root-relative paths before matching
+- [ ] Replace current flags with spec-compliant controls
+  - [ ] Implement `--no-ignore-defaults`
+  - [ ] Implement `--no-ignore-config`
+  - [ ] Remove or redefine `--no-ignore` to match spec semantics
+- [ ] Add regression tests covering all ignore-flag combinations
+- [ ] Fix directory traversal to allow re-inclusion under excluded parents
+  - [ ] Avoid pruning directories too early when later `!` rules may apply
+  - [ ] Ensure traversal still descends when a directory might be re-included
+- [ ] Add targeted tests for negation beneath excluded directories
+  - [ ] e.g. `foo/**` excluded, `!foo/bar/baz.txt` re-included
+- [ ] Enforce repo-root-relative ordering everywhere
+  - [ ] Normalize paths to POSIX (`/`) separators
+  - [ ] Sort using full relative paths, not just `name`
+  - [ ] Apply `casefold()` during comparisons
+- [ ] Ensure consistent ordering across:
+  - [ ] traversal
+  - [ ] tree output
+  - [ ] payloads (LLM / Markdown / JSON / NDJSON)
+- [ ] Add regression tests for:
+  - [ ] case-insensitive ordering
+  - [ ] deeply nested paths
+  - [ ] repo-root anchoring
+- [ ] Append a trailing newline to:
+  - [ ] JSON payload output
+  - [ ] JSON summary output
+- [ ] Add regression tests asserting newline presence
+- [ ] Ensure NDJSON records:
+  - [ ] are emitted one object per line
+  - [ ] have stable key ordering
+  - [ ] always end with a newline
+- [ ] Add shape and determinism tests for NDJSON payloads
+- [ ] Ensure repo-root resolution is applied consistently to:
+  - [ ] config discovery
+  - [ ] ignore interpretation
+  - [ ] ordering
+- [ ] Audit remaining code paths that still rely on “common ancestor”
+  - [ ] Replace with repo-root-relative logic where required by spec
+- [ ] Add missing regression coverage for:
+  - [ ] ignore hierarchy accumulation
+  - [ ] negation precedence across layers
+  - [ ] deterministic ordering rules
+- [ ] Update `SPEC_COMPLIANCE.md` once the above items are complete
+  - [ ] Move sections from “Divergent” → “Compliant”
+  - [ ] Remove outdated notes about CLI, summary routing, version flags, and help output
+- [ ] Bump version in `pyproject.toml` once remaining spec gaps are closed
+- [ ] Add a consolidated “SPEC compliance” entry to `CHANGELOG.md`
+- [ ] Run full lint / format / typecheck / test / coverage suite
+  - [ ] Warn if coverage regresses
+
