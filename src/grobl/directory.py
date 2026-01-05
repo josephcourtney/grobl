@@ -84,7 +84,6 @@ class FileCollector:
     """Store metadata and content for files encountered during traversal."""
 
     _metadata: dict[str, tuple[int, int, bool]] = field(default_factory=dict)
-    _file_contents: list[str] = field(default_factory=list)
     _json_file_blobs: list[dict[str, Any]] = field(default_factory=list)
 
     def record_metadata(self, rel: Path, lines: int, chars: int) -> None:
@@ -96,11 +95,6 @@ class FileCollector:
         self._metadata[str(rel)] = (lines, chars, True)
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
-        self._file_contents.extend([
-            (f'<file:content name="{rel}" lines="{lines}" chars="{chars}">'),
-            content,
-            "</file:content>",
-        ])
         self._json_file_blobs.append({"name": str(rel), "lines": lines, "chars": chars, "content": content})
 
     def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
@@ -110,10 +104,6 @@ class FileCollector:
     def get_metadata(self, key: str) -> tuple[int, int, bool] | None:
         """Return metadata for ``key`` if known."""
         return self._metadata.get(key)
-
-    def contents(self) -> list[str]:
-        """Return captured file content payloads for rendering."""
-        return list(self._file_contents)
 
     def files_json(self) -> list[dict[str, Any]]:
         """Return JSON-safe blobs describing captured files."""
@@ -241,10 +231,6 @@ class DirectoryTreeBuilder:
         """Return stored metadata for ``key`` if it exists."""
         return self.files.get_metadata(key)
 
-    def file_contents(self) -> list[str]:
-        """Return captured file content payloads."""
-        return self.files.contents()
-
     def file_tree_entries(self) -> list[tuple[int, Path]]:
         """Return tree indices paired with file paths for later augmentation."""
         return self.tree.entries()
@@ -306,20 +292,16 @@ class DirectoryTreeBuilder:
         return self._totals.snapshot(metadata)
 
 
-def _to_git_path(p: Path, *, is_dir: bool) -> str:
-    """Return POSIX-like path string suitable for gitignore matching.
-
-    For directories, append a trailing slash to preserve directory-only patterns.
-    """
-    s = p.as_posix()
-    return s + ("/" if is_dir and not s.endswith("/") else "")
-
-
 def filter_items(items: list[Path], config: TraverseConfig) -> list[Path]:
-    """Filter ``items`` to those under requested paths; ordering is deterministic."""
+    """Filter ``items`` to those relevant to the requested paths; ordering is deterministic.
+
+    Include:
+      - items under any requested scan path
+      - ancestors of any requested scan path (so we can descend from repo_root)
+    """
     results: list[Path] = []
     for item in items:
-        if not any(item.is_relative_to(p) for p in config.paths):
+        if not any(item.is_relative_to(p) or p.is_relative_to(item) for p in config.paths):
             continue
         results.append(item)
     return sorted(results, key=config.ordering_key)

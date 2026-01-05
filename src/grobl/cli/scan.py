@@ -181,7 +181,9 @@ def scan(
         cfg = load_config(
             base_path=config_base,
             explicit_config=params.config_path,
-            ignore_defaults=params.ignore_defaults,
+            # Reviewer: "--no-ignore-defaults" is about ignore layers only; keep default config
+            # values (like tag defaults) stable.
+            ignore_defaults=False,
         )
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
@@ -409,4 +411,5 @@ def _assemble_layered_ignores(
         runtime_tree_patterns=runtime_edits.tree_patterns,
         runtime_print_patterns=runtime_edits.print_patterns,
         default_cfg=default_cfg,
+        explicit_config=params.config_path,
     )

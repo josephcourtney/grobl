@@ -74,8 +74,8 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
     m = dict(builder.metadata_items())
     assert m["inc.txt"] == (2, len("hello\nworld\n"), True)
     assert m["skip.txt"][2] is False
-    # contents include only the included file
-    payload = "\n".join(builder.file_contents())
-    assert 'name="inc.txt"' in payload
-    assert "skip.txt" not in payload
+    # json payload includes only the included file
+    file_payloads = builder.files_json()
+    assert len(file_payloads) == 1
+    assert file_payloads[0]["name"] == "inc.txt"
     assert reader_calls == []

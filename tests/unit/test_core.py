@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.config import apply_runtime_ignores
+from grobl.config import apply_runtime_ignore_edits
 from grobl.core import run_scan
 from grobl.file_handling import (
     BaseFileHandler,
@@ -125,14 +125,16 @@ def test_unignore_allows_specific_paths(tmp_path: Path) -> None:
     nested.write_text("nested\n", encoding="utf-8")
 
     base_cfg = {"exclude_tree": [".gitignore"], "exclude_print": []}
-    cfg = apply_runtime_ignores(
-        base_cfg,
+    edits = apply_runtime_ignore_edits(
+        base_tree=list(base_cfg["exclude_tree"]),
+        base_print=list(base_cfg["exclude_print"]),
         add_ignore=(),
         remove_ignore=(),
         add_ignore_files=(),
         unignore=("tests/fixtures/**/.gitignore",),
         no_ignore=False,
     )
+    cfg = {"exclude_tree": edits.tree_patterns, "exclude_print": edits.print_patterns}
     ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
     res = run_scan(paths=[tmp_path], cfg=cfg, match_base=tmp_path, ignores=ignores)
     tree = "\n".join(res.builder.tree_output())

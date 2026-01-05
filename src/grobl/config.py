@@ -258,71 +258,15 @@ def apply_runtime_ignore_edits(
     return RuntimeIgnoreEdits(tree_patterns=tree, print_patterns=list(base_print))
 
 
-def apply_runtime_ignores(
-    cfg: dict[str, Any],
-    *,
-    add_ignore: tuple[str, ...],
-    remove_ignore: tuple[str, ...],
-    add_ignore_files: tuple[Path, ...] = (),
-    unignore: tuple[str, ...] = (),
-    no_ignore: bool = False,
-) -> dict[str, Any]:
-    """Apply one-off ignore adjustments from CLI to the loaded config."""
-    # "Centralized here to keep CLI thin and make testing easier."
-    cfg = dict(cfg)
-    exclude = list(cfg.get("exclude_tree", []))
-    _append_ignore_file_patterns(exclude, add_ignore_files)
-    _append_unique(exclude, add_ignore)
-    _remove_patterns(exclude, remove_ignore)
-    _append_unignore_patterns(exclude, unignore)
-    cfg["exclude_tree"] = [] if no_ignore else exclude
-    return cfg
-
-
 def load_config(
     *,
     base_path: Path,
     explicit_config: Path | None,
     ignore_defaults: bool,
 ) -> dict[str, Any]:
-    """Read configuration sources and merge precedence, without applying CLI ignore edits.
-
-    Reviewer: "Keep ignore layering logic in ignore.py/cli.scan; avoid double-applying
-    patterns via config merging." (place above read_config)
-    """
+    """Read configuration sources and merge precedence without runtime CLI edits."""
     return _load_config_sources(
         base_path=base_path,
         ignore_default=ignore_defaults,
         explicit_config=explicit_config,
-    )
-
-
-def read_config(
-    *,
-    base_path: Path,
-    explicit_config: Path | None,
-    ignore_defaults: bool,
-    add_ignore: tuple[str, ...],
-    remove_ignore: tuple[str, ...],
-    add_ignore_files: tuple[Path, ...] = (),
-    unignore: tuple[str, ...] = (),
-    no_ignore: bool = False,
-) -> dict[str, Any]:
-    """Read config and apply ad-hoc ignore edits.
-
-    NOTE: Prefer `load_config()` for the layered ignore system used by the CLI scanner.
-    This function is kept for backward compatibility with older call patterns.
-    """
-    base = load_config(
-        base_path=base_path,
-        explicit_config=explicit_config,
-        ignore_defaults=ignore_defaults,
-    )
-    return apply_runtime_ignores(
-        base,
-        add_ignore=add_ignore,
-        remove_ignore=remove_ignore,
-        add_ignore_files=add_ignore_files,
-        unignore=unignore,
-        no_ignore=no_ignore,
     )

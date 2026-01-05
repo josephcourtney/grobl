@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from grobl import utils
-from grobl.config import apply_runtime_ignores
+from grobl.config import apply_runtime_ignore_edits
 from grobl.errors import PathNotFoundError
 from grobl.utils import detect_text, find_common_ancestor, is_text, resolve_repo_root
 
@@ -104,12 +104,12 @@ SEGMENT = st.text(
     remove=st.lists(SEGMENT, max_size=3),
     no_ignore=st.booleans(),
 )
-def test_apply_runtime_ignores_matches_manual_logic(
+def test_apply_runtime_ignore_edits_matches_manual_logic(
     base: list[str], add: list[str], remove: list[str], *, no_ignore: bool
 ) -> None:
-    cfg = {"exclude_tree": base.copy()}
-    result = apply_runtime_ignores(
-        cfg,
+    result = apply_runtime_ignore_edits(
+        base_tree=list(base),
+        base_print=[],
         add_ignore=tuple(add),
         remove_ignore=tuple(remove),
         add_ignore_files=(),
@@ -117,7 +117,7 @@ def test_apply_runtime_ignores_matches_manual_logic(
         no_ignore=no_ignore,
     )
     if no_ignore:
-        assert result["exclude_tree"] == []
+        assert result.tree_patterns == []
         return
 
     expected = base.copy()
@@ -127,7 +127,7 @@ def test_apply_runtime_ignores_matches_manual_logic(
     for pattern in remove:
         if pattern in expected:
             expected.remove(pattern)
-    assert result["exclude_tree"] == expected
+    assert result.tree_patterns == expected
 
 
 def test_common_ancestor_config_base(tmp_path: Path) -> None:

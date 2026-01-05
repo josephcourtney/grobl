@@ -45,7 +45,7 @@ def _determine_match_base(match_base: Path | None, resolved: list[Path], default
 
 
 def _coerce_exclude_patterns(value: object | None) -> list[str]:
-    """Normalize ``cfg[\"exclude_tree\"]``-like values to a list of strings."""
+    r"""Normalize ``cfg[\"exclude_tree\"]``-like values to a list of strings."""
     if value is None:
         return []
     if isinstance(value, str):
@@ -130,7 +130,7 @@ def run_scan(
             base=match_base,
             repo_root=repo_root or builder_base,
         ),
-        cast(TreeCallback, collect),
+        cast("TreeCallback", collect),
     )
 
     return ScanResult(

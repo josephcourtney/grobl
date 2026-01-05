@@ -140,12 +140,14 @@ def build_layered_ignores(
     runtime_tree_patterns: Sequence[str],
     runtime_print_patterns: Sequence[str],
     default_cfg: dict[str, object],
+    explicit_config: Path | None = None,  # NEW
 ) -> LayeredIgnoreMatcher:
     """Assemble ignores in the spec order.
 
     1) bundled defaults (optional)
     2) .grobl.toml files from repo root to deepest (optional)
-    3) runtime/CLI layer (always present).
+    3) explicit --config file (optional; highest precedence among config layers)
+    4) runtime/CLI layer (always present).
     """
     tree_layers: list[IgnoreLayer] = []
     print_layers: list[IgnoreLayer] = []
@@ -158,14 +160,29 @@ def build_layered_ignores(
             IgnoreLayer(base_dir=repo_root, patterns=tuple(default_cfg.get(CONFIG_EXCLUDE_PRINT, [])))  # type: ignore[arg-type]
         )
 
+    discovered: set[Path] = set()
     if include_config:
         for cfg_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths):
-            data = load_toml_config(cfg_path)
-            base = cfg_path.parent
+            real = cfg_path.resolve()
+            discovered.add(real)
+            data = load_toml_config(real)
+            base = real.parent
             tree_layers.append(IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_TREE, []))))  # type: ignore[arg-type]
             print_layers.append(
                 IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_PRINT, [])))
             )  # type: ignore[arg-type]
+
+        if explicit_config is not None:
+            real = explicit_config.resolve(strict=False)
+            if real.exists() and real not in discovered:
+                data = load_toml_config(real)
+                base = real.parent
+                tree_layers.append(
+                    IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_TREE, [])))
+                )  # type: ignore[arg-type]
+                print_layers.append(
+                    IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_PRINT, [])))
+                )  # type: ignore[arg-type]
 
     # CLI runtime layer: base at repo_root for deterministic interpretation.
     tree_layers.append(IgnoreLayer(base_dir=repo_root, patterns=tuple(runtime_tree_patterns)))

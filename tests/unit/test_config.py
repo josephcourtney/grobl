@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.config import apply_runtime_ignores, read_config, resolve_config_base
+from grobl.config import apply_runtime_ignore_edits, load_config, resolve_config_base
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
@@ -45,52 +45,46 @@ def test_config_precedence_explicit_overrides_env_and_local(
     explicit_cfg = tmp_path / "explicit.toml"
     write_toml(explicit_cfg, "exclude_tree=['from-explicit']\n")
 
-    cfg = read_config(
+    cfg = load_config(
         base_path=base,
         explicit_config=explicit_cfg,
         ignore_defaults=True,
-        add_ignore=(),
-        remove_ignore=(),
-        unignore=(),
     )
     assert cfg.get("exclude_tree") == ["from-explicit"]
 
 
 def test_runtime_ignore_files_and_no_ignore(tmp_path: Path) -> None:
-    base = tmp_path
     ignore_file = tmp_path / "ignore.txt"
     ignore_file.write_text("# comment\nfoo\nbar\n\n", encoding="utf-8")
 
-    cfg = read_config(
-        base_path=base,
-        explicit_config=None,
-        ignore_defaults=True,
+    runtime = apply_runtime_ignore_edits(
+        base_tree=[],
+        base_print=[],
         add_ignore=("baz",),
         remove_ignore=(),
         add_ignore_files=(ignore_file,),
         unignore=(),
         no_ignore=False,
     )
-    assert set(cfg.get("exclude_tree", [])) == {"foo", "bar", "baz"}
+    assert set(runtime.tree_patterns) == {"foo", "bar", "baz"}
 
     # Now disable all ignores
-    cfg2 = read_config(
-        base_path=base,
-        explicit_config=None,
-        ignore_defaults=True,
+    runtime_no_ignore = apply_runtime_ignore_edits(
+        base_tree=[],
+        base_print=[],
         add_ignore=(),
         remove_ignore=(),
         add_ignore_files=(ignore_file,),
         unignore=(),
         no_ignore=True,
     )
-    assert cfg2.get("exclude_tree") == []
+    assert runtime_no_ignore.tree_patterns == []
 
 
 def test_runtime_remove_ignore_warns_when_missing(capsys: pytest.CaptureFixture[str]) -> None:
-    cfg = {"exclude_tree": ["a"]}
-    apply_runtime_ignores(
-        cfg,
+    apply_runtime_ignore_edits(
+        base_tree=["a"],
+        base_print=[],
         add_ignore=(),
         remove_ignore=("missing",),
         add_ignore_files=(),
@@ -114,13 +108,10 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
     p2.write_text("2", encoding="utf-8")
 
     common = find_common_ancestor([p1, p2])
-    cfg = read_config(
+    cfg = load_config(
         base_path=common,
         explicit_config=None,
         ignore_defaults=True,
-        add_ignore=(),
-        remove_ignore=(),
-        unignore=(),
     )
     assert cfg.get("exclude_tree") == ["from-base"]
 
@@ -131,13 +122,10 @@ def test_legacy_config_file_is_loaded(tmp_path: Path) -> None:
     legacy = base / ".grobl.config.toml"
     legacy.write_text("exclude_tree=['from-legacy']\n", encoding="utf-8")
 
-    cfg = read_config(
+    cfg = load_config(
         base_path=base,
         explicit_config=None,
         ignore_defaults=True,
-        add_ignore=(),
-        remove_ignore=(),
-        unignore=(),
     )
 
     assert cfg.get("exclude_tree") == ["from-legacy"]
@@ -147,13 +135,10 @@ def test_missing_explicit_config_raises(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist.toml"
 
     with pytest.raises(ConfigLoadError):
-        read_config(
+        load_config(
             base_path=tmp_path,
             explicit_config=missing,
             ignore_defaults=True,
-            add_ignore=(),
-            remove_ignore=(),
-            unignore=(),
         )
 
 
@@ -161,13 +146,10 @@ def test_missing_env_config_is_ignored(tmp_path: Path, monkeypatch: pytest.Monke
     missing = tmp_path / "env-missing.toml"
     monkeypatch.setenv("GROBL_CONFIG_PATH", str(missing))
 
-    cfg = read_config(
+    cfg = load_config(
         base_path=tmp_path,
         explicit_config=None,
         ignore_defaults=True,
-        add_ignore=(),
-        remove_ignore=(),
-        unignore=(),
     )
 
     assert isinstance(cfg, dict)

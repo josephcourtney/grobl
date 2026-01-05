@@ -105,7 +105,7 @@ class JsonPayloadStrategy:
                 message="emitted json payload to sink",
                 context={
                     "tree_entries": len(builder.tree_output()),
-                    "file_entries": len(builder.file_contents()),
+                    "file_entries": len(builder.files_json()),
                     "common": str(result.common),
                 },
             ),
