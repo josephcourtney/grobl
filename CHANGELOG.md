@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+## [1.0.25] - 2025-11-26
+
+### Added
+- add `--unignore` to append gitignore-style exception patterns at runtime
+
+### Fixed
+- warn when `--remove-ignore` refers to a pattern that is not ignored
+
 ## [1.0.24] - 2025-11-26
 
 ### Fixed

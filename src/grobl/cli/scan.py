@@ -39,6 +39,7 @@ from .common import (
 @click.option("--output", type=click.Path(path_type=Path), help="Write output to a file")
 @click.option("--add-ignore", multiple=True, help="Additional ignore pattern for this run")
 @click.option("--remove-ignore", multiple=True, help="Ignore pattern to remove for this run")
+@click.option("--unignore", multiple=True, help="Ignore exception pattern for this run")
 @click.option(
     "--ignore-file",
     multiple=True,
@@ -84,6 +85,7 @@ def scan(
     output: Path | None,
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
+    unignore: tuple[str, ...],
     ignore_file: tuple[Path, ...],
     scope: str,
     payload: str,
@@ -114,6 +116,7 @@ def scan(
         output=output,
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
+        unignore=unignore,
         add_ignore_file=ignore_file,
         scope=ContentScope(scope),
         summary_style=TableStyle(summary_style),
@@ -141,6 +144,7 @@ def scan(
             add_ignore=params.add_ignore,
             remove_ignore=params.remove_ignore,
             add_ignore_files=params.add_ignore_file,
+            unignore=params.unignore,
             no_ignore=params.no_ignore,
         )
     except ConfigLoadError as err:

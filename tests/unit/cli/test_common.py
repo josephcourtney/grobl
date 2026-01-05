@@ -84,6 +84,7 @@ def _params_for(tmp_path: Path) -> ccommon.ScanParams:
         output=None,
         add_ignore=(),
         remove_ignore=(),
+        unignore=(),
         add_ignore_file=(),
         no_ignore=False,
         scope=ContentScope.ALL,

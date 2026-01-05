@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from grobl.config import apply_runtime_ignores
 from grobl.core import run_scan
 from grobl.file_handling import (
     BaseFileHandler,
@@ -93,6 +94,26 @@ def test_run_scan_rejects_missing_paths(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist"
     with pytest.raises(ValueError, match="scan paths do not exist"):
         run_scan(paths=[missing], cfg={})
+
+
+def test_unignore_allows_specific_paths(tmp_path: Path) -> None:
+    (tmp_path / ".gitignore").write_text("*\n", encoding="utf-8")
+    (tmp_path / "tests" / "fixtures").mkdir(parents=True)
+    nested = tmp_path / "tests" / "fixtures" / ".gitignore"
+    nested.write_text("nested\n", encoding="utf-8")
+
+    base_cfg = {"exclude_tree": [".gitignore"], "exclude_print": []}
+    cfg = apply_runtime_ignores(
+        base_cfg,
+        add_ignore=(),
+        remove_ignore=(),
+        add_ignore_files=(),
+        unignore=("tests/fixtures/**/.gitignore",),
+        no_ignore=False,
+    )
+    res = run_scan(paths=[tmp_path], cfg=cfg, match_base=tmp_path)
+    tree = "\n".join(res.builder.tree_output())
+    assert tree.count(".gitignore") == 1
 
 
 def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:

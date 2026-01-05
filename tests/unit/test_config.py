@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.config import load_and_adjust_config, resolve_config_base
+from grobl.config import apply_runtime_ignores, load_and_adjust_config, resolve_config_base
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
@@ -51,6 +51,7 @@ def test_config_precedence_explicit_overrides_env_and_local(
         ignore_defaults=True,
         add_ignore=(),
         remove_ignore=(),
+        unignore=(),
     )
     assert cfg.get("exclude_tree") == ["from-explicit"]
 
@@ -67,6 +68,7 @@ def test_runtime_ignore_files_and_no_ignore(tmp_path: Path) -> None:
         add_ignore=("baz",),
         remove_ignore=(),
         add_ignore_files=(ignore_file,),
+        unignore=(),
         no_ignore=False,
     )
     assert set(cfg.get("exclude_tree", [])) == {"foo", "bar", "baz"}
@@ -79,9 +81,24 @@ def test_runtime_ignore_files_and_no_ignore(tmp_path: Path) -> None:
         add_ignore=(),
         remove_ignore=(),
         add_ignore_files=(ignore_file,),
+        unignore=(),
         no_ignore=True,
     )
     assert cfg2.get("exclude_tree") == []
+
+
+def test_runtime_remove_ignore_warns_when_missing(capsys: pytest.CaptureFixture[str]) -> None:
+    cfg = {"exclude_tree": ["a"]}
+    apply_runtime_ignores(
+        cfg,
+        add_ignore=(),
+        remove_ignore=("missing",),
+        add_ignore_files=(),
+        unignore=(),
+        no_ignore=False,
+    )
+    captured = capsys.readouterr()
+    assert "warning: ignore pattern not found: missing" in captured.err
 
 
 def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
@@ -103,6 +120,7 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
         ignore_defaults=True,
         add_ignore=(),
         remove_ignore=(),
+        unignore=(),
     )
     assert cfg.get("exclude_tree") == ["from-base"]
 
@@ -119,6 +137,7 @@ def test_legacy_config_file_is_loaded(tmp_path: Path) -> None:
         ignore_defaults=True,
         add_ignore=(),
         remove_ignore=(),
+        unignore=(),
     )
 
     assert cfg.get("exclude_tree") == ["from-legacy"]
@@ -134,6 +153,7 @@ def test_missing_explicit_config_raises(tmp_path: Path) -> None:
             ignore_defaults=True,
             add_ignore=(),
             remove_ignore=(),
+            unignore=(),
         )
 
 
@@ -147,6 +167,7 @@ def test_missing_env_config_is_ignored(tmp_path: Path, monkeypatch: pytest.Monke
         ignore_defaults=True,
         add_ignore=(),
         remove_ignore=(),
+        unignore=(),
     )
 
     assert isinstance(cfg, dict)

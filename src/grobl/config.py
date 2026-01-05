@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.resources
 import os
+import sys
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -195,36 +196,55 @@ def read_config(
     return cfg
 
 
+def _append_unique(exclude: list[str], patterns: tuple[str, ...]) -> None:
+    for pat in patterns:
+        if pat not in exclude:
+            exclude.append(pat)
+
+
+def _append_ignore_file_patterns(exclude: list[str], add_ignore_files: tuple[Path, ...]) -> None:
+    for f in add_ignore_files:
+        try:
+            lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        cleaned = [line.strip() for line in lines]
+        patterns = tuple(s for s in cleaned if s and not s.startswith("#"))
+        _append_unique(exclude, patterns)
+
+
+def _remove_patterns(exclude: list[str], remove_ignore: tuple[str, ...]) -> None:
+    for pat in remove_ignore:
+        if pat in exclude:
+            exclude.remove(pat)
+        else:
+            print(f"warning: ignore pattern not found: {pat}", file=sys.stderr)
+
+
+def _append_unignore_patterns(exclude: list[str], unignore: tuple[str, ...]) -> None:
+    for pat in unignore:
+        negated = pat if pat.startswith("!") else f"!{pat}"
+        if negated not in exclude:
+            exclude.append(negated)
+
+
 def apply_runtime_ignores(
     cfg: dict[str, Any],
     *,
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
     add_ignore_files: tuple[Path, ...] = (),
+    unignore: tuple[str, ...] = (),
     no_ignore: bool = False,
 ) -> dict[str, Any]:
     """Apply one-off ignore adjustments from CLI to the loaded config."""
     # "Centralized here to keep CLI thin and make testing easier."
     cfg = dict(cfg)
     exclude = list(cfg.get("exclude_tree", []))
-    # merge ignore files
-    for f in add_ignore_files:
-        try:
-            lines = f.read_text(encoding="utf-8", errors="ignore").splitlines()
-        except OSError:
-            continue
-        for line in lines:
-            s = line.strip()
-            if not s or s.startswith("#"):
-                continue
-            if s not in exclude:
-                exclude.append(s)
-    for pat in add_ignore:
-        if pat not in exclude:
-            exclude.append(pat)
-    for pat in remove_ignore:
-        if pat in exclude:
-            exclude.remove(pat)
+    _append_ignore_file_patterns(exclude, add_ignore_files)
+    _append_unique(exclude, add_ignore)
+    _remove_patterns(exclude, remove_ignore)
+    _append_unignore_patterns(exclude, unignore)
     cfg["exclude_tree"] = [] if no_ignore else exclude
     return cfg
 
@@ -237,6 +257,7 @@ def load_and_adjust_config(
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
     add_ignore_files: tuple[Path, ...] = (),
+    unignore: tuple[str, ...] = (),
     no_ignore: bool = False,
 ) -> dict[str, Any]:
     """Read config and apply ad-hoc ignore edits."""
@@ -246,5 +267,6 @@ def load_and_adjust_config(
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
         add_ignore_files=add_ignore_files,
+        unignore=unignore,
         no_ignore=no_ignore,
     )

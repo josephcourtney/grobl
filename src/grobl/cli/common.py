@@ -39,6 +39,7 @@ class ScanParams:
     output: Path | None
     add_ignore: tuple[str, ...]
     remove_ignore: tuple[str, ...]
+    unignore: tuple[str, ...]
     add_ignore_file: tuple[Path, ...]
     no_ignore: bool
     scope: ContentScope

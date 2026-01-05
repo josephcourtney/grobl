@@ -291,6 +291,7 @@ Configuration and ignore behavior are shared across all scan modes:
 --ignore-file PATH     # read extra ignore patterns (one per non-comment line)
 --add-ignore PATTERN   # add an extra exclude-tree pattern for this run
 --remove-ignore PATTERN # remove a pattern from the exclude list
+--unignore PATTERN     # add an exception pattern for this run
 --config PATH          # explicit config file path (highest precedence, must exist)
 ```
 
@@ -367,8 +368,16 @@ CLI overrides:
 
 * `--add-ignore PATTERN`: append a pattern to `exclude_tree` (if not already present).
 * `--remove-ignore PATTERN`: remove a pattern from `exclude_tree` if present.
+* `--unignore PATTERN`: append a negated pattern to `exclude_tree` (e.g. `!tests/fixtures/**/.gitignore`).
 * `--ignore-file PATH`: add patterns from files (one pattern per non-comment line).
 * `--no-ignore`: force `exclude_tree = []`, disabling **all** tree-level ignores.
+
+Example:
+
+```bash
+# Re-include only .gitignore files under tests/fixtures
+grobl scan --unignore "tests/fixtures/**/.gitignore" .
+```
 
 Use `--no-ignore` cautiously: it disables all tree-level ignores and can make scans significantly slower and payloads very large.
 
@@ -727,4 +736,3 @@ grobl uses stable exit codes:
   * On interruption, grobl captures scan state and may print diagnostics for debugging.
 
 These codes are suitable for use in CI pipelines and shell scripts.
-

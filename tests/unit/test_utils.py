@@ -112,6 +112,7 @@ def test_apply_runtime_ignores_matches_manual_logic(
         add_ignore=tuple(add),
         remove_ignore=tuple(remove),
         add_ignore_files=(),
+        unignore=(),
         no_ignore=no_ignore,
     )
     if no_ignore:
