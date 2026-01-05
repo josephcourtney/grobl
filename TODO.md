@@ -1,0 +1,86 @@
+- [ ] Align command parsing and default-scan injection with spec
+  - [ ] Remove permissive Click behavior that hides unknown commands
+    - [ ] Drop `ignore_unknown_options` and `allow_extra_args` from root context settings
+    - [ ] Remove `_DefaultScanGroup.resolve_command` fallback-to-scan behavior
+  - [ ] Implement spec injection rules for first non-global token
+    - [ ] Parse global options (`-v/--verbose`, `--log-level`, `-V/--version`, `-h/--help`) before evaluating token *T*
+    - [ ] Treat token as path-like if it contains `.`, `~`, `/`, or `\`
+    - [ ] Inject `scan` only when *T* starts with `-`, is path-like, or resolves to an existing path after user expansion
+    - [ ] Ensure unknown non-path-like tokens that are not commands produce a usage error
+  - [ ] Ensure default injection is the only fallback mechanism
+    - [ ] Remove any secondary injection in `main()` or `_DefaultScanGroup` once the new logic is in place
+    - [ ] Add tests for `grobl foo` (unknown) vs `grobl ./foo` (path-like) and `grobl --flag` cases
+- [ ] Fix version and help behavior to match spec
+  - [ ] Update `-V/--version` to print only `X.Y.Z` and exit
+    - [ ] Use Click’s custom version message or custom handler to avoid extra text
+  - [ ] Replace root help output with concise mode
+    - [ ] Remove scan option enumeration from root help
+    - [ ] Add pointer to `{command} --help` for full details
+  - [ ] Ensure help output renders exactly once per invocation
+    - [ ] Remove `Console(record=True)` double-rendering path
+    - [ ] Add tests asserting single help output
+- [ ] Implement repo-root resolution and propagate it
+  - [ ] Add git-root detection for the current working directory
+    - [ ] Prefer git-root when inside a worktree
+    - [ ] Fall back to common ancestor of scan paths, then CWD
+  - [ ] Use repo root as the base for config discovery and deterministic ordering
+    - [ ] Plumb repo root through scan options and directory traversal
+    - [ ] Add tests for git-root precedence and fallback behavior
+- [ ] Replace payload CLI with spec-compliant `--format` and destinations
+  - [ ] Update payload enum and CLI flags
+    - [ ] Rename `--payload` to `--format` with `llm|markdown|json|ndjson|none`
+    - [ ] Add NDJSON payload strategy with stable key ordering
+  - [ ] Add `--copy` and `--output` destinations with mutual exclusivity
+    - [ ] Enforce `--copy` xor `--output`
+    - [ ] Implement `--output -` for stdout, file path otherwise
+    - [ ] Default to clipboard when no destination provided
+  - [ ] Remove payload sink fallback chaining
+    - [ ] Ensure exactly one destination is selected for payload output
+    - [ ] Update output strategy factory to emit to only the selected target
+  - [ ] Add tests for payload destinations and NDJSON output shape
+- [ ] Update summary modes, styling validation, and routing
+  - [ ] Replace `--summary` values with `auto|none|table|json`
+    - [ ] Implement auto mode based on stdout TTY
+  - [ ] Enforce `--summary-style` validity only with `--summary table`
+    - [ ] Raise usage error for invalid combinations
+  - [ ] Add summary routing flags
+    - [ ] Implement `--summary-to {stderr|stdout|file}` with default `stderr`
+    - [ ] Implement `--summary-output PATH` required for `file`
+  - [ ] Ensure payload and summary outputs are independently routed
+    - [ ] Default summary to stderr when payload goes to stdout
+    - [ ] Add tests for stream separation and routing
+- [ ] Implement hierarchical config discovery and ignore semantics
+  - [ ] Discover `.grobl.toml` from repo root down to each scan directory
+    - [ ] Accumulate configs in root-to-leaf order for each scan path
+    - [ ] Avoid legacy/pyproject configs unless explicitly required by spec
+  - [ ] Interpret ignore patterns relative to each config file’s directory
+    - [ ] Convert to repo-root-relative gitignore patterns for matching
+  - [ ] Implement additive ignore layering with last-match-wins
+    - [ ] Preserve bundled defaults, then config chain, then CLI ignores
+    - [ ] Ensure `!` negations override earlier excludes
+  - [ ] Add ignore control flags from spec
+    - [ ] Implement `--no-ignore-defaults` to disable bundled defaults
+    - [ ] Implement `--no-ignore-config` to disable all `.grobl.toml` ignores
+  - [ ] Add tests for hierarchy, relative interpretation, and negation precedence
+- [ ] Fix traversal to allow negated re-includes under excluded parents
+  - [ ] Adjust traversal to avoid pruning directories that might be re-included
+    - [ ] Ensure traversal still descends when later rules could negate exclusions
+    - [ ] Add targeted tests for `!` rules under excluded directories
+- [ ] Enforce deterministic ordering per spec
+  - [ ] Order all paths by repo-root-relative POSIX path with `casefold()`
+    - [ ] Normalize separators to `/` before comparisons
+    - [ ] Apply ordering consistently across traversal, tree, and payloads
+  - [ ] Add tests for case-insensitive ordering and root anchoring
+- [ ] Ensure JSON/NDJSON determinism requirements
+  - [ ] Add trailing newline for JSON payload and summary JSON
+  - [ ] Emit NDJSON records as single lines with stable key ordering
+  - [ ] Add tests for newline presence and line-delimited NDJSON output
+- [ ] Update tests, coverage tooling, and changelog/versioning
+  - [ ] Add regression tests for all new CLI behaviors and output routing
+    - [ ] Include unknown command errors, injection rules, and version output
+    - [ ] Include config hierarchy, ignore flags, and traversal negation
+  - [ ] Run `./.venv/bin/just` lint/format/typecheck/test and coverage commands
+    - [ ] Confirm `ty` availability or emit patch fallback if missing
+    - [ ] Verify coverage does not decrease (warn if it does)
+  - [ ] Update `CHANGELOG.md` and bump `pyproject.toml` version
+    - [ ] Add entries under proper Keep a Changelog sections
