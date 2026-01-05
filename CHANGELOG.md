@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.32] - 2026-01-05
+
+### Changed
+- tighten `run_scan` traversal so layered ignore decisions drive the `TreeCallback`, the builder inherits configured exclude patterns, and the handler registry records metadata only for files that survive the tree filtering while honoring match and repo roots.
+
 ## [1.0.31] - 2026-01-05
 
 ### Added

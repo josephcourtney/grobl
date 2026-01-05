@@ -2,28 +2,18 @@
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
-from time import perf_counter
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, cast
 
-from grobl.directory import DirectoryTreeBuilder, TraverseConfig, traverse_dir
-from grobl.errors import ERROR_MSG_EMPTY_PATHS, ScanInterrupted
-from grobl.file_handling import (
-    FileHandlerRegistry,
-    FileProcessingContext,
-    ScanDependencies,
-)
-from grobl.logging_utils import StructuredLogEvent, get_logger, log_event
+from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, traverse_dir
+from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from grobl.ignore import LayeredIgnoreMatcher
-
-
-logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,118 +44,96 @@ def _determine_match_base(match_base: Path | None, resolved: list[Path], default
     return default
 
 
+def _coerce_exclude_patterns(value: object | None) -> list[str]:
+    """Normalize ``cfg[\"exclude_tree\"]``-like values to a list of strings."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, Iterable):
+        return [str(item) for item in value]
+    return []
+
+
 def run_scan(
     *,
-    paths: list[Path],
-    cfg: dict[str, Any],
+    paths: Iterable[Path],
+    cfg: dict[str, object],
     ignores: LayeredIgnoreMatcher,
-    match_base: Path | None = None,
     repo_root: Path | None = None,
-    dependencies: ScanDependencies | None = None,
+    match_base: Path | None = None,
     handlers: FileHandlerRegistry | None = None,
+    dependencies: ScanDependencies | None = None,
 ) -> ScanResult:
-    """Traverse the requested paths and collect data only."""
-    if not paths:
-        raise ValueError(ERROR_MSG_EMPTY_PATHS)
+    """
+    Run a filesystem scan.
 
-    missing = [p for p in paths if not p.exists()]
-    if missing:
-        raise ValueError("scan paths do not exist: " + ", ".join(sorted(str(p) for p in missing)))
+    Corrected invariant:
+      - traversal root
+      - tree builder base
+      - ScanResult.common
 
-    start = perf_counter()
-    resolved = [p.resolve() for p in paths]
-    common = find_common_ancestor(resolved)
+    must all agree, otherwise relative paths and rendered output drift.
+
+    We anchor everything at `builder_base`, which is:
+      - repo_root (if supplied and contains all scan paths), else
+      - the common ancestor of the scan paths.
+    """
+    resolved_paths = [p.resolve() for p in paths]
+    if not resolved_paths:
+        msg = "run_scan requires at least one path"
+        raise ValueError(msg)
+
+    if any(not p.exists() for p in resolved_paths):
+        msg = "scan paths do not exist"
+        raise ValueError(msg)
+
+    common = find_common_ancestor(resolved_paths)
     if common.is_file():
-        # For single-file scans the common ancestor resolves to the file path
-        # itself. Normalise to the containing directory so relative paths and
-        # directory traversal operate on a directory base.
         common = common.parent
-    builder_base = _determine_builder_base(common, resolved, repo_root)
-    match_base = _determine_match_base(match_base, resolved, builder_base)
 
-    log_event(
-        logger,
-        StructuredLogEvent(
-            name="scan.start",
-            message="starting directory traversal",
-            context={
-                "path_count": len(resolved),
-                "paths": resolved,
-                "ignore_tree_layers": len(ignores.tree_layers),
-                "ignore_print_layers": len(ignores.print_layers),
-                "config_entry_count": len(cfg),
-            },
-        ),
+    builder_base = _determine_builder_base(common, resolved_paths, repo_root)
+    match_base = _determine_match_base(match_base, resolved_paths, builder_base)
+
+    builder = DirectoryTreeBuilder(
+        base_path=builder_base,
+        exclude_patterns=_coerce_exclude_patterns(cfg.get("exclude_tree")),
     )
 
-    builder = DirectoryTreeBuilder(base_path=builder_base, exclude_patterns=[])
-    registry = FileHandlerRegistry.default() if handlers is None else handlers
     context = FileProcessingContext(
         builder=builder,
-        common=common,
+        common=builder_base,
         ignores=ignores,
         dependencies=ScanDependencies.default() if dependencies is None else dependencies,
     )
 
-    def collect(item: Path, prefix: str, *, is_last: bool) -> bool:
-        excluded_tree = ignores.excluded_from_tree(item, is_dir=item.is_dir())
+    registry = FileHandlerRegistry.default() if handlers is None else handlers
+    tree_has_negations = ignores.tree_has_negations
 
-        if item.is_dir():
-            # Do not render excluded dirs in the tree.
-            if not excluded_tree:
-                builder.add_directory(item, prefix, is_last=is_last)
-                return True
-
-            # Reviewer: "If there are no negations anywhere, excluded dirs can be pruned safely."
-            # (place here)
-            return ignores.tree_has_negations  # descend only if negations exist
-
-        # file
-        if excluded_tree:
+    def collect(path: Path, prefix: str, *, is_last: bool) -> bool:
+        is_dir = path.is_dir()
+        excluded = ignores.excluded_from_tree(path, is_dir=is_dir)
+        if is_dir:
+            if not excluded:
+                builder.add_directory(path, prefix, is_last=is_last)
+            return not excluded or tree_has_negations
+        if excluded:
             return False
-
-        builder.add_file_to_tree(item, prefix, is_last=is_last)
-        registry.handle(path=item, context=context)
+        builder.add_file_to_tree(path, prefix, is_last=is_last)
+        registry.handle(path=path, context=context)
         return False
 
-    try:
-        traverse_dir(
-            common,
-            TraverseConfig(
-                paths=resolved,
-                base=match_base,
-                repo_root=repo_root or builder_base,
-            ),
-            collect,
-        )
-    except KeyboardInterrupt as _:
-        log_event(
-            logger,
-            StructuredLogEvent(
-                name="scan.interrupted",
-                message="scan interrupted by user",
-                level=logging.WARNING,
-                context={"duration_seconds": perf_counter() - start},
-            ),
-        )
-        # Surface the partial state so the CLI can print proper diagnostics.
-        raise ScanInterrupted(builder, common) from _
-
-    # duration is emitted inline below to avoid extra locals
-    log_event(
-        logger,
-        StructuredLogEvent(
-            name="scan.complete",
-            message="completed directory traversal",
-            context={
-                "duration_seconds": perf_counter() - start,
-                "files_processed": len(builder.file_tree_entries()),
-                "tree_line_count": len(builder.tree_output()),
-            },
+    traverse_dir(
+        builder_base,
+        TraverseConfig(
+            paths=resolved_paths,
+            base=match_base,
+            repo_root=repo_root or builder_base,
         ),
+        cast(TreeCallback, collect),
     )
 
     return ScanResult(
         builder=builder,
-        common=common,
+        common=builder_base,
     )
