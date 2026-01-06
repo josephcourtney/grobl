@@ -77,6 +77,7 @@
 
   [tool.ruff.lint]
     ignore = [
+      "PLC1901", # `s != ""` can be simplified to `s` as an empty string is falsey
       # "TD002",  # Missing author in TODO; try: `# TODO(<author_name>): ...` or `# TODO @<author_name>: ...`
       # "TD003",  # Missing issue link for this TODO
       # "FIX002", # Line contains TODO, consider resolving the issue

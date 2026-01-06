@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 import pytest
@@ -21,14 +20,6 @@ def test_usage_error_invalid_scope(repo_root: Path) -> None:
     res = runner.invoke(cli, ["scan", str(repo_root), "--scope", "bogus"])
     # Click treats invalid option values as usage error (SystemExit 2)
     assert res.exit_code == EXIT_USAGE
-
-
-@pytest.mark.skipif(os.name != "posix", reason="POSIX-only path assumptions")
-def test_path_accepts_filesystem_root_anchor() -> None:
-    runner = CliRunner()
-    res = runner.invoke(cli, ["scan", "/", "/tmp"])  # noqa: S108 - controlled use in test
-    assert res.exit_code != 0
-    assert "scan paths must be within the resolved repository root" in res.output
 
 
 def test_config_load_error_bad_explicit_config(repo_root: Path) -> None:

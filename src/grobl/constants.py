@@ -48,6 +48,15 @@ class SummaryDestination(StrEnum):
     FILE = "file"
 
 
+class IgnorePolicy(StrEnum):
+    AUTO = "auto"
+    ALL = "all"
+    NONE = "none"
+    DEFAULTS = "defaults"
+    CONFIG = "config"
+    CLI = "cli"
+
+
 # Add these constants:
 CONFIG_EXCLUDE_TREE = "exclude_tree"
 CONFIG_EXCLUDE_PRINT = "exclude_print"

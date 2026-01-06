@@ -13,7 +13,7 @@
 ### Changed
 - refactor the `grobl scan` entry point by centralizing path validation, summary option coercion, and layered-ignore assembly helpers while respecting `--no-ignore` semantics
 - split raw config loading into `_load_config_sources` so runtime ignore edits can focus on CLI overrides while keeping precedence documentation intact and ensuring `_ignores` is enforced before delegating to `run_scan`
-- tighten scan execution by logging actual config sizes, requiring typed `_ignores`, and hardening both CLI and system tests to enforce the SPEC’s repository-root constraints
+- tighten scan execution by logging actual config sizes, requiring typed `_ignores`, and hardening both CLI and system tests to enforce the SPEC's repository-root constraints
 - simplify directory traversal, renderer, and file-handling tests by injecting deterministic ignore matchers and updated `TraverseConfig` usage instead of passing deprecated arguments
 - align CLI regression suites with the SPEC by forcing scans to run inside repo roots, rejecting out-of-root targets, and updating summary/clipboard routing expectations based on the new helpers
 

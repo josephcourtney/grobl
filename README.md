@@ -284,6 +284,7 @@ Configuration and ignore behavior are shared across all scan modes:
 --remove-ignore PATTERN # remove a pattern from the exclude list
 --unignore PATTERN     # add an exception pattern for this run
 --config PATH          # explicit config file path (highest precedence, must exist)
+--ignore-policy {auto,all,none,defaults,config,cli}  # choose which ignore sources apply
 ```
 
 Rules:
@@ -293,6 +294,13 @@ Rules:
 * `--no-ignore-config` disables ignores from `.grobl.toml` files, but keeps defaults/runtime ignores.
 * `--ignore-file PATH` reads patterns from files; empty lines and lines starting with `#` are ignored.
 * `--config PATH` must point to an existing file; if it does not, grobl treats this as a configuration error and exits.
+* `--ignore-policy` selects the ignore sources:
+  * `auto`: defaults + config + CLI
+  * `all`: all sources enabled
+  * `none`: disable every ignore source
+  * `defaults`: enable only the bundled defaults
+  * `config`: enable only `.grobl.toml` rules
+  * `cli`: enable only the CLI-provided ignore edits
 
 ### Configuration precedence
 
@@ -335,7 +343,7 @@ extends = ["../base.toml", "shared/settings.toml"]
 Rules:
 
 * Value may be a string or a list of strings.
-* Relative paths are resolved relative to the config file’s directory.
+* Relative paths are resolved relative to the config file's directory.
 * Later files override earlier ones in the `extends` chain.
 * Cycles are detected and break the inheritance chain instead of recursing indefinitely.
 
@@ -357,7 +365,7 @@ Ignore sources are layered and have different “pattern bases”:
 1. **Bundled defaults** (base = repository root)
 2. **Hierarchical `.grobl.toml` ignores** discovered from repository root down to the scanned directories
    * Each `.grobl.toml` contributes `exclude_tree` / `exclude_print`
-   * Patterns from a given `.grobl.toml` are interpreted **relative to that file’s directory**
+   * Patterns from a given `.grobl.toml` are interpreted **relative to that file's directory**
 3. **Runtime/CLI ignores** (base = repository root)
 
 Within a layer, patterns are evaluated sequentially and **the last matching pattern wins**.
@@ -444,7 +452,7 @@ instead of `<directory>` / `<file>`.
 
      * Contents are read (UTF-8, errors ignored).
      * `lines`, `chars` (character count) are computed.
-     * The file’s relative path is checked against `exclude_print`:
+     * The file's relative path is checked against `exclude_print`:
 
        * If allowed: metadata + contents are stored.
        * If excluded: only metadata is stored; contents are omitted.
@@ -595,7 +603,7 @@ Notes:
   * `path`: path relative to the root
   * `lines`: line count (0 for binaries)
   * `chars`: character count (for binaries, the byte size)
-  * `included`: `true` if the file’s content is included in the payload
+  * `included`: `true` if the file's content is included in the payload
   * `binary`: `true` for files heuristically treated as binary (`lines == 0`, `chars > 0`, `included == false`)
 
 ### JSON payload schema (format = json)

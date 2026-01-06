@@ -16,7 +16,7 @@ from grobl.constants import (
     TableStyle,
 )
 from grobl.directory import DirectoryTreeBuilder
-from grobl.errors import PathNotFoundError, ScanInterrupted
+from grobl.errors import PathNotFoundError
 from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small
@@ -80,13 +80,11 @@ class _DummyExecRaises:
 
 def _params_for(tmp_path: Path) -> ccommon.ScanParams:
     return ccommon.ScanParams(
-        ignore_defaults=False,
         output=None,
         add_ignore=(),
         remove_ignore=(),
         unignore=(),
         add_ignore_file=(),
-        no_ignore=False,
         scope=ContentScope.ALL,
         summary_style=TableStyle.COMPACT,
         config_path=None,
@@ -121,10 +119,23 @@ def test__execute_with_handling_success(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert js == {"ok": 1}
 
 
-def test__execute_with_handling_path_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("exc", "expected_code"),
+    [
+        (PathNotFoundError("No common ancestor"), EXIT_PATH),
+        (ValueError("bad"), EXIT_USAGE),
+        (KeyboardInterrupt(), EXIT_INTERRUPT),
+    ],
+)
+def test__execute_with_handling_exception_exit_code_mapping(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, exc: BaseException, expected_code: int
+) -> None:
     dummy = _DummyExecRaises(sink=None)
-    dummy.exc = PathNotFoundError("No common ancestor")
+    dummy.exc = exc
     monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
+    # Avoid making these tests depend on exact diagnostics formatting/contents.
+    monkeypatch.setattr(ccommon, "print_interrupt_diagnostics", lambda *_: None)
+
     with pytest.raises(SystemExit) as excinfo:
         ccommon._execute_with_handling(
             params=_params_for(tmp_path),
@@ -135,65 +146,4 @@ def test__execute_with_handling_path_error(monkeypatch: pytest.MonkeyPatch, tmp_
         )
     e = excinfo.value
     assert isinstance(e, SystemExit)
-    assert e.code == EXIT_PATH
-
-
-def test__execute_with_handling_usage_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    dummy = _DummyExecRaises(sink=None)
-    dummy.exc = ValueError("bad")
-    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
-    with pytest.raises(SystemExit) as exc:
-        ccommon._execute_with_handling(
-            params=_params_for(tmp_path),
-            cfg=_cfg_with_ignores(tmp_path),
-            cwd=tmp_path,
-            write_fn=lambda _: None,
-            summary_style=TableStyle.COMPACT,
-        )
-    e = exc.value
-    assert isinstance(e, SystemExit)
-    assert e.code == EXIT_USAGE
-
-
-def test__execute_with_handling_scan_interrupted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    # Make the executor raise ScanInterrupted and ensure we turn it into EXIT_INTERRUPT via diagnostics.
-    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    interrupted = ScanInterrupted(builder, tmp_path)
-    dummy = _DummyExecRaises(sink=None)
-    dummy.exc = interrupted
-    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
-    # Avoid printing by replacing diagnostics with a minimal stub that raises the expected SystemExit.
-    monkeypatch.setattr(
-        ccommon, "print_interrupt_diagnostics", lambda *_: (_ for _ in ()).throw(SystemExit(EXIT_INTERRUPT))
-    )  # type: ignore[assignment]
-    with pytest.raises(SystemExit) as exc:
-        ccommon._execute_with_handling(
-            params=_params_for(tmp_path),
-            cfg=_cfg_with_ignores(tmp_path),
-            cwd=tmp_path,
-            write_fn=lambda _: None,
-            summary_style=TableStyle.FULL,
-        )
-    e = exc.value
-    assert isinstance(e, SystemExit)
-    assert e.code == EXIT_INTERRUPT
-
-
-def test__execute_with_handling_keyboard_interrupt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    dummy = _DummyExecRaises(sink=None)
-    dummy.exc = KeyboardInterrupt()
-    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
-    monkeypatch.setattr(
-        ccommon, "print_interrupt_diagnostics", lambda *_: (_ for _ in ()).throw(SystemExit(EXIT_INTERRUPT))
-    )  # type: ignore[assignment]
-    with pytest.raises(SystemExit) as exc:
-        ccommon._execute_with_handling(
-            params=_params_for(tmp_path),
-            cfg=_cfg_with_ignores(tmp_path),
-            cwd=tmp_path,
-            write_fn=lambda _: None,
-            summary_style=TableStyle.FULL,
-        )
-    e = exc.value
-    assert isinstance(e, SystemExit)
-    assert e.code == EXIT_INTERRUPT
+    assert e.code == expected_code

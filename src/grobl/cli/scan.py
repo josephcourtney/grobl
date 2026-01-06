@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import html
 import json
+import os
 import sys
 from collections.abc import Sequence
+from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import click
 
+from grobl import tty
 from grobl.config import (
     apply_runtime_ignore_edits,
     load_config,
@@ -19,6 +24,7 @@ from grobl.config import (
 from grobl.constants import (
     EXIT_CONFIG,
     ContentScope,
+    IgnorePolicy,
     PayloadFormat,
     SummaryDestination,
     SummaryFormat,
@@ -27,7 +33,6 @@ from grobl.constants import (
 from grobl.errors import ConfigLoadError
 from grobl.ignore import LayeredIgnoreMatcher, build_layered_ignores
 from grobl.output import build_writer_from_config
-from grobl.tty import resolve_table_style, stdout_is_tty
 from grobl.utils import resolve_repo_root
 
 from .common import (
@@ -39,6 +44,8 @@ from .common import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+resolve_table_style = tty.resolve_table_style
+stdout_is_tty = tty.stdout_is_tty
 
 SCAN_EPILOG = """\
 Examples:
@@ -47,31 +54,59 @@ Examples:
   grobl scan --format llm --copy
   grobl scan --format json --output payload.json
   grobl scan --summary json --summary-to stdout
-  grobl scan --no-ignore-defaults --no-ignore-config
-  grobl scan --no-ignore
+  grobl scan --ignore-policy defaults
+  grobl scan --ignore-policy none
   grobl scan --add-ignore '*.min.js' --unignore 'vendor/**' src
 """
 
 
+@dataclass(frozen=True, slots=True)
+class GlobalCLIOptions:
+    config_path: Path | None
+    payload_format: str
+    copy: bool
+    output: Path | None
+    summary: str
+    summary_style: str | None
+    summary_to: str
+    summary_output: Path | None
+    ignore_policy: str
+    ignore_defaults_flag: bool
+    no_ignore_config_flag: bool
+    no_ignore_flag: bool
+
+
+def _global_cli_options(ctx: click.Context) -> GlobalCLIOptions:
+    root = ctx.find_root()
+    obj = root.obj or {}
+    return GlobalCLIOptions(
+        config_path=cast("Path | None", obj.get("config_path")),
+        payload_format=cast("str", obj.get("payload_format", PayloadFormat.LLM.value)),
+        copy=cast("bool", obj.get("copy", False)),
+        output=cast("Path | None", obj.get("output")),
+        summary=cast("str", obj.get("summary", SummaryFormat.AUTO.value)),
+        summary_style=cast("str | None", obj.get("summary_style")),
+        summary_to=cast("str", obj.get("summary_to", SummaryDestination.STDERR.value)),
+        summary_output=cast("Path | None", obj.get("summary_output")),
+        ignore_policy=cast("str", obj.get("ignore_policy", IgnorePolicy.AUTO.value)),
+        ignore_defaults_flag=cast("bool", obj.get("ignore_defaults_flag", False)),
+        no_ignore_config_flag=cast("bool", obj.get("no_ignore_config_flag", False)),
+        no_ignore_flag=cast("bool", obj.get("no_ignore_flag", False)),
+    )
+
+
+def _expand_path_token(path: Path) -> Path:
+    expanded = os.path.expandvars(str(path))
+    with suppress(RuntimeError):
+        expanded = Path(expanded).expanduser()
+    return Path(expanded)
+
+
+def _expand_requested_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
+    return tuple(_expand_path_token(path) for path in paths)
+
+
 @click.command(epilog=SCAN_EPILOG)
-@click.option(
-    "--no-ignore-defaults",
-    is_flag=True,
-    help="Disable bundled default ignore rules",
-)
-@click.option(
-    "--ignore-defaults",
-    "-I",
-    is_flag=True,
-    hidden=True,
-    help="Deprecated alias for --no-ignore-defaults",
-)
-@click.option("--no-ignore-config", is_flag=True, help="Disable ignore rules from all .grobl.toml files")
-@click.option(
-    "--no-ignore",
-    is_flag=True,
-    help="Disable all ignore patterns (overrides defaults and config)",
-)
 @click.option("--add-ignore", multiple=True, help="Additional ignore pattern for this run")
 @click.option(
     "--remove-ignore",
@@ -85,71 +120,22 @@ Examples:
     type=click.Path(path_type=Path),
     help="Read ignore patterns from file (one per line)",
 )
-@click.option("--config", "config_path", type=click.Path(path_type=Path), help="Explicit config file path")
 @click.option(
     "--scope",
     type=click.Choice([s.value for s in ContentScope], case_sensitive=False),
     default=ContentScope.ALL.value,
     help="Content scope for payload generation",
 )
-@click.option(
-    "--format",
-    "payload_format",
-    type=click.Choice([p.value for p in PayloadFormat], case_sensitive=False),
-    default=PayloadFormat.LLM.value,
-    help="Payload format to emit",
-)
-@click.option(
-    "--summary",
-    type=click.Choice([s.value for s in SummaryFormat], case_sensitive=False),
-    default=SummaryFormat.AUTO.value,
-    help="Summary mode to display",
-)
-@click.option(
-    "--summary-style",
-    type=click.Choice([t.value for t in TableStyle], case_sensitive=False),
-    default=None,
-    help="Summary table style (auto/full/compact; only valid with --summary table)",
-)
-@click.option(
-    "--summary-to",
-    type=click.Choice([d.value for d in SummaryDestination], case_sensitive=False),
-    default=SummaryDestination.STDERR.value,
-    help="Destination for summary output (defaults to stderr)",
-)
-@click.option(
-    "--summary-output",
-    type=click.Path(path_type=Path),
-    help="File path to write the summary when --summary-to file is selected",
-)
-@click.option("--copy", is_flag=True, help="Copy the payload to the clipboard")
-@click.option(
-    "--output",
-    type=click.Path(path_type=Path),
-    help="Write the payload to a file path (use '-' for stdout; default is stdout)",
-)
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
 @click.pass_context
 def scan(
     ctx: click.Context,
     *,
-    no_ignore_defaults: bool,
-    ignore_defaults: bool,
-    no_ignore_config: bool,
-    no_ignore: bool,
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
     unignore: tuple[str, ...],
     ignore_file: tuple[Path, ...],
-    config_path: Path | None,
     scope: str,
-    payload_format: str,
-    summary: str,
-    summary_style: str | None,
-    summary_to: str,
-    summary_output: Path | None,
-    copy: bool,
-    output: Path | None,
     paths: tuple[Path, ...],
 ) -> None:
     """Run a directory scan based on CLI flags and paths, then emit/copy output.
@@ -157,12 +143,10 @@ def scan(
     Payload destination defaults to stdout. Use --copy to additionally copy the payload
     to the clipboard, or --output to write to a file (use '-' for stdout).
     """
-    # Back-compat: --ignore-defaults/-I behaves like --no-ignore-defaults
-    if ignore_defaults:
-        no_ignore_defaults = True
+    global_options = _global_cli_options(ctx)
 
     cwd = Path()
-    requested_paths = paths or (Path(),)
+    requested_paths = _expand_requested_paths(paths) if paths else (Path(),)
 
     repo_root = resolve_repo_root(cwd=cwd, paths=requested_paths)
 
@@ -170,23 +154,21 @@ def scan(
     # by rejecting scan targets outside repo_root.
     _ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
 
-    config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
+    config_base = resolve_config_base(base_path=repo_root, explicit_config=global_options.config_path)
 
-    if copy and output is not None:
+    if global_options.copy and global_options.output is not None:
         msg = "--copy cannot be combined with --output"
         raise click.UsageError(msg, ctx=ctx)
     params = _build_scan_params(
         ctx=ctx,
-        ignore_defaults=no_ignore_defaults,
-        config_path=config_path,
+        config_path=global_options.config_path,
         scope=scope,
-        payload_format=payload_format,
-        summary=summary,
-        summary_style=summary_style,
-        summary_to=summary_to,
-        copy=copy,
-        output=output,
-        no_ignore=no_ignore,
+        payload_format=global_options.payload_format,
+        summary=global_options.summary,
+        summary_style=global_options.summary_style,
+        summary_to=global_options.summary_to,
+        copy=global_options.copy,
+        output=global_options.output,
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
         unignore=unignore,
@@ -213,39 +195,96 @@ def scan(
         repo_root=repo_root,
         scan_paths=requested_paths,
         params=params,
-        no_ignore_config=no_ignore_config,
-    )
-
-    summary, summary_json = _execute_with_handling(
-        params=params,
-        cfg={**cfg, "_ignores": ignores},
-        cwd=cwd,
-        write_fn=build_writer_from_config(
-            copy=params.payload_copy,
-            output=params.payload_output,
-        ),
-        summary_style=params.summary_style,
+        ignore_policy=IgnorePolicy(global_options.ignore_policy),
+        ignore_defaults_flag=global_options.ignore_defaults_flag,
+        no_ignore_config_flag=global_options.no_ignore_config_flag,
+        no_ignore_flag=global_options.no_ignore_flag,
     )
 
     destination = _normalize_summary_destination(
-        summary_to=summary_to,
-        summary_output=summary_output,
+        summary_to=global_options.summary_to,
+        summary_output=global_options.summary_output,
         ctx=ctx,
     )
 
-    # Do not allow summary to share stdout with payload; keep stdout machine-clean.
-    payload_on_stdout = params.payload_output is not None and params.payload_output == Path("-")
-    if payload_on_stdout and destination is SummaryDestination.STDOUT:
-        destination = SummaryDestination.STDERR
+    payload_dest = _payload_destination_label(
+        payload_format=params.payload,
+        payload_copy=params.payload_copy,
+        payload_output=params.payload_output,
+    )
+    summary_dest = _summary_destination_label(
+        summary_format=params.summary,
+        summary_destination=destination,
+        summary_output=global_options.summary_output,
+        ctx=ctx,
+    )
+    merged_destination = (
+        payload_dest is not None and summary_dest is not None and payload_dest == summary_dest
+    )
 
-    summary_writer = _build_summary_writer(destination=destination, output=summary_output)
+    _validate_stream_compatibility(
+        ctx=ctx,
+        payload_format=params.payload,
+        payload_copy=params.payload_copy,
+        payload_output=params.payload_output,
+        summary_format=params.summary,
+        summary_destination=destination,
+        summary_output=global_options.summary_output,
+        payload_dest=payload_dest,
+        summary_dest=summary_dest,
+    )
+
+    direct_writer = build_writer_from_config(
+        copy=params.payload_copy,
+        output=params.payload_output,
+    )
+    payload_buffer: list[str] | None = [] if merged_destination else None
+
+    if merged_destination:
+        buffered_payload = cast("list[str]", payload_buffer)
+
+        def _buffered_writer(text: str) -> None:
+            if params.payload in {PayloadFormat.LLM, PayloadFormat.MARKDOWN}:
+                buffered_payload.append(html.escape(text))
+            else:
+                buffered_payload.append(text)
+
+        payload_writer = _buffered_writer
+    else:
+        payload_writer = direct_writer
+
+    summary_text, summary_json = _execute_with_handling(
+        params=params,
+        cfg={**cfg, "_ignores": ignores},
+        cwd=cwd,
+        write_fn=payload_writer,
+        summary_style=params.summary_style,
+    )
 
     try:
-        if params.summary is SummaryFormat.TABLE and summary:
-            summary_writer(summary)
-        elif params.summary is SummaryFormat.JSON:
-            payload = json.dumps(summary_json, sort_keys=True, indent=2)
-            summary_writer(f"{payload}\n")
+        if merged_destination:
+            merged_parts: list[str] = []
+            if params.summary is SummaryFormat.TABLE and summary_text:
+                merged_parts.append(summary_text)
+            elif params.summary is SummaryFormat.JSON:
+                merged_parts.append(json.dumps(summary_json, sort_keys=True, indent=2) + "\n")
+
+            if payload_buffer:
+                merged_parts.extend(payload_buffer)
+
+            merged_text = "".join(merged_parts)
+            if merged_text:
+                direct_writer(merged_text)
+        else:
+            summary_writer = _build_summary_writer(
+                destination=destination,
+                output=global_options.summary_output,
+            )
+            if params.summary is SummaryFormat.TABLE and summary_text:
+                summary_writer(summary_text)
+            elif params.summary is SummaryFormat.JSON:
+                payload = json.dumps(summary_json, sort_keys=True, indent=2)
+                summary_writer(f"{payload}\n")
     except BrokenPipeError:
         exit_on_broken_pipe()
 
@@ -334,6 +373,42 @@ def _normalize_summary_destination(
     return destination
 
 
+def _payload_destination_label(
+    *,
+    payload_format: PayloadFormat,
+    payload_copy: bool,
+    payload_output: Path | None,
+) -> str | None:
+    if payload_format is PayloadFormat.NONE:
+        return None
+    if payload_copy:
+        return "clipboard"
+    if payload_output is None:
+        return "clipboard"
+    if payload_output == Path("-"):
+        return "stdout"
+    return f"file:{payload_output}"
+
+
+def _summary_destination_label(
+    *,
+    summary_format: SummaryFormat,
+    summary_destination: SummaryDestination,
+    summary_output: Path | None,
+    ctx: click.Context,
+) -> str | None:
+    if summary_format is SummaryFormat.NONE:
+        return None
+    if summary_destination is SummaryDestination.STDERR:
+        return "stderr"
+    if summary_destination is SummaryDestination.STDOUT:
+        return "stdout"
+    if summary_output is None:
+        msg = "--summary-output is required when --summary-to file"
+        raise click.UsageError(msg, ctx=ctx)
+    return f"file:{summary_output}"
+
+
 def _string_sequence_from_config(cfg: dict[str, object], key: str) -> Sequence[str]:
     """Return a typed string sequence for the given config key, defaulting to empty."""
     value = cfg.get(key)
@@ -347,7 +422,6 @@ def _string_sequence_from_config(cfg: dict[str, object], key: str) -> Sequence[s
 def _build_scan_params(
     *,
     ctx: click.Context,
-    ignore_defaults: bool,
     config_path: Path | None,
     scope: str,
     payload_format: str,
@@ -356,7 +430,6 @@ def _build_scan_params(
     summary_to: str,
     copy: bool,
     output: Path | None,
-    no_ignore: bool,
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
     unignore: tuple[str, ...],
@@ -388,9 +461,7 @@ def _build_scan_params(
     # -----------------------------------------
 
     return ScanParams(
-        ignore_defaults=ignore_defaults,
         output=output,
-        no_ignore=no_ignore,
         add_ignore=add_ignore,
         remove_ignore=remove_ignore,
         unignore=unignore,
@@ -434,11 +505,25 @@ def _assemble_layered_ignores(
     repo_root: Path,
     scan_paths: tuple[Path, ...],
     params: ScanParams,
-    no_ignore_config: bool,
+    ignore_policy: IgnorePolicy,
+    ignore_defaults_flag: bool,
+    no_ignore_config_flag: bool,
+    no_ignore_flag: bool,
 ) -> LayeredIgnoreMatcher:
     default_cfg = load_default_config()
 
     effective_unignore = tuple(params.unignore) + tuple(params.remove_ignore)
+
+    cli_ignore_used = bool(
+        params.add_ignore or params.remove_ignore or params.unignore or params.add_ignore_file
+    )
+    if ignore_policy is IgnorePolicy.NONE and cli_ignore_used:
+        msg = (
+            "--ignore-policy none (or --no-ignore) disables all ignore rules, "
+            "so CLI ignore flags may not be used.\n"
+            "Either remove CLI ignore flags, or use --ignore-policy auto|all|cli."
+        )
+        raise click.UsageError(msg)
 
     runtime_edits = apply_runtime_ignore_edits(
         base_tree=[],
@@ -447,11 +532,30 @@ def _assemble_layered_ignores(
         remove_ignore=(),  # handled via effective_unignore
         add_ignore_files=params.add_ignore_file,
         unignore=effective_unignore,
-        no_ignore=params.no_ignore,
+        no_ignore=False,
     )
 
-    include_defaults = not params.ignore_defaults and not params.no_ignore
-    include_config = not no_ignore_config and not params.no_ignore
+    if no_ignore_flag:
+        include_defaults = False
+        include_config = False
+    elif ignore_policy is IgnorePolicy.ALL:
+        include_defaults = True
+        include_config = True
+    elif ignore_policy is IgnorePolicy.NONE:
+        include_defaults = False
+        include_config = False
+    elif ignore_policy is IgnorePolicy.DEFAULTS:
+        include_defaults = True
+        include_config = False
+    elif ignore_policy is IgnorePolicy.CONFIG:
+        include_defaults = False
+        include_config = True
+    elif ignore_policy is IgnorePolicy.CLI:
+        include_defaults = False
+        include_config = False
+    else:  # AUTO
+        include_defaults = not ignore_defaults_flag
+        include_config = not no_ignore_config_flag
 
     return build_layered_ignores(
         repo_root=repo_root,
@@ -463,3 +567,55 @@ def _assemble_layered_ignores(
         default_cfg=default_cfg,
         explicit_config=params.config_path,
     )
+
+
+def _validate_stream_compatibility(
+    *,
+    ctx: click.Context,
+    payload_format: PayloadFormat,
+    payload_copy: bool,
+    payload_output: Path | None,
+    summary_format: SummaryFormat,
+    summary_destination: SummaryDestination,
+    summary_output: Path | None,
+    payload_dest: str | None = None,
+    summary_dest: str | None = None,
+) -> None:
+    """
+    Enforce spec stream compatibility.
+
+      - If any non-empty stream to a destination is machine-readable,
+        exactly one non-empty stream may go there.
+      - Otherwise, merging is allowed (summary then payload).
+    """
+    if payload_dest is None:
+        payload_dest = _payload_destination_label(
+            payload_format=payload_format,
+            payload_copy=payload_copy,
+            payload_output=payload_output,
+        )
+    if summary_dest is None:
+        summary_dest = _summary_destination_label(
+            summary_format=summary_format,
+            summary_destination=summary_destination,
+            summary_output=summary_output,
+            ctx=ctx,
+        )
+
+    payload_machine = payload_format in {PayloadFormat.JSON, PayloadFormat.NDJSON}
+    summary_machine = summary_format is SummaryFormat.JSON
+
+    if (
+        payload_dest is not None
+        and summary_dest is not None
+        and payload_dest == summary_dest
+        and (payload_machine or summary_machine)
+    ):
+        msg = (
+            "Incompatible merged output: two non-empty streams are routed to the same destination, "
+            "and at least one stream is machine-readable (json/ndjson).\n"
+            "Fix by either:\n"
+            "  - Making formats compatible (e.g., use human-readable summary/payload), or\n"
+            "  - Routing streams to different destinations (e.g., --summary-to stderr, or --output PATH).\n"
+        )
+        raise click.UsageError(msg, ctx=ctx)

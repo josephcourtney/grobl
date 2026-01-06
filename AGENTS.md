@@ -9,7 +9,7 @@ This repository provides Codex CLI skills under:
 These skills encode repeatable agent procedures (quality gates, changelog/versioning, dependency policy, patch-only fallback)
 that are easy to forget or apply inconsistently when kept only as prose. Use them when operating via Codex CLI:
 
-* `quality-gates`: run the repository’s standard validation pipeline and handle failure modes deterministically
+* `quality-gates`: run the repository's standard validation pipeline and handle failure modes deterministically
 * `changelog-release`: update `CHANGELOG.md` and bump the version in `pyproject.toml` (Keep a Changelog)
 * `dependencies`: add/remove dependencies via `uv` with required in-code justification
 * `patch-only-fallback`: required behavior when shell access or tool execution is unavailable

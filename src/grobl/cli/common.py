@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import sys
 from dataclasses import dataclass
@@ -35,13 +36,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class ScanParams:
-    ignore_defaults: bool
     output: Path | None
     add_ignore: tuple[str, ...]
     remove_ignore: tuple[str, ...]
     unignore: tuple[str, ...]
     add_ignore_file: tuple[Path, ...]
-    no_ignore: bool
     scope: ContentScope
     summary_style: TableStyle
     config_path: Path | None
@@ -91,10 +90,8 @@ def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: Dire
 
 def exit_on_broken_pipe() -> None:
     """Terminate cleanly when stdout is closed by the downstream pipe."""
-    try:
-        sys.stdout.close()
-    finally:
-        raise SystemExit(0)
+    sys.stdout = io.StringIO()
+    raise SystemExit(0)
 
 
 def _raise_system_exit(code: int, exc: BaseException, *, message: object | None = None) -> NoReturn:

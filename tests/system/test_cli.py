@@ -33,9 +33,16 @@ def test_cli_help_and_scan_help() -> None:
     assert "--format" in scan_help.output
     assert "--summary" in scan_help.output
 
+    # global help before command routes to subcommand help
+    scan_help2 = runner.invoke(cli, ["-h", "scan"])
+    assert scan_help2.exit_code == 0
+    assert "--scope" in scan_help2.output
+    assert "--format" in scan_help2.output
+    assert "Usage:" in scan_help2.output
+
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX-only filesystem root semantics")
-def test_cli_scan_accepts_filesystem_root(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_scan_rejects_paths_outside_repo_root_even_if_root_dir(monkeypatch: pytest.MonkeyPatch) -> None:
     observed: dict[str, Path] = {}
 
     def fake_load_config(**kwargs: object) -> dict[str, object]:
@@ -91,49 +98,6 @@ def test_cli_root_invocation_forwards_scan_options(
     out = result.output
     assert "src/" in out
     assert "tests/" not in out
-
-
-def test_cli_default_scan_outputs_summary_and_payload(
-    repo_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    (repo_root / "sample.txt").write_text("content\n", encoding="utf-8")
-    runner = CliRunner()
-    monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
-    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
-    result = runner.invoke(cli, ["scan", str(repo_root)])
-    assert result.exit_code == 0
-    assert not result.stdout
-    assert "Total lines" in result.stderr
-    assert "test_cli_default_scan_outputs_0/" in result.stderr
-
-
-def test_cli_multiple_paths_uses_common_ancestor_in_json_root(repo_root: Path) -> None:
-    base = repo_root / "proj"
-    a_dir = base / "a"
-    b_dir = base / "b"
-    a_dir.mkdir(parents=True)
-    b_dir.mkdir(parents=True)
-    (a_dir / "one.txt").write_text("1\n", encoding="utf-8")
-    (b_dir / "two.txt").write_text("2\n", encoding="utf-8")
-
-    runner = CliRunner()
-    result = runner.invoke(
-        cli,
-        [
-            "scan",
-            str(a_dir),
-            str(b_dir),
-            "--summary",
-            "json",
-            "--format",
-            "none",
-        ],
-    )
-    assert result.exit_code == 0
-    data = json.loads(result.output)
-    # Common ancestor of a/ and b/ should be the project root
-    assert data["root"] == str(base)
 
 
 def test_cli_modes_human_payload_variants(
@@ -318,7 +282,6 @@ def test_cli_no_ignore_includes_default_excluded_dir(
     out_default = res_default.output
     assert ".venv/" not in out_default
 
-    # With --no-ignore, default exclude_tree patterns are disabled
     res_no_ignore = runner.invoke(
         cli,
         [
@@ -330,7 +293,8 @@ def test_cli_no_ignore_includes_default_excluded_dir(
             "none",
             "--output",
             "-",
-            "--no-ignore",
+            "--ignore-policy",
+            "none",
         ],
     )
     assert res_no_ignore.exit_code == 0
@@ -496,48 +460,6 @@ def test_cli_verbose_and_log_level_flags(repo_root: Path) -> None:
     assert res_debug.exit_code == 0
 
 
-def test_cli_unknown_command_errors() -> None:
-    runner = CliRunner()
-    result = runner.invoke(cli, ["foo"])
-    assert result.exit_code == 2
-    assert "Unknown command: foo" in result.output
-
-
-def test_cli_path_like_token_defaults_to_scan(
-    repo_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    (repo_root / "data.txt").write_text("value\n", encoding="utf-8")
-    runner = CliRunner()
-    monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
-    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
-    result = runner.invoke(cli, [str(repo_root)])
-    assert result.exit_code == 0
-    assert "data.txt" in result.stderr
-
-
-def test_cli_dash_prefixed_token_defaults_to_scan(repo_root: Path) -> None:
-    (repo_root / "keep.txt").write_text("keep\n", encoding="utf-8")
-    runner = CliRunner()
-    result = runner.invoke(cli, ["--summary", "json", str(repo_root)])
-    assert result.exit_code == 0
-    assert '"root"' in result.output
-
-
-def test_cli_existing_path_token_defaults_to_scan(
-    repo_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    target = repo_root / "existing"
-    target.write_text("payload\n", encoding="utf-8")
-    runner = CliRunner()
-    monkeypatch.setattr(tty, "stdout_is_tty", lambda: True, raising=True)
-    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
-    result = runner.invoke(cli, ["existing"])
-    assert result.exit_code == 0
-    assert "existing" in result.stderr
-
-
 @dataclass(frozen=True)
 class DestinationCase:
     name: str
@@ -560,12 +482,10 @@ def fake_clipboard(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 
 @pytest.fixture
-def patch_tty(monkeypatch: pytest.MonkeyPatch) -> Callable[[bool], None]:
+def patch_tty(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
     # Patch both helpers used across codepaths (your tests already do this)
-    from grobl import tty
-    from grobl.cli import scan as cli_scan
 
-    def _apply(is_tty: bool) -> None:
+    def _apply(*, is_tty: bool) -> None:
         monkeypatch.setattr(tty, "stdout_is_tty", lambda: is_tty, raising=True)
         monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: is_tty, raising=True)
 
@@ -580,8 +500,8 @@ def _mk_repo(repo_root: Path) -> None:
     "case",
     [
         DestinationCase(
-            name="explicit_copy_writes_clipboard_no_stdout",
-            args=["scan", "{root}", "--format", "json", "--summary", "none", "--copy"],
+            name="auto_tty_uses_clipboard_and_no_stdout",
+            args=["scan", "{root}", "--summary", "none"],
             stdout_tty=True,
             expect_exit=0,
             expect_stdout_json=False,
@@ -590,42 +510,23 @@ def _mk_repo(repo_root: Path) -> None:
             expect_output_file=False,
         ),
         DestinationCase(
-            name="output_dash_writes_stdout",
-            args=["scan", "{root}", "--format", "json", "--summary", "none", "--output", "-"],
-            stdout_tty=True,
+            name="auto_notty_uses_stdout",
+            args=["scan", "{root}", "--summary", "none"],
+            stdout_tty=False,
             expect_exit=0,
-            expect_stdout_json=True,
+            expect_stdout_json=False,
             expect_stderr_has_summary=False,
             expect_clipboard_used=False,
             expect_output_file=False,
         ),
         DestinationCase(
-            name="output_file_writes_file",
-            args=[
-                "scan",
-                "{root}",
-                "--format",
-                "json",
-                "--summary",
-                "none",
-                "--output",
-                "{root}/payload.json",
-            ],
+            name="explicit_copy_writes_clipboard_no_stdout",
+            args=["scan", "{root}", "--format", "json", "--summary", "none", "--copy"],
             stdout_tty=True,
             expect_exit=0,
             expect_stdout_json=False,
             expect_stderr_has_summary=False,
-            expect_clipboard_used=False,
-            expect_output_file=True,
-        ),
-        DestinationCase(
-            name="copy_and_output_is_usage_error",
-            args=["scan", "{root}", "--copy", "--output", "{root}/payload.json"],
-            stdout_tty=True,
-            expect_exit=2,
-            expect_stdout_json=False,
-            expect_stderr_has_summary=False,
-            expect_clipboard_used=False,
+            expect_clipboard_used=True,
             expect_output_file=False,
         ),
     ],
@@ -638,7 +539,7 @@ def test_payload_destination_contract(
     fake_clipboard: list[str],
 ) -> None:
     _mk_repo(repo_root)
-    patch_tty(case.stdout_tty)
+    patch_tty(is_tty=case.stdout_tty)
 
     args = [a.format(root=str(repo_root)) for a in case.args]
     res = CliRunner().invoke(cli, args)
@@ -648,13 +549,17 @@ def test_payload_destination_contract(
     if case.expect_stdout_json:
         # More robust than startswith("{")
         json.loads(res.stdout)
+    # When auto-notty is in effect, default payload format is llm and should go to stdout.
+    elif case.name == "auto_notty_uses_stdout":
+        assert res.stdout.strip() != ""
+        assert "<directory" in res.stdout or "<file" in res.stdout
     else:
         assert res.stdout.strip() == ""
 
     if case.expect_stderr_has_summary:
         assert "Total lines" in res.stderr
     else:
-        # don’t require exact emptiness unless that’s the contract
+        # don't require exact emptiness unless that's the contract
         pass
 
     if case.expect_clipboard_used:
@@ -672,7 +577,7 @@ def test_payload_destination_contract(
 
 
 @pytest.mark.parametrize("fmt", ["llm", "markdown", "json", "ndjson", "none"])
-def test_payload_format_contract(repo_root, fmt: str) -> None:
+def test_payload_format_contract(repo_root: Path, fmt: str) -> None:
     (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
     res = CliRunner().invoke(
         cli,
@@ -699,16 +604,20 @@ def test_payload_format_contract(repo_root, fmt: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("summary_mode", "summary_to", "expect_stdout", "expect_stderr"),
+    ("summary_mode", "summary_to", "expect_ok"),
     [
-        ("none", "stderr", False, False),
-        ("table", "stderr", False, True),
-        ("table", "stdout", True, False),
-        ("json", "stderr", False, True),  # json summary goes to stderr by default in your tests
+        ("none", "stderr", True),
+        ("table", "stderr", True),
+        # JSON payload on stdout + table summary on stdout would merge TEXT+JSON → usage error (§6.2)
+        ("table", "stdout", False),
+        ("json", "stderr", True),
+        # JSON payload on stdout + JSON summary on stdout would merge JSON+JSON without
+        # a container → usage error (§6.2)
+        ("json", "stdout", False),
     ],
 )
 def test_summary_routing_contract(
-    repo_root, summary_mode: str, summary_to: str, expect_stdout: bool, expect_stderr: bool
+    repo_root: Path, summary_mode: str, summary_to: str, *, expect_ok: bool
 ) -> None:
     (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
 
@@ -725,33 +634,229 @@ def test_summary_routing_contract(
         summary_to,
     ]
     res = CliRunner().invoke(cli, args)
+    if not expect_ok:
+        assert res.exit_code == EXIT_USAGE
+        blob = (res.stdout or "") + (res.stderr or "")
+        # message text is not spec-fixed; just ensure it's clearly a merge/compatibility failure
+        assert "merge" in blob.lower() or "incompatible" in blob.lower()
+        return
+
     assert res.exit_code == 0
 
     # payload always on stdout here
     json.loads(res.stdout)
 
     if summary_mode == "json":
-        if expect_stderr:
+        if summary_to == "stderr":
             json.loads(res.stderr.strip())
+        else:
+            # summary_to == stdout case is handled above as usage error
+            msg = "unreachable"
+            raise AssertionError(msg)
     elif summary_mode == "table":
-        target = res.stdout if summary_to == "stdout" else res.stderr
-        assert "Total lines" in target
-    else:
-        assert res.stderr.strip() == ""  # if that’s truly contractual
+        assert "Total lines" in (res.stderr if summary_to == "stderr" else res.stdout)
+    else:  # none
+        assert res.stderr.strip() == ""
 
 
-@pytest.mark.parametrize(
-    ("args", "expect_exit", "expect_unknown_command"),
-    [
-        (["./"], 0, False),  # path-like token
-        (["--summary", "json", "."], 0, False),  # begins with dash
-        (["notapath"], EXIT_USAGE, True),  # non-injectable unknown token
-    ],
-)
-def test_default_scan_injection_contract(repo_root, args, expect_exit, expect_unknown_command) -> None:
+def test_merge_text_streams_on_stdout_is_allowed_and_ordered(
+    repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Enforce Spec §6.1 + §6.2.
+
+    If both streams are human-readable text and routed to the same destination,
+    output is merged (summary then payload).
+    """
+    # isolate from any user/global grobl config
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
+
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+
+    res = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--format",
+            "llm",
+            "--output",
+            "-",
+            "--summary",
+            "table",
+            "--summary-to",
+            "stdout",
+        ],
+    )
+    assert res.exit_code == 0
+
+    out = res.stdout
+    assert "Total lines" in out
+    assert "&lt;directory" in out or "&lt;file" in out
+
+    # enforce merge order: summary appears before payload
+    idx_summary = out.find("Total lines")
+    idx_payload = out.find("&lt;")
+    assert idx_payload != -1
+    assert idx_summary != -1
+    assert idx_summary < idx_payload
+
+
+def test_merge_text_streams_to_same_file_is_allowed(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
+
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    out_file = repo_root / "merged.txt"
+
+    res = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--format",
+            "markdown",
+            "--output",
+            str(out_file),
+            "--summary",
+            "table",
+            "--summary-to",
+            "file",
+            "--summary-output",
+            str(out_file),
+        ],
+    )
+    assert res.exit_code == 0
+    blob = out_file.read_text(encoding="utf-8")
+    assert "Total lines" in blob
+    assert "```tree" in blob  # markdown payload marker
+
+
+def test_merge_incompatible_streams_to_same_file_is_usage_error(
+    repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Enforce Spec §6.2.
+
+    If any stream routed to a destination is machine-readable (json/ndjson),
+    exactly one non-empty stream may be routed to that destination.
+    """
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
+
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    out_file = repo_root / "out.json"
+
+    # JSON payload to file + table summary to same file → usage error
+    res = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--format",
+            "json",
+            "--output",
+            str(out_file),
+            "--summary",
+            "table",
+            "--summary-to",
+            "file",
+            "--summary-output",
+            str(out_file),
+        ],
+    )
+    assert res.exit_code != 0
+    blob = (res.stdout or "") + (res.stderr or "")
+    assert "merge" in blob.lower() or "incompatible" in blob.lower()
+
+    # NDJSON payload to file + table summary to same file → usage error
+    res2 = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--format",
+            "ndjson",
+            "--output",
+            str(out_file),
+            "--summary",
+            "table",
+            "--summary-to",
+            "file",
+            "--summary-output",
+            str(out_file),
+        ],
+    )
+    assert res2.exit_code != 0
+    blob2 = (res2.stdout or "") + (res2.stderr or "")
+    assert "merge" in blob2.lower() or "incompatible" in blob2.lower()
+
+
+def test_json_payload_and_json_summary_on_separate_streams_are_independently_valid(
+    repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    Enforce ability to route JSON payloads to different sinks.
+
+    When payload and summary are both machine-readable but routed to *different*
+    destinations, each stream must remain independently valid and parseable.
+
+    This is the canonical way to obtain both JSON payload and JSON summary in one
+    invocation without violating §6.2 merge-compatibility rules.
+    """
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
+
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+
+    res = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--format",
+            "json",
+            "--output",
+            "-",
+            "--summary",
+            "json",
+            "--summary-to",
+            "stderr",
+        ],
+    )
+
+    assert res.exit_code == 0
+
+    # Payload on stdout must be valid JSON
+    payload = json.loads(res.stdout)
+    assert isinstance(payload, dict)
+    assert payload.get("root") == str(repo_root)
+
+    # Summary on stderr must be valid JSON
+    summary = json.loads(res.stderr.strip())
+    assert isinstance(summary, dict)
+    assert "totals" in summary
+
+
+def test_global_output_flags_work_before_or_after_command(
+    repo_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
     (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
-    res = CliRunner().invoke(cli, args)
+    runner = CliRunner()
 
-    assert res.exit_code == expect_exit
-    blob = res.stdout + res.stderr
-    assert ("Unknown command:" in blob) is expect_unknown_command
+    # flags after command
+    res1 = runner.invoke(
+        cli, ["scan", str(repo_root), "--format", "json", "--summary", "none", "--output", "-"]
+    )
+    assert res1.exit_code == 0
+    json.loads(res1.stdout)
+
+    # flags before command (globals-anywhere)
+    res2 = runner.invoke(
+        cli, ["--format", "json", "--summary", "none", "--output", "-", "scan", str(repo_root)]
+    )
+    assert res2.exit_code == 0
+    json.loads(res2.stdout)

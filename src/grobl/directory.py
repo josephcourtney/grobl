@@ -95,7 +95,14 @@ class FileCollector:
         self._metadata[str(rel)] = (lines, chars, True)
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
-        self._json_file_blobs.append({"name": str(rel), "lines": lines, "chars": chars, "content": content})
+        self._json_file_blobs.append({
+            "name": str(rel),
+            "path": str(rel),
+            "lines": lines,
+            "chars": chars,
+            "included": True,
+            "content": content,
+        })
 
     def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
         """Yield recorded metadata keyed by relative path string."""

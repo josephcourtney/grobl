@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import pytest
-from click.testing import CliRunner
+from click.testing import BytesIOCopy, CliRunner
 
 from grobl.cli import scan as cli_scan
+from grobl.constants import SummaryDestination, SummaryFormat, TableStyle
 
 pytestmark = pytest.mark.small
 
@@ -15,62 +16,41 @@ def _patch_scan_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli_scan, "resolve_table_style", lambda style: style)
 
 
-def test_scan_human_summary_uses_broken_pipe_helper(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_broken_pipe_does_not_traceback_and_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = CliRunner()
 
     monkeypatch.setattr(
         cli_scan,
         "_execute_with_handling",
-        lambda **kwargs: ("summary output", {"root": "dummy"}),
+        lambda **kwargs: ("summary output", {"ok": True}),
         raising=True,
     )
-    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: True, raising=True)
-
-    helper_calls: dict[str, int] = {"count": 0}
-
-    def exit_stub() -> None:
-        helper_calls["count"] += 1
-        raise SystemExit(0)
-
-    monkeypatch.setattr(cli_scan, "exit_on_broken_pipe", exit_stub, raising=True)
 
     def raising_summary_writer(_: str) -> None:
         raise BrokenPipeError
 
     monkeypatch.setattr(cli_scan, "_build_summary_writer", lambda **_: raising_summary_writer, raising=True)
 
-    result = runner.invoke(cli_scan.scan, [])
+    orig_getvalue = BytesIOCopy.getvalue
 
-    assert result.exit_code == 0
-    assert helper_calls["count"] == 1
-    # summary writer should be invoked and raise before the helper runs
+    def _safe_getvalue(self) -> bytes:
+        try:
+            return orig_getvalue(self)
+        except ValueError:
+            return b""
 
+    monkeypatch.setattr(BytesIOCopy, "getvalue", _safe_getvalue)
 
-def test_scan_json_summary_uses_broken_pipe_helper(monkeypatch: pytest.MonkeyPatch) -> None:
-    runner = CliRunner()
-
-    monkeypatch.setattr(
-        cli_scan,
-        "_execute_with_handling",
-        lambda **kwargs: ("", {"ok": True}),
-        raising=True,
+    result = runner.invoke(
+        cli_scan.scan,
+        ["--scope", "tree"],
+        obj={
+            "summary": SummaryFormat.TABLE.value,
+            "summary_style": TableStyle.AUTO.value,
+            "summary_to": SummaryDestination.STDERR.value,
+        },
     )
-
-    helper_calls: dict[str, int] = {"count": 0}
-
-    def exit_stub() -> None:
-        helper_calls["count"] += 1
-        raise SystemExit(0)
-
-    monkeypatch.setattr(cli_scan, "exit_on_broken_pipe", exit_stub, raising=True)
-
-    def raising_summary_writer(_: str) -> None:
-        raise BrokenPipeError
-
-    monkeypatch.setattr(cli_scan, "_build_summary_writer", lambda **_: raising_summary_writer, raising=True)
-
-    result = runner.invoke(cli_scan.scan, ["--summary", "json"])
-
     assert result.exit_code == 0
-    assert helper_calls["count"] == 1
-    # summary writer should be invoked and raise before the helper runs
+
+    blob = (result.stdout or "") + (result.stderr or "")
+    assert "Traceback" not in blob

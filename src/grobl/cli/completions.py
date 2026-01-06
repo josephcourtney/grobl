@@ -25,8 +25,6 @@ COMPLETION_TEMPLATES: Final[dict[str, str]] = {
 )
 def completions(shell: str) -> None:
     """Print shell completion script for the given shell."""
-    # Use the actual invoked program name to make completions resilient to
-    # alternative entry points (e.g., wrappers, renamed console scripts).
     click.get_current_context(silent=True)
     prog = "grobl"
     var = "_GROBL_COMPLETE"

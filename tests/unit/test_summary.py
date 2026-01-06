@@ -66,11 +66,11 @@ def test_build_sink_payload_json_respects_scope(tmp_path: Path) -> None:
     payload_tree = build_sink_payload_json(ctx_tree)
     assert payload_tree["scope"] == "tree"
     assert "tree" in payload_tree
-    assert "files" not in payload_tree
+    assert payload_tree["files"] == []
 
     ctx_files = SummaryContext(builder=b, common=tmp_path, scope=ContentScope.FILES, style=TableStyle.FULL)
     payload_files = build_sink_payload_json(ctx_files)
     assert payload_files["scope"] == "files"
-    assert "tree" not in payload_files
+    assert payload_files["tree"] == []
     assert "files" in payload_files
     assert payload_files["summary"] == build_summary(ctx_files)

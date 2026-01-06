@@ -71,11 +71,14 @@ def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
         "root": str(context.common),
         "scope": context.scope.value,
     }
+    tree_entries: list[dict[str, str]] = []
+    file_entries: list[dict[str, Any]] = []
     if context.scope in {ContentScope.ALL, ContentScope.TREE}:
-        entries = [{"type": typ, "path": str(rel)} for typ, rel in builder.ordered_entries()]
-        payload["tree"] = entries
+        tree_entries = [{"type": typ, "path": str(rel)} for typ, rel in builder.ordered_entries()]
     if context.scope in {ContentScope.ALL, ContentScope.FILES}:
-        payload["files"] = builder.files_json()
+        file_entries = builder.files_json()
+    payload["tree"] = tree_entries
+    payload["files"] = file_entries
 
     payload["summary"] = build_summary(context)
     return payload

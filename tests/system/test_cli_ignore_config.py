@@ -83,7 +83,8 @@ def test_no_ignore_defaults_disables_bundled_defaults(repo_root: Path) -> None:
         [
             "scan",
             str(repo_root),
-            "--no-ignore-defaults",
+            "--ignore-policy",
+            "config",
             "--scope",
             "tree",
             "--summary",
@@ -107,7 +108,8 @@ def test_no_ignore_config_disables_all_grobl_toml_rules(repo_root: Path) -> None
     code2, out2, _ = _run([
         "scan",
         str(repo_root),
-        "--no-ignore-config",
+        "--ignore-policy",
+        "defaults",
         "--scope",
         "tree",
         "--summary",
@@ -119,16 +121,16 @@ def test_no_ignore_config_disables_all_grobl_toml_rules(repo_root: Path) -> None
     assert "blocked.txt" in out2
 
 
-@pytest.mark.parametrize("flag", ["--no-ignore-defaults", "--no-ignore-config"])
-def test_ignore_control_flags_are_accepted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, flag: str
-) -> None:
+def test_ignore_policy_none_disables_all_ignores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
-    _mkfile(tmp_path / "a.txt", "a\n")
-    code, _out, _ = _run([
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    _mkfile(venv / "inner.txt", "x\n")
+    code, out, _ = _run([
         "scan",
         str(tmp_path),
-        flag,
+        "--ignore-policy",
+        "none",
         "--scope",
         "tree",
         "--summary",
@@ -137,3 +139,4 @@ def test_ignore_control_flags_are_accepted(
         "-",
     ])
     assert code == 0
+    assert ".venv/" in out

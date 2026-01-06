@@ -69,6 +69,10 @@ class ScanExecutorDependencies:
         )
 
 
+def _ensure_trailing_newline(text: str) -> str:
+    return text if text.endswith("\n") else f"{text}\n"
+
+
 class PayloadStrategy(Protocol):
     def emit(
         self,
@@ -132,7 +136,7 @@ class MarkdownPayloadStrategy:
             scope=context.scope,
         )
         if payload:
-            sink(payload)
+            sink(_ensure_trailing_newline(payload))
 
 
 @dataclass(slots=True)
@@ -153,7 +157,7 @@ class NdjsonPayloadStrategy:
         _ = result
         payload = self.build_payload(context)
         if payload:
-            sink(payload)
+            sink(_ensure_trailing_newline(payload))
 
 
 @dataclass(slots=True)
@@ -180,7 +184,7 @@ class LlmPayloadStrategy:
             file_tag=file_tag,
         )
         if payload:
-            sink(payload)
+            sink(_ensure_trailing_newline(payload))
 
 
 @dataclass(slots=True)
