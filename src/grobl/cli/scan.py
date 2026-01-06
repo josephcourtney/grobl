@@ -40,7 +40,20 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-@click.command()
+SCAN_EPILOG = """\
+Examples:
+  grobl scan .
+  grobl scan src tests --scope all
+  grobl scan --format llm --copy
+  grobl scan --format json --output payload.json
+  grobl scan --summary json --summary-to stdout
+  grobl scan --no-ignore-defaults --no-ignore-config
+  grobl scan --no-ignore
+  grobl scan --add-ignore '*.min.js' --unignore 'vendor/**' src
+"""
+
+
+@click.command(epilog=SCAN_EPILOG)
 @click.option(
     "--no-ignore-defaults",
     is_flag=True,
@@ -50,7 +63,8 @@ if TYPE_CHECKING:
     "--ignore-defaults",
     "-I",
     is_flag=True,
-    help="(Alias) Disable bundled default ignore rules",
+    hidden=True,
+    help="Deprecated alias for --no-ignore-defaults",
 )
 @click.option("--no-ignore-config", is_flag=True, help="Disable ignore rules from all .grobl.toml files")
 @click.option(
@@ -59,7 +73,11 @@ if TYPE_CHECKING:
     help="Disable all ignore patterns (overrides defaults and config)",
 )
 @click.option("--add-ignore", multiple=True, help="Additional ignore pattern for this run")
-@click.option("--remove-ignore", multiple=True, help="Ignore pattern to remove for this run")
+@click.option(
+    "--remove-ignore",
+    multiple=True,
+    help="Unignore an ignore pattern for this run (runtime layer; last match wins)",
+)
 @click.option("--unignore", multiple=True, help="Ignore exception pattern for this run")
 @click.option(
     "--ignore-file",
@@ -108,10 +126,12 @@ if TYPE_CHECKING:
 @click.option(
     "--output",
     type=click.Path(path_type=Path),
-    help="Write the payload to a file path (use '-' for stdout)",
+    help="Write the payload to a file path (use '-' for stdout; default is stdout)",
 )
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
+@click.pass_context
 def scan(
+    ctx: click.Context,
     *,
     no_ignore_defaults: bool,
     ignore_defaults: bool,
@@ -132,9 +152,11 @@ def scan(
     output: Path | None,
     paths: tuple[Path, ...],
 ) -> None:
-    """Run a directory scan based on CLI flags and paths, then emit/copy output."""
-    ctx = click.get_current_context()
+    """Run a directory scan based on CLI flags and paths, then emit/copy output.
 
+    Payload destination defaults to stdout. Use --copy to additionally copy the payload
+    to the clipboard, or --output to write to a file (use '-' for stdout).
+    """
     # Back-compat: --ignore-defaults/-I behaves like --no-ignore-defaults
     if ignore_defaults:
         no_ignore_defaults = True
@@ -161,6 +183,7 @@ def scan(
         payload_format=payload_format,
         summary=summary,
         summary_style=summary_style,
+        summary_to=summary_to,
         copy=copy,
         output=output,
         no_ignore=no_ignore,
@@ -172,10 +195,6 @@ def scan(
         repo_root=repo_root,
         pattern_base=config_base,
     )
-
-    if params.payload is PayloadFormat.NONE and params.summary is SummaryFormat.NONE:
-        msg = "payload and summary cannot both be 'none'"
-        raise click.UsageError(msg, ctx=ctx)
 
     try:
         cfg = load_config(
@@ -208,14 +227,18 @@ def scan(
         summary_style=params.summary_style,
     )
 
-    summary_writer = _build_summary_writer(
-        destination=_normalize_summary_destination(
-            summary_to=summary_to,
-            summary_output=summary_output,
-            ctx=ctx,
-        ),
-        output=summary_output,
+    destination = _normalize_summary_destination(
+        summary_to=summary_to,
+        summary_output=summary_output,
+        ctx=ctx,
     )
+
+    # Do not allow summary to share stdout with payload; keep stdout machine-clean.
+    payload_on_stdout = params.payload_output is not None and params.payload_output == Path("-")
+    if payload_on_stdout and destination is SummaryDestination.STDOUT:
+        destination = SummaryDestination.STDERR
+
+    summary_writer = _build_summary_writer(destination=destination, output=summary_output)
 
     try:
         if params.summary is SummaryFormat.TABLE and summary:
@@ -263,6 +286,7 @@ def _resolve_summary_settings(
     *,
     summary: str,
     summary_style: str | None,
+    summary_to: str,
     ctx: click.Context,
 ) -> tuple[SummaryFormat, TableStyle]:
     summary_choice = SummaryFormat(summary)
@@ -271,7 +295,16 @@ def _resolve_summary_settings(
         raise click.UsageError(msg, ctx=ctx)
 
     if summary_choice is SummaryFormat.AUTO:
-        actual_summary = SummaryFormat.TABLE if stdout_is_tty() else SummaryFormat.NONE
+        # AUTO is intended to be "human-friendly when attached to a terminal".
+        # Use the effective destination TTY-ness (stderr by default).
+        destination = SummaryDestination(summary_to)
+        if destination is SummaryDestination.STDOUT:
+            is_tty = stdout_is_tty()
+        else:
+            # In tests, stderr is captured; in real shells, stderr may be a TTY even when stdout is piped.
+            # Treat stdout TTY-ness as a sufficient signal for "interactive" mode.
+            is_tty = sys.stderr.isatty() or stdout_is_tty()
+        actual_summary = SummaryFormat.TABLE if is_tty else SummaryFormat.NONE
         requested_style = TableStyle.AUTO
     else:
         actual_summary = summary_choice
@@ -311,22 +344,6 @@ def _string_sequence_from_config(cfg: dict[str, object], key: str) -> Sequence[s
     return ()
 
 
-def _ensure_paths_within_repo(
-    *,
-    repo_root: Path,
-    requested_paths: tuple[Path, ...],
-    ctx: click.Context,
-) -> None:
-    """Reject scan targets that live outside the resolved repository root."""
-    msg = "scan paths must be within the resolved repository root"
-    try:
-        resolved_targets = [p.resolve(strict=False) for p in requested_paths]
-        if not all(target.is_relative_to(repo_root) for target in resolved_targets):
-            raise click.UsageError(msg, ctx=ctx)
-    except OSError as err:
-        raise click.UsageError(msg, ctx=ctx) from err
-
-
 def _build_scan_params(
     *,
     ctx: click.Context,
@@ -336,6 +353,7 @@ def _build_scan_params(
     payload_format: str,
     summary: str,
     summary_style: str | None,
+    summary_to: str,
     copy: bool,
     output: Path | None,
     no_ignore: bool,
@@ -350,9 +368,25 @@ def _build_scan_params(
     actual_summary, actual_summary_style = _resolve_summary_settings(
         summary=summary,
         summary_style=summary_style,
+        summary_to=summary_to,
         ctx=ctx,
     )
-    payload_copy = copy or output is None
+
+    # --- payload destination auto-selection ---
+    # User explicitly chose a destination.
+    if copy or output is not None:
+        payload_copy = copy
+        payload_output = output
+    # No explicit destination: choose based on whether stdout is a terminal.
+    elif stdout_is_tty():
+        payload_copy = True
+        payload_output = None
+    else:
+        payload_copy = False
+        # Use '-' sentinel (your writer already documents this) to mean stdout.
+        payload_output = Path("-")
+    # -----------------------------------------
+
     return ScanParams(
         ignore_defaults=ignore_defaults,
         output=output,
@@ -367,11 +401,32 @@ def _build_scan_params(
         payload=PayloadFormat(payload_format),
         summary=actual_summary,
         payload_copy=payload_copy,
-        payload_output=None if payload_copy else output,
+        payload_output=payload_output,
         paths=requested_paths,
         repo_root=repo_root,
         pattern_base=pattern_base,
     )
+
+
+def _ensure_paths_within_repo(
+    *,
+    repo_root: Path,
+    requested_paths: tuple[Path, ...],
+    ctx: click.Context,
+) -> None:
+    """Reject scan targets that live outside the resolved repository root."""
+    msg = "scan paths must be within the resolved repository root"
+    try:
+        resolved_targets = [p.resolve(strict=False) for p in requested_paths]
+        if not all(target.is_relative_to(repo_root) for target in resolved_targets):
+            details = "\n".join(f"  - {t}" for t in resolved_targets)
+            msg = f"{msg}\nrepo_root: {repo_root}\nrequested:\n{details}"
+            raise click.UsageError(
+                msg,
+                ctx=ctx,
+            )
+    except OSError as err:
+        raise click.UsageError(msg, ctx=ctx) from err
 
 
 def _assemble_layered_ignores(
@@ -383,11 +438,6 @@ def _assemble_layered_ignores(
 ) -> LayeredIgnoreMatcher:
     default_cfg = load_default_config()
 
-    # Reviewer: "Runtime layer should represent CLI overrides only; do not re-apply
-    # merged config ignore lists at repo_root." (place here)
-
-    # Treat --remove-ignore as an alias for re-including (negation) at runtime.
-    # This makes it effective against earlier layers in a 'last match wins' model.
     effective_unignore = tuple(params.unignore) + tuple(params.remove_ignore)
 
     runtime_edits = apply_runtime_ignore_edits(

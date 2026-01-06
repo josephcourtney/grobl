@@ -239,8 +239,6 @@ Rules **MUST** be evaluated sequentially.
 ## 13. Help Behavior
 
 * Root help output **MUST** be concise.
-* Root help **MUST NOT** enumerate subcommand options.
-* Root help **MUST** direct users to `{command} --help` for full details.
 * Help output **MUST** be rendered exactly once per invocation.
 
 ---

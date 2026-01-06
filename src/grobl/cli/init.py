@@ -22,7 +22,14 @@ from .common import MAX_REF_PREVIEW, _scan_for_legacy_references
 )
 @click.option("--force", is_flag=True, help="Overwrite an existing config file")
 def init(*, target: Path, force: bool) -> None:
-    """Create a default .grobl.toml in the target directory (no auto-creation elsewhere)."""
+    """Create a default .grobl.toml in the target directory (no auto-creation elsewhere).
+
+    Examples
+    --------
+      grobl init
+      grobl init --path ..
+      grobl init --force
+    """
     target = target.resolve()
     new = target / TOML_CONFIG
 

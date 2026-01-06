@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from click.testing import CliRunner
@@ -10,6 +12,10 @@ from click.testing import CliRunner
 from grobl import tty
 from grobl.cli import cli
 from grobl.cli import scan as cli_scan
+from grobl.constants import EXIT_USAGE
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 pytestmark = pytest.mark.medium
 
@@ -100,24 +106,6 @@ def test_cli_default_scan_outputs_summary_and_payload(
     assert not result.stdout
     assert "Total lines" in result.stderr
     assert "test_cli_default_scan_outputs_0/" in result.stderr
-
-
-def test_cli_scan_rejects_payload_and_summary_none(repo_root: Path) -> None:
-    (repo_root / "sample.txt").write_text("content\n", encoding="utf-8")
-    runner = CliRunner()
-    result = runner.invoke(
-        cli,
-        [
-            "scan",
-            str(repo_root),
-            "--format",
-            "none",
-            "--summary",
-            "none",
-        ],
-    )
-    assert result.exit_code != 0
-    assert "payload and summary" in result.output
 
 
 def test_cli_multiple_paths_uses_common_ancestor_in_json_root(repo_root: Path) -> None:
@@ -548,3 +536,222 @@ def test_cli_existing_path_token_defaults_to_scan(
     result = runner.invoke(cli, ["existing"])
     assert result.exit_code == 0
     assert "existing" in result.stderr
+
+
+@dataclass(frozen=True)
+class DestinationCase:
+    name: str
+    args: list[str]
+    stdout_tty: bool
+    expect_exit: int
+    expect_stdout_json: bool
+    expect_stderr_has_summary: bool
+    expect_clipboard_used: bool
+    expect_output_file: bool
+
+
+@pytest.fixture
+def fake_clipboard(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from grobl import output as output_mod
+
+    captured: list[str] = []
+    monkeypatch.setattr(output_mod.pyperclip, "copy", captured.append, raising=True)
+    return captured
+
+
+@pytest.fixture
+def patch_tty(monkeypatch: pytest.MonkeyPatch) -> Callable[[bool], None]:
+    # Patch both helpers used across codepaths (your tests already do this)
+    from grobl import tty
+    from grobl.cli import scan as cli_scan
+
+    def _apply(is_tty: bool) -> None:
+        monkeypatch.setattr(tty, "stdout_is_tty", lambda: is_tty, raising=True)
+        monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: is_tty, raising=True)
+
+    return _apply
+
+
+def _mk_repo(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        DestinationCase(
+            name="explicit_copy_writes_clipboard_no_stdout",
+            args=["scan", "{root}", "--format", "json", "--summary", "none", "--copy"],
+            stdout_tty=True,
+            expect_exit=0,
+            expect_stdout_json=False,
+            expect_stderr_has_summary=False,
+            expect_clipboard_used=True,
+            expect_output_file=False,
+        ),
+        DestinationCase(
+            name="output_dash_writes_stdout",
+            args=["scan", "{root}", "--format", "json", "--summary", "none", "--output", "-"],
+            stdout_tty=True,
+            expect_exit=0,
+            expect_stdout_json=True,
+            expect_stderr_has_summary=False,
+            expect_clipboard_used=False,
+            expect_output_file=False,
+        ),
+        DestinationCase(
+            name="output_file_writes_file",
+            args=[
+                "scan",
+                "{root}",
+                "--format",
+                "json",
+                "--summary",
+                "none",
+                "--output",
+                "{root}/payload.json",
+            ],
+            stdout_tty=True,
+            expect_exit=0,
+            expect_stdout_json=False,
+            expect_stderr_has_summary=False,
+            expect_clipboard_used=False,
+            expect_output_file=True,
+        ),
+        DestinationCase(
+            name="copy_and_output_is_usage_error",
+            args=["scan", "{root}", "--copy", "--output", "{root}/payload.json"],
+            stdout_tty=True,
+            expect_exit=2,
+            expect_stdout_json=False,
+            expect_stderr_has_summary=False,
+            expect_clipboard_used=False,
+            expect_output_file=False,
+        ),
+    ],
+    ids=lambda c: c.name,
+)
+def test_payload_destination_contract(
+    repo_root: Path,
+    case: DestinationCase,
+    patch_tty: Callable[[bool], None],
+    fake_clipboard: list[str],
+) -> None:
+    _mk_repo(repo_root)
+    patch_tty(case.stdout_tty)
+
+    args = [a.format(root=str(repo_root)) for a in case.args]
+    res = CliRunner().invoke(cli, args)
+
+    assert res.exit_code == case.expect_exit
+
+    if case.expect_stdout_json:
+        # More robust than startswith("{")
+        json.loads(res.stdout)
+    else:
+        assert res.stdout.strip() == ""
+
+    if case.expect_stderr_has_summary:
+        assert "Total lines" in res.stderr
+    else:
+        # don’t require exact emptiness unless that’s the contract
+        pass
+
+    if case.expect_clipboard_used:
+        assert fake_clipboard
+        # If JSON, parse it to ensure validity
+        if fake_clipboard[0].lstrip().startswith("{"):
+            json.loads(fake_clipboard[0])
+    else:
+        assert not fake_clipboard
+
+    if case.expect_output_file:
+        out_path = repo_root / "payload.json"
+        assert out_path.exists()
+        json.loads(out_path.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("fmt", ["llm", "markdown", "json", "ndjson", "none"])
+def test_payload_format_contract(repo_root, fmt: str) -> None:
+    (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
+    res = CliRunner().invoke(
+        cli,
+        ["scan", str(repo_root), "--format", fmt, "--summary", "none", "--output", "-"],
+    )
+    assert res.exit_code == 0
+
+    out = res.stdout
+    if fmt == "none":
+        assert out.strip() == ""
+        return
+
+    assert out.endswith("\n")  # §11 trailing newline requirement (if you want it global)
+
+    if fmt == "json":
+        json.loads(out)
+    elif fmt == "ndjson":
+        for ln in out.splitlines():
+            json.loads(ln)
+    elif fmt == "markdown":
+        assert "```tree" in out
+    else:  # llm
+        assert "<directory" in out or "<file" in out
+
+
+@pytest.mark.parametrize(
+    ("summary_mode", "summary_to", "expect_stdout", "expect_stderr"),
+    [
+        ("none", "stderr", False, False),
+        ("table", "stderr", False, True),
+        ("table", "stdout", True, False),
+        ("json", "stderr", False, True),  # json summary goes to stderr by default in your tests
+    ],
+)
+def test_summary_routing_contract(
+    repo_root, summary_mode: str, summary_to: str, expect_stdout: bool, expect_stderr: bool
+) -> None:
+    (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
+
+    args = [
+        "scan",
+        str(repo_root),
+        "--format",
+        "json",
+        "--output",
+        "-",
+        "--summary",
+        summary_mode,
+        "--summary-to",
+        summary_to,
+    ]
+    res = CliRunner().invoke(cli, args)
+    assert res.exit_code == 0
+
+    # payload always on stdout here
+    json.loads(res.stdout)
+
+    if summary_mode == "json":
+        if expect_stderr:
+            json.loads(res.stderr.strip())
+    elif summary_mode == "table":
+        target = res.stdout if summary_to == "stdout" else res.stderr
+        assert "Total lines" in target
+    else:
+        assert res.stderr.strip() == ""  # if that’s truly contractual
+
+
+@pytest.mark.parametrize(
+    ("args", "expect_exit", "expect_unknown_command"),
+    [
+        (["./"], 0, False),  # path-like token
+        (["--summary", "json", "."], 0, False),  # begins with dash
+        (["notapath"], EXIT_USAGE, True),  # non-injectable unknown token
+    ],
+)
+def test_default_scan_injection_contract(repo_root, args, expect_exit, expect_unknown_command) -> None:
+    (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
+    res = CliRunner().invoke(cli, args)
+
+    assert res.exit_code == expect_exit
+    blob = res.stdout + res.stderr
+    assert ("Unknown command:" in blob) is expect_unknown_command

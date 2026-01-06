@@ -31,6 +31,21 @@ CLI_CONTEXT_SETTINGS = {
 _HELP_FLAGS = {"-h", "--help", "-V", "--version"}
 _VERBOSE_FLAGS = {"--verbose"}
 
+ROOT_EPILOG = """\
+Default behavior:
+  Running `grobl` or `grobl <path>` is shorthand for `grobl scan <path>`.
+  If you intended to scan a path but it does not exist, use `grobl scan <path>`
+  to see scan-specific diagnostics.
+
+Examples:
+  grobl
+  grobl .
+  grobl src tests
+  grobl scan --format json --output payload.json
+  grobl scan --summary json --summary-to stdout
+  grobl scan --no-ignore-config --add-ignore '*.min.js' src
+"""
+
 
 class RootGroup(click.Group):
     """Group subclass that injects scan and keeps help concise."""
@@ -40,25 +55,22 @@ class RootGroup(click.Group):
         return super().parse_args(ctx, normalized)
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        original_commands = self.commands
-        self.commands = {}
-        try:
-            super().format_help(ctx, formatter)
-        finally:
-            self.commands = original_commands
-
+        super().format_help(ctx, formatter)
         formatter.write_paragraph()
-        formatter.write_text(
-            f"Default command: {DEFAULT_COMMAND}. Use `grobl {DEFAULT_COMMAND} --help` for command details."
-        )
+        formatter.write_text(f"Use `grobl {DEFAULT_COMMAND} --help` for scan options and examples.")
 
 
-@click.group(cls=RootGroup, context_settings=CLI_CONTEXT_SETTINGS)
-@click.option("-v", "--verbose", count=True, help="Increase verbosity (use -vv for debug)")
+@click.group(cls=RootGroup, context_settings=CLI_CONTEXT_SETTINGS, epilog=ROOT_EPILOG)
+@click.option(
+    "-v",
+    "--verbose",
+    count=True,
+    help="Increase verbosity (use -vv for debug)",
+)
 @click.option(
     "--log-level",
     type=click.Choice(["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"], case_sensitive=False),
-    help="Set log level explicitly",
+    help="Set log level explicitly (overrides -v / -vv).",
 )
 @click.version_option(__version__, "-V", "--version", message="%(version)s")
 def cli(verbose: int, log_level: str | None) -> None:
@@ -118,7 +130,11 @@ def _inject_default_scan(
         normalized.insert(idx, DEFAULT_COMMAND)
         return normalized
 
-    msg = f"Unknown command: {token}"
+    msg = (
+        f"Unknown command: {token}\n"
+        "See `grobl --help`.\n"
+        "If you meant to scan a path, ensure it exists or run `grobl scan <path>`."
+    )
     raise click.UsageError(msg)
 
 
@@ -161,7 +177,9 @@ def _log_level_skip(flag: str) -> int:
 def _should_inject_for_token(token: str) -> bool:
     if token.startswith("-"):
         return True
-    return _is_path_like(token) or _resolves_to_existing_path(token)
+    # Be conservative: only treat non-flag tokens as scan targets if they resolve
+    # to an existing path. This avoids surprising behavior for typos.
+    return _resolves_to_existing_path(token)
 
 
 def _is_path_like(token: str) -> bool:

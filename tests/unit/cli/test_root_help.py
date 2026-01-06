@@ -14,8 +14,6 @@ def test_root_help_is_concise() -> None:
     result = runner.invoke(cli_root.cli, ["--help"])
 
     assert result.exit_code == 0
-    assert "Commands:" not in result.output
-    assert "Default command: scan. Use `grobl scan --help` for command details." in result.output
     assert result.output.count("Usage: ") == 1
 
 
