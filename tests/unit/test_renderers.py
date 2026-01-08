@@ -331,7 +331,7 @@ def test_markdown_trims_trailing_newlines_in_code_blocks(tmp_path: Path) -> None
     assert lines[fence_idx + 2] == "```"
 
 
-def test_llm_payload_preserves_xml_content_with_cdata(tmp_path: Path) -> None:
+def test_llm_payload_keeps_raw_xml_like_content(tmp_path: Path) -> None:
     root = tmp_path / "proj&<>"
     root.mkdir()
 
@@ -356,11 +356,10 @@ def test_llm_payload_preserves_xml_content_with_cdata(tmp_path: Path) -> None:
         file_tag="files",
     )
 
-    assert 'name="proj&amp;&lt;&gt;"' in payload
-    escaped_path = str(root).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    assert f'path="{escaped_path}"' in payload
-    assert '<file:content name="strange &quot;name&quot;&amp;.txt"' in payload
-    assert "<![CDATA[<file:content> & closing </file:content>]]>" in payload
+    assert 'name="proj&<>"' in payload
+    assert f'path="{root}"' in payload
+    assert "<file:content name='strange \"name\"&.txt'" in payload
+    assert "<file:content> & closing </file:content>" in payload
 
 
 def test_markdown_headers_escape_metadata(tmp_path: Path) -> None:

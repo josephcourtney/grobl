@@ -18,27 +18,20 @@ if TYPE_CHECKING:
     from .directory import DirectoryTreeBuilder, FileSummary, SummaryTotals
 
 
-def _escape_xml_attr(value: str) -> str:
-    """Escape XML/HTML attribute characters."""
-    return _html_escape(value, quote=True)
-
-
-def _wrap_cdata(value: str) -> str:
-    """Wrap file content inside CDATA blocks so raw characters survive."""
-    if not value:
-        return ""
-    escaped = value.replace(
-        "]]>",
-        "]]]]><![CDATA[>",
-    )
-    return f"<![CDATA[{escaped}]]>"
-
-
 def _escape_markdown_meta(value: str) -> str:
     """Escape metadata values embedded in Markdown headers."""
-    escaped = _escape_xml_attr(value)
+    escaped = _html_escape(value, quote=True)
     escaped = escaped.replace("%", "%25")
     return escaped.replace("\n", "&#10;")
+
+
+def _quote_llm_attr(value: str) -> str:
+    """Wrap LLM attribute values using whichever quotes avoid escaping."""
+    if '"' not in value:
+        return f'"{value}"'
+    if "'" not in value:
+        return f"'{value}'"
+    return '"' + value.replace('"', '\\"') + '"'
 
 
 @dataclass(slots=True)
@@ -184,9 +177,11 @@ class DirectoryRenderer:
             lines = int(file_info.get("lines", 0))
             chars = int(file_info.get("chars", 0))
             content = str(file_info.get("content", ""))
-            parts.append(f'<file:content name="{_escape_xml_attr(name)}" lines="{lines}" chars="{chars}">')
+            parts.append(f'<file:content name={_quote_llm_attr(name)} lines="{lines}" chars="{chars}">')
             if content:
-                parts.append(_wrap_cdata(content))
+                parts.append(content)
+            else:
+                parts.append("")
             parts.append("</file:content>")
         return "\n".join(parts)
 
@@ -218,15 +213,15 @@ def _build_tree_payload(builder: DirectoryTreeBuilder, common: Path, *, ttag: st
     renderer = DirectoryRenderer(builder)
     tree_xml = "\n".join(renderer.tree_lines(include_metadata=False))
     return (
-        f'<{ttag} name="{_escape_xml_attr(common.name)}" '
-        f'path="{_escape_xml_attr(str(common))}">\n{tree_xml}\n</{ttag}>'
+        f"<{ttag} name={_quote_llm_attr(common.name)} "
+        f"path={_quote_llm_attr(str(common))}>\n{tree_xml}\n</{ttag}>"
     )
 
 
 def _build_files_payload(builder: DirectoryTreeBuilder, common: Path, *, ftag: str) -> str:
     renderer = DirectoryRenderer(builder)
     files_xml = renderer.files_payload()
-    return f'<{ftag} root="{_escape_xml_attr(common.name)}">\n{files_xml}\n</{ftag}>'
+    return f"<{ftag} root={_quote_llm_attr(common.name)}>\n{files_xml}\n</{ftag}>"
 
 
 MODE_HANDLERS: dict[ContentScope, Callable[[DirectoryTreeBuilder, Path, str, str], list[str]]] = {
