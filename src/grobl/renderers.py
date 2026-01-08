@@ -23,9 +23,15 @@ def _escape_xml_attr(value: str) -> str:
     return _html_escape(value, quote=True)
 
 
-def _escape_xml_text(value: str) -> str:
-    """Escape XML/HTML text content without quoting apostrophes."""
-    return _html_escape(value, quote=False)
+def _wrap_cdata(value: str) -> str:
+    """Wrap file content inside CDATA blocks so raw characters survive."""
+    if not value:
+        return ""
+    escaped = value.replace(
+        "]]>",
+        "]]]]><![CDATA[>",
+    )
+    return f"<![CDATA[{escaped}]]>"
 
 
 def _escape_markdown_meta(value: str) -> str:
@@ -180,9 +186,7 @@ class DirectoryRenderer:
             content = str(file_info.get("content", ""))
             parts.append(f'<file:content name="{_escape_xml_attr(name)}" lines="{lines}" chars="{chars}">')
             if content:
-                parts.append(_escape_xml_text(content))
-            else:
-                parts.append("")
+                parts.append(_wrap_cdata(content))
             parts.append("</file:content>")
         return "\n".join(parts)
 
