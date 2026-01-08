@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.0.33] - 2026-01-08
+
+### Changed
+- stop escaping merged payload streams when copying summary output so LLM and Markdown payloads keep characters like `<`/`>` intact.
+
 ## [1.0.32] - 2026-01-05
 
 ### Changed

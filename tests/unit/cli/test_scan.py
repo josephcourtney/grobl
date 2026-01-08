@@ -33,7 +33,7 @@ def test_broken_pipe_does_not_traceback_and_exits_zero(monkeypatch: pytest.Monke
 
     orig_getvalue = BytesIOCopy.getvalue
 
-    def _safe_getvalue(self) -> bytes:
+    def _safe_getvalue(self: BytesIOCopy) -> bytes:
         try:
             return orig_getvalue(self)
         except ValueError:

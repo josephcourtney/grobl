@@ -693,11 +693,11 @@ def test_merge_text_streams_on_stdout_is_allowed_and_ordered(
 
     out = res.stdout
     assert "Total lines" in out
-    assert "&lt;directory" in out or "&lt;file" in out
+    assert "<directory" in out or "<file" in out
 
     # enforce merge order: summary appears before payload
     idx_summary = out.find("Total lines")
-    idx_payload = out.find("&lt;")
+    idx_payload = out.find("<")
     assert idx_payload != -1
     assert idx_summary != -1
     assert idx_summary < idx_payload

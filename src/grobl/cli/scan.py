@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import json
 import os
 import sys
@@ -128,7 +127,7 @@ def _expand_requested_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
 )
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
 @click.pass_context
-def scan(
+def scan(  # noqa: C901,PLR0912,PLR0915,PLR0914
     ctx: click.Context,
     *,
     add_ignore: tuple[str, ...],
@@ -244,10 +243,7 @@ def scan(
         buffered_payload = cast("list[str]", payload_buffer)
 
         def _buffered_writer(text: str) -> None:
-            if params.payload in {PayloadFormat.LLM, PayloadFormat.MARKDOWN}:
-                buffered_payload.append(html.escape(text))
-            else:
-                buffered_payload.append(text)
+            buffered_payload.append(text)
 
         payload_writer = _buffered_writer
     else:
