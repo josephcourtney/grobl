@@ -105,7 +105,85 @@ def _expand_requested_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
     return tuple(_expand_path_token(path) for path in paths)
 
 
+def _warn_legacy_ignore_flag(flag: str, replacement: str) -> None:
+    click.echo(f"warning: {flag} is deprecated; use {replacement}", err=True)
+
+
+def _path_to_runtime_pattern(path: Path, *, repo_root: Path) -> str:
+    normalized = _expand_path_token(path)
+    resolved = normalized.resolve(strict=False)
+    try:
+        rel = resolved.relative_to(repo_root)
+    except (ValueError, OSError):
+        rel = resolved
+    pattern = rel.as_posix()
+    if normalized.is_dir() and not pattern.endswith("/"):
+        pattern += "/"
+    return pattern
+
+
+def _gather_runtime_ignore_patterns(
+    *,
+    repo_root: Path,
+    exclude: tuple[str, ...],
+    include: tuple[str, ...],
+    exclude_file: tuple[Path, ...],
+    include_file: tuple[Path, ...],
+    exclude_tree: tuple[str, ...],
+    include_tree: tuple[str, ...],
+    exclude_content: tuple[str, ...],
+    include_content: tuple[str, ...],
+) -> tuple[
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+]:
+    file_excludes = tuple(_path_to_runtime_pattern(p, repo_root=repo_root) for p in exclude_file)
+    file_includes = tuple(_path_to_runtime_pattern(p, repo_root=repo_root) for p in include_file)
+    runtime_exclude = (*exclude, *file_excludes)
+    runtime_include = (*include, *file_includes)
+    return (
+        runtime_exclude,
+        runtime_include,
+        exclude_tree,
+        include_tree,
+        exclude_content,
+        include_content,
+    )
+
+
 @click.command(epilog=SCAN_EPILOG)
+@click.option("--exclude", multiple=True, help="Add a tree+content exclude pattern")
+@click.option("--include", multiple=True, help="Add a tree+content include (negated) pattern")
+@click.option(
+    "--exclude-file",
+    "exclude_file",
+    multiple=True,
+    type=click.Path(path_type=Path, exists=False),
+    help="Exclude a specific file path (tree + content)",
+)
+@click.option(
+    "--include-file",
+    "include_file",
+    multiple=True,
+    type=click.Path(path_type=Path, exists=False),
+    help="Include a specific file path (tree + content; negated internally)",
+)
+@click.option("--exclude-tree", multiple=True, help="Add a tree-only exclude pattern")
+@click.option("--include-tree", multiple=True, help="Add a tree-only include (negated) pattern")
+@click.option(
+    "--exclude-content",
+    multiple=True,
+    help="Add a content-only exclude pattern (controls text capture)",
+)
+@click.option(
+    "--include-content",
+    multiple=True,
+    help="Add a content-only include (negated) pattern",
+)
 @click.option("--add-ignore", multiple=True, help="Additional ignore pattern for this run")
 @click.option(
     "--remove-ignore",
@@ -130,6 +208,14 @@ def _expand_requested_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
 def scan(  # noqa: C901,PLR0912,PLR0915,PLR0914
     ctx: click.Context,
     *,
+    exclude: tuple[str, ...],
+    include: tuple[str, ...],
+    exclude_file: tuple[Path, ...],
+    include_file: tuple[Path, ...],
+    exclude_tree: tuple[str, ...],
+    include_tree: tuple[str, ...],
+    exclude_content: tuple[str, ...],
+    include_content: tuple[str, ...],
     add_ignore: tuple[str, ...],
     remove_ignore: tuple[str, ...],
     unignore: tuple[str, ...],
@@ -143,6 +229,14 @@ def scan(  # noqa: C901,PLR0912,PLR0915,PLR0914
     to the clipboard, or --output to write to a file (use '-' for stdout).
     """
     global_options = _global_cli_options(ctx)
+    if add_ignore:
+        _warn_legacy_ignore_flag("--add-ignore", "--exclude (tree + content)")
+    if remove_ignore:
+        _warn_legacy_ignore_flag("--remove-ignore", "--include (tree + content)")
+    if unignore:
+        _warn_legacy_ignore_flag("--unignore", "--include (tree + content)")
+    if ignore_file:
+        _warn_legacy_ignore_flag("--ignore-file", "--exclude (tree + content)")
 
     cwd = Path()
     requested_paths = _expand_requested_paths(paths) if paths else (Path(),)
@@ -177,6 +271,25 @@ def scan(  # noqa: C901,PLR0912,PLR0915,PLR0914
         pattern_base=config_base,
     )
 
+    (
+        runtime_exclude,
+        runtime_include,
+        runtime_exclude_tree,
+        runtime_include_tree,
+        runtime_exclude_content,
+        runtime_include_content,
+    ) = _gather_runtime_ignore_patterns(
+        repo_root=repo_root,
+        exclude=exclude,
+        include=include,
+        exclude_file=exclude_file,
+        include_file=include_file,
+        exclude_tree=exclude_tree,
+        include_tree=include_tree,
+        exclude_content=exclude_content,
+        include_content=include_content,
+    )
+
     try:
         cfg = load_config(
             base_path=config_base,
@@ -198,6 +311,12 @@ def scan(  # noqa: C901,PLR0912,PLR0915,PLR0914
         ignore_defaults_flag=global_options.ignore_defaults_flag,
         no_ignore_config_flag=global_options.no_ignore_config_flag,
         no_ignore_flag=global_options.no_ignore_flag,
+        runtime_exclude=runtime_exclude,
+        runtime_include=runtime_include,
+        runtime_exclude_tree=runtime_exclude_tree,
+        runtime_include_tree=runtime_include_tree,
+        runtime_exclude_content=runtime_exclude_content,
+        runtime_include_content=runtime_include_content,
     )
 
     destination = _normalize_summary_destination(
@@ -505,6 +624,12 @@ def _assemble_layered_ignores(
     ignore_defaults_flag: bool,
     no_ignore_config_flag: bool,
     no_ignore_flag: bool,
+    runtime_exclude: tuple[str, ...] = (),
+    runtime_include: tuple[str, ...] = (),
+    runtime_exclude_tree: tuple[str, ...] = (),
+    runtime_include_tree: tuple[str, ...] = (),
+    runtime_exclude_content: tuple[str, ...] = (),
+    runtime_include_content: tuple[str, ...] = (),
 ) -> LayeredIgnoreMatcher:
     default_cfg = load_default_config()
 
@@ -529,6 +654,12 @@ def _assemble_layered_ignores(
         add_ignore_files=params.add_ignore_file,
         unignore=effective_unignore,
         no_ignore=False,
+        exclude=runtime_exclude,
+        include=runtime_include,
+        exclude_tree=runtime_exclude_tree,
+        include_tree=runtime_include_tree,
+        exclude_content=runtime_exclude_content,
+        include_content=runtime_include_content,
     )
 
     if no_ignore_flag:

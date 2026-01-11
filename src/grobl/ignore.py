@@ -9,27 +9,44 @@ Implements SPEC.md:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pathspec import PathSpec
 
 from .config import TOML_CONFIG, load_toml_config
-from .constants import CONFIG_EXCLUDE_PRINT, CONFIG_EXCLUDE_TREE
+from .constants import (
+    CONFIG_EXCLUDE_CONTENT,
+    CONFIG_EXCLUDE_PRINT,
+    CONFIG_EXCLUDE_TREE,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable
     from pathlib import Path
+
+
+class LayerSource(StrEnum):
+    DEFAULTS = "defaults"
+    CONFIG = "config"
+    EXPLICIT_CONFIG = "explicit_config"
+    CLI_RUNTIME = "cli_runtime"
 
 
 @dataclass(frozen=True, slots=True)
 class IgnoreLayer:
     base_dir: Path
     patterns: tuple[str, ...]
+    source: LayerSource
+    config_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class CompiledPattern:
+    raw: str
+    core: str
     negated: bool
     spec: PathSpec
 
@@ -37,11 +54,27 @@ class CompiledPattern:
 @dataclass(frozen=True, slots=True)
 class CompiledLayer:
     base_dir: Path
+    source: LayerSource
+    config_path: Path | None
     patterns: tuple[CompiledPattern, ...]
 
 
 def _coerce_to_dir(p: Path) -> Path:
     return p.parent if p.is_file() else p
+
+
+def _extract_patterns(source: dict[str, object], key: str, *, alias: str | None = None) -> tuple[str, ...]:
+    for candidate in (key, alias):
+        if candidate is None:
+            continue
+        value = source.get(candidate)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            return (value,)
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            return tuple(str(item) for item in value)
+    return ()
 
 
 def discover_grobl_toml_files(*, repo_root: Path, scan_paths: Sequence[Path]) -> list[Path]:
@@ -80,13 +113,19 @@ def _compile_patterns(patterns: Iterable[str]) -> tuple[CompiledPattern, ...]:
         core = pat[1:] if neg else pat
         # One-line spec, sequentially evaluated.
         spec = PathSpec.from_lines("gitwildmatch", [core])
-        compiled.append(CompiledPattern(negated=neg, spec=spec))
+        compiled.append(CompiledPattern(raw=pat, core=core, negated=neg, spec=spec))
     return tuple(compiled)
 
 
 def compile_layers(layers: Sequence[IgnoreLayer]) -> tuple[CompiledLayer, ...]:
     return tuple(
-        CompiledLayer(base_dir=layer.base_dir, patterns=_compile_patterns(layer.patterns)) for layer in layers
+        CompiledLayer(
+            base_dir=layer.base_dir,
+            source=layer.source,
+            config_path=layer.config_path,
+            patterns=_compile_patterns(layer.patterns),
+        )
+        for layer in layers
     )
 
 
@@ -95,6 +134,22 @@ def _to_git_path(rel: Path, *, is_dir: bool) -> str:
     if is_dir and not s.endswith("/"):
         return s + "/"
     return s
+
+
+@dataclass(frozen=True, slots=True)
+class ExclusionReason:
+    raw: str
+    core: str
+    negated: bool
+    base_dir: Path
+    source: LayerSource
+    config_path: Path | None
+
+
+@dataclass(frozen=True, slots=True)
+class MatchDecision:
+    excluded: bool
+    reason: ExclusionReason | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,9 +162,10 @@ class LayeredIgnoreMatcher:
     print_has_negations: bool
 
     @staticmethod
-    def _matches(layers: tuple[CompiledLayer, ...], abs_path: Path, *, is_dir: bool) -> bool:
-        """Return True if excluded after sequential evaluation."""
+    def _decide(layers: tuple[CompiledLayer, ...], abs_path: Path, *, is_dir: bool) -> MatchDecision:
+        """Return the final decision and last matching rule (if any)."""
         excluded = False
+        reason: ExclusionReason | None = None
         for layer in layers:
             base = layer.base_dir
             try:
@@ -122,13 +178,27 @@ class LayeredIgnoreMatcher:
             for pat in layer.patterns:
                 if pat.spec.match_file(rel_git):
                     excluded = not pat.negated
-        return excluded
+                    reason = ExclusionReason(
+                        raw=pat.raw,
+                        core=pat.core,
+                        negated=pat.negated,
+                        base_dir=layer.base_dir,
+                        source=layer.source,
+                        config_path=layer.config_path,
+                    )
+        return MatchDecision(excluded=excluded, reason=reason)
+
+    def explain_tree(self, abs_path: Path, *, is_dir: bool) -> MatchDecision:
+        return self._decide(self.tree_layers, abs_path, is_dir=is_dir)
+
+    def explain_content(self, abs_path: Path, *, is_dir: bool) -> MatchDecision:
+        return self._decide(self.print_layers, abs_path, is_dir=is_dir)
 
     def excluded_from_tree(self, abs_path: Path, *, is_dir: bool) -> bool:
-        return self._matches(self.tree_layers, abs_path, is_dir=is_dir)
+        return self.explain_tree(abs_path, is_dir=is_dir).excluded
 
     def excluded_from_print(self, abs_path: Path, *, is_dir: bool) -> bool:
-        return self._matches(self.print_layers, abs_path, is_dir=is_dir)
+        return self.explain_content(abs_path, is_dir=is_dir).excluded
 
 
 def build_layered_ignores(
@@ -154,10 +224,18 @@ def build_layered_ignores(
 
     if include_defaults:
         tree_layers.append(
-            IgnoreLayer(base_dir=repo_root, patterns=tuple(default_cfg.get(CONFIG_EXCLUDE_TREE, [])))  # type: ignore[arg-type]
+            IgnoreLayer(
+                base_dir=repo_root,
+                patterns=_extract_patterns(default_cfg, CONFIG_EXCLUDE_TREE),
+                source=LayerSource.DEFAULTS,
+            )
         )
         print_layers.append(
-            IgnoreLayer(base_dir=repo_root, patterns=tuple(default_cfg.get(CONFIG_EXCLUDE_PRINT, [])))  # type: ignore[arg-type]
+            IgnoreLayer(
+                base_dir=repo_root,
+                patterns=_extract_patterns(default_cfg, CONFIG_EXCLUDE_PRINT, alias=CONFIG_EXCLUDE_CONTENT),
+                source=LayerSource.DEFAULTS,
+            )
         )
 
     discovered: set[Path] = set()
@@ -167,9 +245,21 @@ def build_layered_ignores(
             discovered.add(real)
             data = load_toml_config(real)
             base = real.parent
-            tree_layers.append(IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_TREE, []))))  # type: ignore[arg-type]
+            tree_layers.append(
+                IgnoreLayer(
+                    base_dir=base,
+                    patterns=_extract_patterns(data, CONFIG_EXCLUDE_TREE),
+                    source=LayerSource.CONFIG,
+                    config_path=real,
+                )
+            )
             print_layers.append(
-                IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_PRINT, [])))
+                IgnoreLayer(
+                    base_dir=base,
+                    patterns=_extract_patterns(data, CONFIG_EXCLUDE_PRINT, alias=CONFIG_EXCLUDE_CONTENT),
+                    source=LayerSource.CONFIG,
+                    config_path=real,
+                )
             )  # type: ignore[arg-type]
 
         if explicit_config is not None:
@@ -178,15 +268,37 @@ def build_layered_ignores(
                 data = load_toml_config(real)
                 base = real.parent
                 tree_layers.append(
-                    IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_TREE, [])))
-                )  # type: ignore[arg-type]
+                    IgnoreLayer(
+                        base_dir=base,
+                        patterns=_extract_patterns(data, CONFIG_EXCLUDE_TREE),
+                        source=LayerSource.EXPLICIT_CONFIG,
+                        config_path=real,
+                    )
+                )
                 print_layers.append(
-                    IgnoreLayer(base_dir=base, patterns=tuple(data.get(CONFIG_EXCLUDE_PRINT, [])))
+                    IgnoreLayer(
+                        base_dir=base,
+                        patterns=_extract_patterns(data, CONFIG_EXCLUDE_PRINT, alias=CONFIG_EXCLUDE_CONTENT),
+                        source=LayerSource.EXPLICIT_CONFIG,
+                        config_path=real,
+                    )
                 )  # type: ignore[arg-type]
 
     # CLI runtime layer: base at repo_root for deterministic interpretation.
-    tree_layers.append(IgnoreLayer(base_dir=repo_root, patterns=tuple(runtime_tree_patterns)))
-    print_layers.append(IgnoreLayer(base_dir=repo_root, patterns=tuple(runtime_print_patterns)))
+    tree_layers.append(
+        IgnoreLayer(
+            base_dir=repo_root,
+            patterns=tuple(runtime_tree_patterns),
+            source=LayerSource.CLI_RUNTIME,
+        )
+    )
+    print_layers.append(
+        IgnoreLayer(
+            base_dir=repo_root,
+            patterns=tuple(runtime_print_patterns),
+            source=LayerSource.CLI_RUNTIME,
+        )
+    )
 
     compiled_tree = compile_layers(tree_layers)
     compiled_print = compile_layers(print_layers)

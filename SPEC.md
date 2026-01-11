@@ -309,6 +309,12 @@ Semantics (applies independently to both scopes):
 * `config`: rules from `.grobl.toml` only
 * `cli`: rules provided via CLI flags only
 
+### 7.3 Tree visibility vs content capture
+
+grobl treats ignore rules through two lenses: tree visibility (which entries appear in the rendered directory tree) and content capture (which files contribute textual contents to payloads). `exclude_tree` controls the former, hiding files and directories from traversal output. `exclude_print` (also accepted as `exclude_content` in configuration) controls the latter, leaving the file visible but omitting its text and metadata payload. These scopes are evaluated independently so that a file can be hidden in the tree while its contents are still captured, or vice versa, depending on layered rules.
+
+Default behavior applies the bundled `exclude_tree` and `exclude_print` lists unless flags or configuration override them. CLI include/exclude flags (§7.5) append to these same scopes, and negated patterns (`!pattern`) can re-include entries even after a prior exclusion.
+
 ### 7.4 Rule Sources, Base Directories, and Precedence
 
 Include/exclude rules originate from the following sources:

@@ -60,6 +60,7 @@ class IgnorePolicy(StrEnum):
 # Add these constants:
 CONFIG_EXCLUDE_TREE = "exclude_tree"
 CONFIG_EXCLUDE_PRINT = "exclude_print"
+CONFIG_EXCLUDE_CONTENT = "exclude_content"
 CONFIG_INCLUDE_TREE_TAGS = "include_tree_tags"
 CONFIG_INCLUDE_FILE_TAGS = "include_file_tags"
 

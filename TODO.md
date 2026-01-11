@@ -1,33 +1,33 @@
 ## Ignore UX overhaul (tree vs content)
 
-- [ ] define the user-facing model: “tree visibility” vs “content capture”; document invariants and intended defaults in SPEC.md
-- [ ] add a new internal “ignore decision” data model that can explain *why* a path is excluded
-  - [ ] introduce a `LayerSource` enum (defaults | config | explicit_config | cli_runtime) and a `MatchDecision`/`ExclusionReason` dataclass
-  - [ ] preserve raw patterns during compilation (store raw text + negated/core) so the winning rule can be reported
-  - [ ] extend compiled layers to carry provenance (base_dir + source + config file path if applicable)
-  - [ ] implement `LayeredIgnoreMatcher.explain_tree(path, is_dir)` and `.explain_content(path, is_dir)` returning decision + provenance
-  - [ ] keep existing boolean methods (`excluded_from_tree/print`) delegating to the new decision engine for compatibility
+- [x] define the user-facing model: “tree visibility” vs “content capture”; document invariants and intended defaults in SPEC.md
+- [x] add a new internal “ignore decision” data model that can explain *why* a path is excluded
+  - [x] introduce a `LayerSource` enum (defaults | config | explicit_config | cli_runtime) and a `MatchDecision`/`ExclusionReason` dataclass
+  - [x] preserve raw patterns during compilation (store raw text + negated/core) so the winning rule can be reported
+  - [x] extend compiled layers to carry provenance (base_dir + source + config file path if applicable)
+  - [x] implement `LayeredIgnoreMatcher.explain_tree(path, is_dir)` and `.explain_content(path, is_dir)` returning decision + provenance
+  - [x] keep existing boolean methods (`excluded_from_tree/print`) delegating to the new decision engine for compatibility
 
-- [ ] make CLI runtime edits apply to content-capture rules as well as tree rules
-  - [ ] extend `apply_runtime_ignore_edits(...)` (or add a sibling helper) to support edits for `exclude_print` (“content”) in addition to `exclude_tree`
-  - [ ] thread `runtime_print_patterns` from CLI through `_assemble_layered_ignores(...)` into `build_layered_ignores(...)`
+- [x] make CLI runtime edits apply to content-capture rules as well as tree rules
+  - [x] extend `apply_runtime_ignore_edits(...)` (or add a sibling helper) to support edits for `exclude_print` (“content”) in addition to `exclude_tree`
+  - [x] thread `runtime_print_patterns` from CLI through `_assemble_layered_ignores(...)` into `build_layered_ignores(...)`
 
 ## New CLI flags (intuitive include/exclude)
 
-- [ ] implement intuitive flags for common intent (affect both tree + content)
-  - [ ] add `--exclude PATTERN` (applies to tree + content)
-  - [ ] add `--include PATTERN` (negated include; applies to tree + content)
-  - [ ] add `--exclude-file PATH` / `--include-file PATH` (optional convenience for exact files; expands to pattern safely)
+- [x] implement intuitive flags for common intent (affect both tree + content)
+  - [x] add `--exclude PATTERN` (applies to tree + content)
+  - [x] add `--include PATTERN` (negated include; applies to tree + content)
+  - [x] add `--exclude-file PATH` / `--include-file PATH` (optional convenience for exact files; expands to pattern safely)
 
-- [ ] implement scoped flags (tree-only vs content-only)
-  - [ ] add `--exclude-tree PATTERN` / `--include-tree PATTERN`
-  - [ ] add `--exclude-content PATTERN` / `--include-content PATTERN`
-  - [ ] ensure scoped flags compose deterministically (“last match wins”, consistent ordering across sources)
+- [x] implement scoped flags (tree-only vs content-only)
+  - [x] add `--exclude-tree PATTERN` / `--include-tree PATTERN`
+  - [x] add `--exclude-content PATTERN` / `--include-content PATTERN`
+  - [x] ensure scoped flags compose deterministically (“last match wins”, consistent ordering across sources)
 
-- [ ] deprecate the confusing legacy flags without breaking existing scripts
-  - [ ] keep `--add-ignore/--unignore/--remove-ignore/--ignore-file` working, but emit a deprecation warning pointing to the new equivalents
-  - [ ] redefine naming in help/README so “ignore” is no longer overloaded
-  - [ ] add a removal timeline policy (e.g., remove legacy flags in next major version)
+- [x] deprecate the confusing legacy flags without breaking existing scripts
+  - [x] keep `--add-ignore/--unignore/--remove-ignore/--ignore-file` working, but emit a deprecation warning pointing to the new equivalents
+  - [x] redefine naming in help/README so “ignore” is no longer overloaded
+  - [x] add a removal timeline policy (e.g., remove legacy flags in next major version)
 
 ## Explain/diagnostics (“why is this excluded?”)
 

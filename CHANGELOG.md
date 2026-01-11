@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Added
+- introduce explainable ignore provenance (tree/content decisions with `LayerSource`, `MatchDecision`, and `ExclusionReason`) so matches report base directory, negation, and the originating config.
+- add intuitive `--exclude`/`--include` flags (plus scoped and file-targeted variants) that cover both tree visibility and content capture while keeping legacy ignore flags working with deprecation warnings.
+
+### Changed
+- thread CLI runtime edits through both tree and content layers (including `exclude_print`/`exclude_content`) and update documentation to clarify the tree vs content model, new flag surface, and legacy removal timeline.
+
 ## [1.0.33] - 2026-01-08
 
 ### Changed

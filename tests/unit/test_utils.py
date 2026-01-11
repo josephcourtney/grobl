@@ -130,6 +130,42 @@ def test_apply_runtime_ignore_edits_matches_manual_logic(
     assert result.tree_patterns == expected
 
 
+def test_apply_runtime_ignore_edits_shared_excludes_and_includes() -> None:
+    result = apply_runtime_ignore_edits(
+        base_tree=[],
+        base_print=[],
+        add_ignore=(),
+        remove_ignore=(),
+        add_ignore_files=(),
+        unignore=(),
+        exclude=("foo",),
+        include=("bar",),
+    )
+    assert result.tree_patterns == ["foo", "!bar"]
+    assert result.print_patterns == ["foo", "!bar"]
+
+
+def test_apply_runtime_ignore_edits_scoped_overrides() -> None:
+    result = apply_runtime_ignore_edits(
+        base_tree=[],
+        base_print=[],
+        add_ignore=(),
+        remove_ignore=(),
+        add_ignore_files=(),
+        unignore=(),
+        exclude_tree=("tree-only",),
+        exclude_content=("content-only",),
+        include_tree=("keep-tree",),
+        include_content=("keep-content",),
+    )
+    assert "tree-only" in result.tree_patterns
+    assert "content-only" not in result.tree_patterns
+    assert "content-only" in result.print_patterns
+    assert "tree-only" not in result.print_patterns
+    assert "!keep-tree" in result.tree_patterns
+    assert "!keep-content" in result.print_patterns
+
+
 def test_common_ancestor_config_base(tmp_path: Path) -> None:
     base = tmp_path / "proj"
     (base / "a").mkdir(parents=True)

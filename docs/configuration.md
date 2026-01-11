@@ -35,6 +35,8 @@ patterns = [
 ]
 ```
 
+Ignore rules cover both tree visibility and content capture. Use `exclude_tree` to hide files from the rendered tree, and `exclude_print` to control whether contents of included files are captured. The configuration loader also accepts `exclude_content` as an alias for `exclude_print`, but existing configs continue to write `exclude_print` as the canonical key.
+
 ## Output controls
 
 Payloads and summaries are configured separately. Set defaults in the `[output]` table of `.grobl.toml` to control formats:

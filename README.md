@@ -275,24 +275,33 @@ grobl scan --format json --output context.txt
 Configuration and ignore behavior are shared across all scan modes:
 
 ```bash
---no-ignore-defaults   # disable bundled default ignore rules
--I, --ignore-defaults  # (alias) disable bundled default ignore rules
---no-ignore-config     # disable ignore rules from all discovered .grobl.toml files
---no-ignore            # disable all ignore patterns (built-in + config + CLI)
---ignore-file PATH     # read extra ignore patterns (one per non-comment line)
---add-ignore PATTERN   # add an extra exclude-tree pattern for this run
---remove-ignore PATTERN # remove a pattern from the exclude list
---unignore PATTERN     # add an exception pattern for this run
---config PATH          # explicit config file path (highest precedence, must exist)
+--no-ignore-defaults     # disable bundled default ignore rules
+-I, --ignore-defaults    # (alias) disable bundled default ignore rules
+--no-ignore-config       # disable ignore rules from discovered .grobl.toml files
+--no-ignore              # disable all ignore patterns (built-in + config + CLI)
+--exclude PATTERN        # add a tree+content exclude rule
+--include PATTERN        # add a tree+content include rule (`!PATTERN`)
+--exclude-tree PATTERN   # tree-only exclude rule
+--include-tree PATTERN   # tree-only include (`!PATTERN`)
+--exclude-content PATTERN # content-only exclude rule (controls `exclude_print`)
+--include-content PATTERN # content-only include (`!PATTERN`)
+--exclude-file PATH      # exclude an exact repo-relative path (directories include the subtree)
+--include-file PATH      # include an exact repo-relative path
+--ignore-file PATH       # read extra ignore patterns (deprecated; use --exclude/--include)
+--add-ignore PATTERN     # deprecated; use --exclude PATTERN
+--remove-ignore PATTERN  # deprecated; use --include PATTERN
+--unignore PATTERN       # deprecated; use --include PATTERN
+--config PATH            # explicit config file path (highest precedence, must exist)
 --ignore-policy {auto,all,none,defaults,config,cli}  # choose which ignore sources apply
 ```
 
 Rules:
 
-* `--no-ignore` forces `exclude_tree = []`, disabling **all** tree-level ignores.
-* `--no-ignore-defaults` disables bundled defaults, but keeps config/runtime ignores.
-* `--no-ignore-config` disables ignores from `.grobl.toml` files, but keeps defaults/runtime ignores.
-* `--ignore-file PATH` reads patterns from files; empty lines and lines starting with `#` are ignored.
+* `--no-ignore` disables every ignore rule across tree and content scopes.
+* `--exclude` / `--include` target both scopes; `--include` is folded into a negated gitignore-style rule (`!PATTERN`).
+* Scoped flags (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) only impact the indicated scope.
+* `--exclude-file` / `--include-file` normalize `PATH` to a repository-root-relative, POSIX-style pattern and match that exact path (directories append `/` to cover the subtree).
+* Legacy ignore flags (`--ignore-file`, `--add-ignore`, `--remove-ignore`, `--unignore`) still work for compatibility but emit a warning pointing to the new flags and will be removed in the next major release.
 * `--config PATH` must point to an existing file; if it does not, grobl treats this as a configuration error and exits.
 * `--ignore-policy` selects the ignore sources:
   * `auto`: defaults + config + CLI
@@ -352,7 +361,7 @@ Rules:
 Configuration keys (also available to CLI overrides):
 
 * `exclude_tree` (list of patterns)
-* `exclude_print` (list of patterns)
+* `exclude_print` (list of patterns; `exclude_content` is accepted as an alias at read time)
 
 Patterns use **gitignore-style semantics** via `pathspec`:
 
@@ -364,7 +373,7 @@ Ignore sources are layered and have different “pattern bases”:
 
 1. **Bundled defaults** (base = repository root)
 2. **Hierarchical `.grobl.toml` ignores** discovered from repository root down to the scanned directories
-   * Each `.grobl.toml` contributes `exclude_tree` / `exclude_print`
+   * Each `.grobl.toml` contributes `exclude_tree` plus the print/content overrides.
    * Patterns from a given `.grobl.toml` are interpreted **relative to that file's directory**
 3. **Runtime/CLI ignores** (base = repository root)
 
@@ -375,24 +384,25 @@ At runtime:
 
 * `exclude_tree` controls which files/directories are **hidden from the rendered tree and payload**.
   * Note: traversal does not prune excluded directories, so a later negation can re-include descendants.
-* `exclude_print` controls which files have metadata only (no content captured).
+* `exclude_print` (or the `exclude_content` alias) controls which files have metadata only (no content captured).
 
 CLI overrides:
 
-* `--add-ignore PATTERN`: append a pattern to `exclude_tree` (if not already present).
-* `--remove-ignore PATTERN`: remove a pattern from `exclude_tree` if present.
-* `--unignore PATTERN`: append a negated pattern to `exclude_tree` (e.g. `!tests/fixtures/**/.gitignore`).
-* `--ignore-file PATH`: add patterns from files (one pattern per non-comment line).
-* `--no-ignore`: force `exclude_tree = []`, disabling **all** tree-level ignores.
+* `--exclude PATTERN`: append a tree+content exclude rule.
+* `--include PATTERN`: append a tree+content include (negated) rule.
+* `--exclude-tree` / `--include-tree`: scope excludes/includes to the tree alone.
+* `--exclude-content` / `--include-content`: scope excludes/includes to the content capture layer.
+* `--exclude-file` / `--include-file`: normalize `PATH` to a repository-root-relative pattern that matches that exact path (directories append `/`).
+* Legacy ignore flags (`--add-ignore`, `--remove-ignore`, `--unignore`, `--ignore-file`) still work for compatibility but emit a warning and will be removed in the next major release.
 
 Example:
 
 ```bash
 # Re-include only .gitignore files under tests/fixtures
-grobl scan --unignore "tests/fixtures/**/.gitignore" .
+grobl scan --include "tests/fixtures/**/.gitignore" .
 ```
 
-Use `--no-ignore` cautiously: it disables all tree-level ignores and can make scans significantly slower and payloads very large.
+Use `--no-ignore` cautiously: it disables every ignore rule (tree and content) and can make scans significantly slower and payloads very large.
 
 ### Tag customization
 
@@ -683,7 +693,7 @@ For large projects:
 
   ```bash
   grobl scan src tests
-  grobl scan --add-ignore "examples/**" .
+  grobl scan --exclude "examples/**" .
   ```
 
 * Most heavy directories (`node_modules`, `.venv`, build outputs, coverage artifacts, etc.) are excluded from the tree by default via `exclude_tree` in the bundled config. To include them, either:
@@ -692,7 +702,7 @@ For large projects:
   * Use `-I/--ignore-defaults` and supply your own `exclude_tree`, or
   * Use `--no-ignore` to disable all tree-level ignores.
 
-Use `--no-ignore` cautiously: it disables **all** tree-level ignores and can significantly increase scan time and payload size.
+Use `--no-ignore` cautiously: it disables every ignore rule (tree and content) and can significantly increase scan time and payload size.
 
 ## Testing
 

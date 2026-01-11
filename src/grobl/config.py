@@ -246,16 +246,39 @@ def apply_runtime_ignore_edits(
     add_ignore_files: tuple[Path, ...] = (),
     unignore: tuple[str, ...] = (),
     no_ignore: bool = False,
+    exclude: tuple[str, ...] = (),
+    include: tuple[str, ...] = (),
+    exclude_tree: tuple[str, ...] = (),
+    include_tree: tuple[str, ...] = (),
+    exclude_content: tuple[str, ...] = (),
+    include_content: tuple[str, ...] = (),
 ) -> RuntimeIgnoreEdits:
+    """Apply CLI ignore overrides to both tree and content layers."""
     tree = list(base_tree)
+    if no_ignore:
+        return RuntimeIgnoreEdits(tree_patterns=[], print_patterns=[])
+
     _append_ignore_file_patterns(tree, add_ignore_files)
     _append_unique(tree, add_ignore)
+
+    print_patterns = list(base_print)
+
+    for pat in exclude:
+        _append_unique(tree, (pat,))
+        _append_unique(print_patterns, (pat,))
+    for pat in exclude_tree:
+        _append_unique(tree, (pat,))
+    for pat in exclude_content:
+        _append_unique(print_patterns, (pat,))
+
     _remove_patterns(tree, remove_ignore)
     _append_unignore_patterns(tree, unignore)
-    if no_ignore:
-        tree = []
-    # No CLI flags currently modify exclude_print; keep as-is for now.
-    return RuntimeIgnoreEdits(tree_patterns=tree, print_patterns=list(base_print))
+    _append_unignore_patterns(tree, include)
+    _append_unignore_patterns(tree, include_tree)
+    _append_unignore_patterns(print_patterns, include)
+    _append_unignore_patterns(print_patterns, include_content)
+
+    return RuntimeIgnoreEdits(tree_patterns=tree, print_patterns=print_patterns)
 
 
 def load_config(

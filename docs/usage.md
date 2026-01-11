@@ -62,6 +62,10 @@ grobl completions --shell bash > /usr/local/etc/bash_completion.d/grobl
 
 Refer to the README for shell-specific installation guidance.
 
+### Ignore controls
+
+The `scan` command exposes `--exclude` / `--include` for tree+content rules; `--include` is emitted as a gitignore-style negation (`!PATTERN`). Use scoped variants (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) when you only want to affect tree visibility or content capture. `--exclude-file` / `--include-file` normalize the provided path into a repository-root-relative pattern that matches the exact file or directory (directories append `/` automatically). Legacy ignore flags (`--add-ignore`, `--remove-ignore`, `--unignore`, `--ignore-file`) still function but emit a deprecation warning and will be removed in a future major release. `--no-ignore` disables every ignore rule (tree + content).
+
 ## Global CLI options
 
 All subcommands share the following options:
