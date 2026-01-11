@@ -87,6 +87,22 @@ Main command: traverse paths and build LLM/MARKDOWN/JSON-friendly output.
 * If `PATHS` is omitted, the current directory is used.
 * If you pass only a single file, grobl treats its **parent directory** as the tree root (the file is still included).
 
+### `grobl explain [OPTIONS] [PATHS...]`
+
+Report why the provided paths are included or excluded in each scope without emitting a payload.
+
+* `--format {human,markdown,json}` selects the explain renderer (`human` is an alias for `markdown`).
+* The JSON output lists `tree` and `content` decisions for each path and includes a `content_reason` object when the file contents are omitted (patterns or detection); use `text_detection` for binary-detection diagnostics.
+* Pass `--include-content 'docs/**'` to override the default content suppression for `docs/` or use the explain command to inspect why documentation files are filtered.
+
+Examples:
+
+```bash
+grobl explain README.md --format json
+grobl explain --include-content 'docs/**' docs
+grobl explain src/grobl --format human
+```
+
 ### `grobl init [--path DIR] [--force]`
 
 Bootstrap a default `.grobl.toml` in the target directory:
@@ -221,6 +237,7 @@ The payload is always written to a clipboard or file destination (see below), no
   * `--summary-style full` renders the directory tree plus totals.
   * `--summary-style compact` prints just the totals (`Total lines: ...`).
 * `--summary json`: print a JSON summary; the emitted object still records the requested table style in the `"style"` field.
+  * When a file’s contents are omitted, the corresponding entry includes a `content_reason` object describing the winning pattern (or the `<non-text>` detector) so scripts can trace the exclusion.
 * `--summary none`: omit any summary output.
 
 Summary routing uses `--summary-to`. The default destination is `stderr`, keeping the summary separate from payload streams.
@@ -671,6 +688,30 @@ In these cases, grobl writes a structured JSON payload to the selected destinati
   * `--summary none` → no extra output
   * `--summary json` → an additional summary JSON is printed to the summary destination (stderr by default)
   * `--summary table` → a human summary is printed to the summary destination (stderr by default)
+
+## Troubleshooting
+
+### In tree but no contents
+
+If a path shows up in the directory tree but its contents are missing, the content scope is still obeying an `exclude_content` / `exclude_print` rule.
+
+* Use `grobl explain PATH --format human` or `--format json` to see the winning pattern for both tree and content.
+* Apply explicit include patterns (`--include PATH`, `--include-content PATTERN`, or `--include-file PATH`) to re-allow content for that path.
+
+### Docs contents missing
+
+The bundled defaults keep `docs/` visible in the tree but omit document contents because they tend to be large.
+
+* Add `--include-content 'docs/**'` (or a matching entry in `.grobl.toml`) to pull those files into the payload.
+* Run `grobl explain docs --format json` to inspect the `content_reason` object and confirm content capture is desired.
+
+### Binary detection
+
+Binary blobs are flagged before their text would ever be read:
+
+* Summary JSON entries for skipped binaries include `content_reason.pattern == "<non-text>"` and `text_detection.detail`.
+* `grobl explain --format json` prints the same reason plus `text_detection` metadata so you can verify the detector's rationale.
+* Use the detectors to decide whether you want to keep the binary or explicitly include it via `--include-content`.
 
 ## Large repositories
 

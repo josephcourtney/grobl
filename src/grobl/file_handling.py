@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from .provenance import format_content_reason
 from .utils import TextDetectionResult, detect_text, read_text
 
 if TYPE_CHECKING:
@@ -48,6 +49,7 @@ class FileAnalysis:
     chars: int
     include_content: bool
     content: str | None = None
+    content_reason: dict[str, object] | None = None
 
 
 class BaseFileHandler:
@@ -72,7 +74,12 @@ class BaseFileHandler:
             detection=detection,
         )
         builder = context.builder
-        builder.record_metadata(rel, analysis.lines, analysis.chars)
+        builder.record_metadata(
+            rel,
+            analysis.lines,
+            analysis.chars,
+            content_reason=analysis.content_reason,
+        )
         if analysis.include_content and analysis.content is not None:
             builder.add_file(path, rel, analysis.lines, analysis.chars, analysis.content)
 
@@ -109,13 +116,17 @@ class TextFileHandler(BaseFileHandler):
         content = deps.text_reader(path) if detection.content is None else detection.content
         line_count = len(content.splitlines())
         char_count = len(content)
-        # exclude_print is evaluated with per-layer bases; decide on absolute path
-        include = not context.ignores.excluded_from_print(path, is_dir=False)
+        decision = context.ignores.explain_content(path, is_dir=False)
+        include = not decision.excluded
+        reason_dict: dict[str, object] | None = None
+        if not include and decision.reason is not None:
+            reason_dict = format_content_reason(reason=decision.reason, subject=path)
         return FileAnalysis(
             lines=line_count,
             chars=char_count,
             include_content=include,
             content=content,
+            content_reason=reason_dict,
         )
 
 
@@ -141,13 +152,22 @@ class BinaryFileHandler(BaseFileHandler):
         detection: TextDetectionResult,
     ) -> FileAnalysis:
         _ = self
-        del context, is_text_file, detection
+        del context, is_text_file
+        reason_dict = format_content_reason(
+            detection_detail=detection.detail,
+            subject=path,
+        )
         try:
             size = path.stat().st_size
         except OSError:
             size = 0
         # For binary blobs we expose character-count as byte size, 0 lines.
-        return FileAnalysis(lines=0, chars=size, include_content=False)
+        return FileAnalysis(
+            lines=0,
+            chars=size,
+            include_content=False,
+            content_reason=reason_dict,
+        )
 
 
 @dataclass(slots=True)

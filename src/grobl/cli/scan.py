@@ -56,6 +56,8 @@ Examples:
   grobl scan --ignore-policy defaults
   grobl scan --ignore-policy none
   grobl scan --add-ignore '*.min.js' --unignore 'vendor/**' src
+  grobl explain README.md --format json
+  grobl explain docs --include-content 'docs/**'
 """
 
 

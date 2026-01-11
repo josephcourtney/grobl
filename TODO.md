@@ -1,81 +1,49 @@
-## Ignore UX overhaul (tree vs content)
-
-- [x] define the user-facing model: “tree visibility” vs “content capture”; document invariants and intended defaults in SPEC.md
-- [x] add a new internal “ignore decision” data model that can explain *why* a path is excluded
-  - [x] introduce a `LayerSource` enum (defaults | config | explicit_config | cli_runtime) and a `MatchDecision`/`ExclusionReason` dataclass
-  - [x] preserve raw patterns during compilation (store raw text + negated/core) so the winning rule can be reported
-  - [x] extend compiled layers to carry provenance (base_dir + source + config file path if applicable)
-  - [x] implement `LayeredIgnoreMatcher.explain_tree(path, is_dir)` and `.explain_content(path, is_dir)` returning decision + provenance
-  - [x] keep existing boolean methods (`excluded_from_tree/print`) delegating to the new decision engine for compatibility
-
-- [x] make CLI runtime edits apply to content-capture rules as well as tree rules
-  - [x] extend `apply_runtime_ignore_edits(...)` (or add a sibling helper) to support edits for `exclude_print` (“content”) in addition to `exclude_tree`
-  - [x] thread `runtime_print_patterns` from CLI through `_assemble_layered_ignores(...)` into `build_layered_ignores(...)`
-
-## New CLI flags (intuitive include/exclude)
-
-- [x] implement intuitive flags for common intent (affect both tree + content)
-  - [x] add `--exclude PATTERN` (applies to tree + content)
-  - [x] add `--include PATTERN` (negated include; applies to tree + content)
-  - [x] add `--exclude-file PATH` / `--include-file PATH` (optional convenience for exact files; expands to pattern safely)
-
-- [x] implement scoped flags (tree-only vs content-only)
-  - [x] add `--exclude-tree PATTERN` / `--include-tree PATTERN`
-  - [x] add `--exclude-content PATTERN` / `--include-content PATTERN`
-  - [x] ensure scoped flags compose deterministically (“last match wins”, consistent ordering across sources)
-
-- [x] deprecate the confusing legacy flags without breaking existing scripts
-  - [x] keep `--add-ignore/--unignore/--remove-ignore/--ignore-file` working, but emit a deprecation warning pointing to the new equivalents
-  - [x] redefine naming in help/README so “ignore” is no longer overloaded
-  - [x] add a removal timeline policy (e.g., remove legacy flags in next major version)
-
 ## Explain/diagnostics (“why is this excluded?”)
 
-- [ ] add `grobl explain [PATHS...]` subcommand (preferred) OR `grobl scan --explain [PATHS...]` (alias)
-  - [ ] for each provided path, report:
-    - [ ] tree decision: included/excluded + winning pattern + source + base_dir (+ config path if any)
-    - [ ] content decision: included/excluded + winning pattern + source + base_dir (+ config path if any)
-    - [ ] text detection: text vs binary (and why), if content is omitted due to detection
-  - [ ] support `--format {human,json}` for explain output with stable schema and ordering
-  - [ ] ensure explain does not require or produce payload output; keep stdout/stderr behavior deterministic
+- [x] add `grobl explain [PATHS...]` subcommand (preferred) OR `grobl scan --explain [PATHS...]` (alias)
+  - [x] for each provided path, report:
+    - [x] tree decision: included/excluded + winning pattern + source + base_dir (+ config path if any)
+    - [x] content decision: included/excluded + winning pattern + source + base_dir (+ config path if any)
+    - [x] text detection: text vs binary (and why), if content is omitted due to detection
+  - [x] support `--format {human,json}` for explain output with stable schema and ordering
+  - [x] ensure explain does not require or produce payload output; keep stdout/stderr behavior deterministic
 
 ## Summary JSON improvements (optional but high-value)
 
-- [ ] enrich `--summary json` output with reasons for `included=false`
-  - [ ] add optional fields like `content_reason` (winning pattern + source + base_dir) when content is omitted
-  - [ ] avoid breaking existing consumers: only add new keys; keep existing keys unchanged
-  - [ ] ensure JSON key ordering remains stable and a trailing newline is preserved
+- [x] enrich `--summary json` output with reasons for `included=false`
+  - [x] add optional fields like `content_reason` (winning pattern + source + base_dir) when content is omitted
+  - [x] avoid breaking existing consumers: only add new keys; keep existing keys unchanged
+  - [x] ensure JSON key ordering remains stable and a trailing newline is preserved
 
 ## Defaults and configuration naming
 
-- [ ] decide on default handling for `docs/` (policy)
-  - [ ] option A: remove `docs` from default `exclude_print` to match common expectations
-  - [ ] option B: keep current default, but ensure `--include-content 'docs/**'` is prominently documented and demonstrated
+- [x] decide on default handling for `docs/` (policy)
+  - [x] option B: keep current default, but ensure `--include-content 'docs/**'` is prominently documented and demonstrated
 
-- [ ] make config naming clearer (non-breaking)
-  - [ ] optionally support `exclude_content` as an alias for `exclude_print` when loading config (keep writing canonical key)
+- [x] make config naming clearer (non-breaking)
+  - [x] optionally support `exclude_content` as an alias for `exclude_print` when loading config (keep writing canonical key)
 
 ## Tests and spec conformance
 
-- [ ] add unit tests for ignore decision provenance
-  - [ ] verify “last match wins” with negations across layers and bases
-  - [ ] verify tree vs content decisions differ as expected (tree included, content excluded, etc.)
-  - [ ] verify provenance reports correct base_dir + config origin
+- [x] add unit tests for ignore decision provenance
+  - [x] verify “last match wins” with negations across layers and bases
+  - [x] verify tree vs content decisions differ as expected (tree included, content excluded, etc.)
+  - [x] verify provenance reports correct base_dir + config origin
 
-- [ ] add component/system tests for CLI behavior
-  - [ ] `--include-content docs/**` overrides default `exclude_print` and includes doc contents
-  - [ ] legacy flags still behave the same and emit deprecation warnings
-  - [ ] `grobl explain` reports correct winning rule for both tree and content
+- [x] add component/system tests for CLI behavior
+  - [x] `--include-content docs/**` overrides default `exclude_print` and includes doc contents
+  - [x] legacy flags still behave the same and emit deprecation warnings
+  - [x] `grobl explain` reports correct winning rule for both tree and content
 
-- [ ] update SPEC.md with normative behavior for the new flags and explain output
-  - [ ] specify precedence/ordering when multiple flags and sources apply
-  - [ ] specify explain JSON schema and determinism requirements
+- [x] update SPEC.md with normative behavior for the new flags and explain output
+  - [x] specify precedence/ordering when multiple flags and sources apply
+  - [x] specify explain JSON schema and determinism requirements
 
 ## Docs and help text
 
-- [ ] update README.md:
-  - [ ] replace “ignore” language with “exclude/include” and “tree/content” terminology
-  - [ ] add a troubleshooting section: “in tree but no contents”, “docs contents missing”, “binary detection”
-  - [ ] add examples for the new flags and for `grobl explain`
+- [x] update README.md:
+  - [x] replace “ignore” language with “exclude/include” and “tree/content” terminology
+  - [x] add a troubleshooting section: “in tree but no contents”, “docs contents missing”, “binary detection”
+  - [x] add examples for the new flags and for `grobl explain`
 
-- [ ] update CLI help/epilog strings to feature the new flags and the explain workflow
+- [x] update CLI help/epilog strings to feature the new flags and the explain workflow

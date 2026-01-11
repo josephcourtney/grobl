@@ -15,6 +15,7 @@ from grobl.constants import IgnorePolicy, PayloadFormat, SummaryDestination, Sum
 
 from .common import exit_on_broken_pipe
 from .completions import completions
+from .explain import explain
 from .init import init
 from .scan import scan
 from .version import version
@@ -47,6 +48,8 @@ Examples:
   grobl scan --format json --output payload.json
   grobl scan --summary json --summary-to stdout
   grobl scan --ignore-policy defaults --add-ignore '*.min.js' src
+  grobl explain README.md --format json
+  grobl explain docs --include-content 'docs/**'
 """
 
 
@@ -205,6 +208,7 @@ def main(argv: list[str] | None = None) -> None:
 
 
 cli.add_command(scan)
+cli.add_command(explain)
 cli.add_command(version)
 cli.add_command(completions)
 cli.add_command(init)
@@ -244,12 +248,25 @@ def _route_help_flags(pre: list[str], command_names: set[str]) -> list[str]:
     return [*stripped[: cmd_pos2 + 1], "--help", *stripped[cmd_pos2 + 1 :]]
 
 
-def _extract_root_options(tokens: list[str]) -> tuple[list[str], list[str]]:
+def _extract_root_options(tokens: list[str], *, command: str | None = None) -> tuple[list[str], list[str]]:
     extracted: list[str] = []
     remaining: list[str] = []
     i = 0
+    explain_format_option = command == "explain"
     while i < len(tokens):
         tok = tokens[i]
+        if explain_format_option and tok == "--format":
+            remaining.append(tok)
+            if i + 1 < len(tokens):
+                remaining.append(tokens[i + 1])
+                i += 2
+            else:
+                i += 1
+            continue
+        if explain_format_option and tok.startswith("--format="):
+            remaining.append(tok)
+            i += 1
+            continue
         if tok in ROOT_FLAGS_NO_VALUES or _is_vflag(tok):
             extracted.append(tok)
             i += 1
@@ -282,7 +299,7 @@ def _reorder_root_options(
     before_cmd = pre[:cmd_pos]
     after_cmd = pre[cmd_pos + 1 :]
     command_token = pre[cmd_pos]
-    extracted, remaining = _extract_root_options(after_cmd)
+    extracted, remaining = _extract_root_options(after_cmd, command=command_token)
     reordered = [*before_cmd, *extracted, command_token, *remaining]
     return [*reordered, *tail]
 

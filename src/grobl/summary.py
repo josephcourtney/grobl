@@ -33,6 +33,8 @@ def _file_entries(snapshot: SummaryTotals) -> list[dict[str, Any]]:
             "chars": record.chars,
             "included": record.included,
         }
+        if record.content_reason is not None:
+            entry["content_reason"] = record.content_reason
         # Heuristic: non-empty files with zero lines are treated as binary
         is_binary = record.chars > 0 and record.lines == 0 and not record.included
         if is_binary:

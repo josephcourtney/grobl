@@ -24,7 +24,19 @@ def test_build_summary_includes_binary_files_and_totals(tmp_path: Path) -> None:
     bf = tmp_path / "bin.dat"
     bf.write_bytes(b"\x00\x01\x02")
     relb = bf.relative_to(tmp_path)
-    b.record_metadata(relb, lines=0, chars=3)
+    b.record_metadata(
+        relb,
+        lines=0,
+        chars=3,
+        content_reason={
+            "pattern": "<non-text>",
+            "negated": False,
+            "source": "text-detection",
+            "base_dir": str(tmp_path),
+            "config_path": None,
+            "detail": "null byte detected",
+        },
+    )
 
     ctx = SummaryContext(builder=b, common=tmp_path, scope=ContentScope.ALL, style=TableStyle.COMPACT)
     js = build_summary(ctx)
@@ -44,6 +56,9 @@ def test_build_summary_includes_binary_files_and_totals(tmp_path: Path) -> None:
     assert files["t.txt"]["chars"] == 3
     assert files["bin.dat"]["included"] is False
     assert files["bin.dat"]["binary"] is True
+    assert files["bin.dat"]["content_reason"]["pattern"] == "<non-text>"
+    assert files["bin.dat"]["content_reason"]["source"] == "text-detection"
+    assert files["bin.dat"]["content_reason"]["detail"] == "null byte detected"
 
 
 def test_build_sink_payload_json_respects_scope(tmp_path: Path) -> None:

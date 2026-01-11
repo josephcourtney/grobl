@@ -27,6 +27,7 @@ class TextDetectionResult:
 
     is_text: bool
     content: str | None = None
+    detail: str | None = None
 
 
 def find_common_ancestor(paths: list[Path]) -> Path:
@@ -76,21 +77,21 @@ def detect_text(file_path: Path, *, probe_size: int = 4096) -> TextDetectionResu
         with file_path.open("rb") as fh:
             chunk = fh.read(probe_size)
             if b"\x00" in chunk:
-                return TextDetectionResult(is_text=False)
+                return TextDetectionResult(is_text=False, detail="null byte detected")
             try:
                 decoded_chunk = chunk.decode("utf-8")
-            except UnicodeDecodeError:
-                return TextDetectionResult(is_text=False)
+            except UnicodeDecodeError as err:
+                return TextDetectionResult(is_text=False, detail=f"unicode decode error: {err}")
             remainder = fh.read()
             if b"\x00" in remainder:
-                return TextDetectionResult(is_text=False)
+                return TextDetectionResult(is_text=False, detail="null byte detected")
             if remainder:
                 decoded_remainder = remainder.decode("utf-8", errors="ignore")
                 content = decoded_chunk + decoded_remainder
             else:
                 content = decoded_chunk
-    except OSError:
-        return TextDetectionResult(is_text=False)
+    except OSError as err:
+        return TextDetectionResult(is_text=False, detail=f"read error: {err}")
     return TextDetectionResult(is_text=True, content=content)
 
 

@@ -79,20 +79,47 @@ class TreeCollector:
         return list(self._ordered)
 
 
+@dataclass(frozen=True, slots=True)
+class FileSummary:
+    """Immutable snapshot of per-file inclusion metadata."""
+
+    lines: int
+    chars: int
+    included: bool
+    content_reason: dict[str, object] | None = None
+
+
 @dataclass(slots=True)
 class FileCollector:
     """Store metadata and content for files encountered during traversal."""
 
-    _metadata: dict[str, tuple[int, int, bool]] = field(default_factory=dict)
+    _metadata: dict[str, FileSummary] = field(default_factory=dict)
     _json_file_blobs: list[dict[str, Any]] = field(default_factory=list)
 
-    def record_metadata(self, rel: Path, lines: int, chars: int) -> None:
+    def record_metadata(
+        self,
+        rel: Path,
+        lines: int,
+        chars: int,
+        *,
+        content_reason: dict[str, object] | None = None,
+    ) -> None:
         """Record line/character counts without capturing the file contents."""
-        self._metadata[str(rel)] = (lines, chars, False)
+        self._metadata[str(rel)] = FileSummary(
+            lines=lines,
+            chars=chars,
+            included=False,
+            content_reason=content_reason,
+        )
 
     def add_file(self, file_path: Path, rel: Path, lines: int, chars: int, content: str) -> None:
         """Record metadata plus sanitized content for ``rel``."""
-        self._metadata[str(rel)] = (lines, chars, True)
+        self._metadata[str(rel)] = FileSummary(
+            lines=lines,
+            chars=chars,
+            included=True,
+            content_reason=None,
+        )
         if file_path.suffix == ".md":
             content = content.replace("```", r"\`\`\`")
         self._json_file_blobs.append({
@@ -104,29 +131,17 @@ class FileCollector:
             "content": content,
         })
 
-    def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
+    def metadata_items(self) -> Iterable[tuple[str, FileSummary]]:
         """Yield recorded metadata keyed by relative path string."""
         return self._metadata.items()
 
-    def get_metadata(self, key: str) -> tuple[int, int, bool] | None:
+    def get_metadata(self, key: str) -> FileSummary | None:
         """Return metadata for ``key`` if known."""
         return self._metadata.get(key)
 
     def files_json(self) -> list[dict[str, Any]]:
         """Return JSON-safe blobs describing captured files."""
         return list(self._json_file_blobs)
-
-
-@dataclass(frozen=True, slots=True)
-class FileSummary:
-    """Immutable snapshot of per-file inclusion metadata."""
-
-    lines: int
-    chars: int
-    included: bool
-
-    def as_tuple(self) -> tuple[int, int, bool]:
-        return self.lines, self.chars, self.included
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,8 +167,8 @@ class SummaryTotals:
     def iter_files(self) -> Iterable[tuple[str, FileSummary]]:
         return tuple(self._files.items())
 
-    def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
-        return tuple((path, record.as_tuple()) for path, record in self._files.items())
+    def metadata_items(self) -> Iterable[tuple[str, FileSummary]]:
+        return tuple(self._files.items())
 
     def for_path(self, rel: str | Path) -> FileSummary | None:
         return self._files.get(str(rel))
@@ -188,10 +203,8 @@ class TotalsTracker:
         self.total_lines += lines
         self.total_characters += chars
 
-    def snapshot(self, metadata: Mapping[str, tuple[int, int, bool]]) -> SummaryTotals:
-        files = {
-            path: FileSummary(lines=ln, chars=ch, included=inc) for path, (ln, ch, inc) in metadata.items()
-        }
+    def snapshot(self, metadata: Mapping[str, FileSummary]) -> SummaryTotals:
+        files = dict(metadata.items())
         directories_with_files: set[Path] = set()
         directories_with_included: set[Path] = set()
         root = Path()
@@ -230,11 +243,11 @@ class DirectoryTreeBuilder:
         """Expose the collected tree lines for rendering."""
         return self.tree.lines()
 
-    def metadata_items(self) -> Iterable[tuple[str, tuple[int, int, bool]]]:
+    def metadata_items(self) -> Iterable[tuple[str, FileSummary]]:
         """Iterate over the recorded file metadata."""
         return self.files.metadata_items()
 
-    def get_metadata(self, key: str) -> tuple[int, int, bool] | None:
+    def get_metadata(self, key: str) -> FileSummary | None:
         """Return stored metadata for ``key`` if it exists."""
         return self.files.get_metadata(key)
 
@@ -276,9 +289,11 @@ class DirectoryTreeBuilder:
         rel: Path,
         lines: int,
         chars: int,
+        *,
+        content_reason: dict[str, object] | None = None,
     ) -> None:
         """Record line/char counts for a file and update ALL-file totals."""
-        self.files.record_metadata(rel, lines, chars)
+        self.files.record_metadata(rel, lines, chars, content_reason=content_reason)
         self._totals.record_seen(lines=lines, chars=chars)
 
     def add_file(

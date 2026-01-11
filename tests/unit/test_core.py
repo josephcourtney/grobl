@@ -47,11 +47,16 @@ def test_file_collection_and_metadata(tmp_path: Path) -> None:
     b = res.builder
     meta = dict(b.metadata_items())
 
-    assert meta["inc.txt"][0] == 2
-    assert meta["inc.txt"][2] is True
-    assert meta["skip.txt"][2] is False
-    assert meta["bin.dat"][0] == 0
-    assert meta["bin.dat"][1] == 4
+    inc_summary = meta["inc.txt"]
+    assert inc_summary.lines == 2
+    assert inc_summary.included is True
+    skip_summary = meta["skip.txt"]
+    assert skip_summary.included is False
+    bin_summary = meta["bin.dat"]
+    assert bin_summary.lines == 0
+    assert bin_summary.chars == 4
+    assert bin_summary.content_reason is not None
+    assert bin_summary.content_reason["pattern"] == "<non-text>"
 
 
 def test_exclude_print_with_gitignore_semantics(tmp_path: Path) -> None:
@@ -69,8 +74,8 @@ def test_exclude_print_with_gitignore_semantics(tmp_path: Path) -> None:
     res = run_scan(paths=[tmp_path], cfg=cfg, ignores=ignores)
     # The .md file should have included=False in metadata
     meta = dict(res.builder.metadata_items())
-    assert meta["notes/readme.md"][2] is False
-    assert meta["notes/keep.txt"][2] is True
+    assert meta["notes/readme.md"].included is False
+    assert meta["notes/keep.txt"].included is True
 
 
 def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
@@ -85,9 +90,9 @@ def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
     assert any("solo.txt" in line for line in tree)
     meta = dict(res.builder.metadata_items())
     assert "solo.txt" in meta
-    lines, _, included = meta["solo.txt"]
-    assert lines == 2
-    assert included is True
+    solo_summary = meta["solo.txt"]
+    assert solo_summary.lines == 2
+    assert solo_summary.included is True
 
 
 def test_run_scan_uses_match_base_for_gitignore_anchors(tmp_path: Path) -> None:
@@ -163,7 +168,7 @@ def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
     res = run_scan(paths=[tmp_path], cfg={}, dependencies=deps, ignores=ignores)
     assert reads == [sample]
     meta = dict(res.builder.metadata_items())
-    assert meta["note.txt"][0] == 1
+    assert meta["note.txt"].lines == 1
 
 
 def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
@@ -188,4 +193,4 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
     ignores = _make_ignores([tmp_path], repo_root=tmp_path)
     res = run_scan(paths=[tmp_path], cfg={}, handlers=handlers, ignores=ignores)
     meta = dict(res.builder.metadata_items())
-    assert meta["blob.bin"][1] == 0
+    assert meta["blob.bin"].chars == 0

@@ -3,9 +3,12 @@
 ### Added
 - introduce explainable ignore provenance (tree/content decisions with `LayerSource`, `MatchDecision`, and `ExclusionReason`) so matches report base directory, negation, and the originating config.
 - add intuitive `--exclude`/`--include` flags (plus scoped and file-targeted variants) that cover both tree visibility and content capture while keeping legacy ignore flags working with deprecation warnings.
+- add the `grobl explain` subcommand (`--format human|markdown|json`) so users can inspect tree/content decisions, include-content overrides, and binary detection reasons without emitting payloads
+- cover ignore provenance consumers with targeted unit tests and add a CLI regression that exercises explain's JSON output
 
 ### Changed
 - thread CLI runtime edits through both tree and content layers (including `exclude_print`/`exclude_content`) and update documentation to clarify the tree vs content model, new flag surface, and legacy removal timeline.
+- enrich `--summary json` files entries with deterministic `content_reason` details (including `<non-text>` detection sentinels) and describe the new explain workflow, troubleshooting advice, and `docs/` content override in the README/SPEC so users know how to inspect or include those files
 
 ## [1.0.33] - 2026-01-08
 

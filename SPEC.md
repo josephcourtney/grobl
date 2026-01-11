@@ -224,6 +224,8 @@ Added fields **MUST NOT** change the meaning of existing fields.
 
 If the summary JSON reports per-path inclusion booleans for either tree visibility or content capture, the implementation **SHOULD** additionally report an exclusion reason object when inclusion is `false`. If present, reason objects **MUST** be stable and machine-readable (§7.5, §7.6).
 
+When `--summary json` is selected, each file entry with `included=false` **MUST** include a `content_reason` object describing the winning rule for that scope. The reason object **MUST** contain the keys `pattern`, `negated`, `source`, `base_dir`, `config_path`, and `detail`, with `base_dir` and `config_path` rendered as strings (or `null` if unavailable). Binary exclusions derived from non-text detection **MUST** use the sentinel `pattern` `<non-text>` and `source` `text-detection`, and `detail` should summarize the detection outcome. Summary JSON **MUST** remain deterministic: sort file entries consistently (e.g., lexicographically by path), ensure nested dictionaries use stable key ordering (such as `json.dumps(..., sort_keys=True)`), and include a trailing newline.
+
 ---
 
 ## 6. Output Stream Separation and Compatibility (scan)
@@ -469,6 +471,8 @@ The CLI **MAY** provide an alias flag on `scan`:
 
 By default, `explain` output **MUST** be written to stdout.
 
+When `--format json` is selected, the CLI **MUST** emit records sorted by path with stable key ordering (e.g., using `json.dumps(..., sort_keys=True)`), produce a deterministic set of fields, and terminate with a newline to keep downstream parsing predictable.
+
 `explain` output **MUST** support:
 
 * `--format json` (machine-readable)
@@ -485,6 +489,8 @@ For each target path, the explain report **MUST** include at minimum:
 * Tree scope decision: included/excluded
 * Content scope decision: included/excluded
 
+When multiple include/exclude rules apply, the CLI **MUST** respect the layering described in §7.4 and report the last-matching rule per scope, including CLI runtime edits and negations, so the explain output corresponds to the effective decision.
+
 If content is excluded due to non-text/binary classification (as opposed to pattern matching), the report **SHOULD** indicate that classification outcome. The classification algorithm is implementation-defined but **MUST** be deterministic.
 
 ### 11.4 Reason Objects (Provenance)
@@ -498,6 +504,17 @@ A reason object (or equivalent human-readable text) **MUST** include:
 * The rule source: `defaults | config | cli`
 * The base directory used for interpreting that pattern
 * If the source is `config`, the `.grobl.toml` path that contributed the winning rule **SHOULD** be reported
+
+### 11.5 Explain JSON schema and determinism
+
+When `--format json` is requested, the CLI **MUST** emit a JSON array of explain records sorted by absolute path. Each record **MUST** include:
+
+* `path`: the resolved absolute path being explained.
+* `tree`: an object with `included` (`true`/`false`) and an optional `reason` descriptor.
+* `content`: an object with `included` (`true`/`false`) and an optional `reason` descriptor. The `included` flag **MUST** reflect both the ignore decision and deterministic text detection (non-text files are treated as `false` even without a matching pattern).
+* `text_detection` (optional): present only for files excluded by the detector, containing `is_text: false` and a `detail` string summarizing the detection outcome.
+
+Each `reason` descriptor shares the key set defined above (`pattern`, `negated`, `source`, `base_dir`, `config_path`, `detail`). Binary detections **MUST** use the sentinel `pattern` `<non-text>` with `source` `text-detection`. The JSON array **MUST** be serialized with stable key ordering (e.g., via `json.dumps(..., sort_keys=True)`), include a trailing newline, and avoid nondeterministic metadata (timestamps, environment-dependent values, or unsorted collections).
 
 ---
 
