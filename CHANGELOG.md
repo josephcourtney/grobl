@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.0.34] - 2026-01-11
 
 ### Added
 - introduce explainable ignore provenance (tree/content decisions with `LayerSource`, `MatchDecision`, and `ExclusionReason`) so matches report base directory, negation, and the originating config.
@@ -9,6 +9,8 @@
 ### Changed
 - thread CLI runtime edits through both tree and content layers (including `exclude_print`/`exclude_content`) and update documentation to clarify the tree vs content model, new flag surface, and legacy removal timeline.
 - enrich `--summary json` files entries with deterministic `content_reason` details (including `<non-text>` detection sentinels) and describe the new explain workflow, troubleshooting advice, and `docs/` content override in the README/SPEC so users know how to inspect or include those files
+
+## [Unreleased]
 
 ## [1.0.33] - 2026-01-08
 
