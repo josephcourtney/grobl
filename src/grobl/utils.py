@@ -1,9 +1,12 @@
 """Generic utility helpers."""
 
+import codecs
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from os.path import commonpath  # <-- needed by find_common_ancestor
 from pathlib import Path
+from typing import BinaryIO
 
 from grobl.errors import (
     ERROR_MSG_EMPTY_PATHS,
@@ -19,6 +22,9 @@ __all__ = [
     "read_text",
     "resolve_repo_root",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +77,56 @@ def resolve_repo_root(*, cwd: Path, paths: Sequence[Path]) -> Path:
     return common
 
 
+def _decode_with_logging(
+    decoder: codecs.IncrementalDecoder,
+    chunk: bytes,
+    *,
+    file_path: Path,
+    final: bool,
+    message: str,
+) -> tuple[str, str | None]:
+    """Decode ``chunk`` and capture any Unicode errors for logging."""
+    try:
+        return decoder.decode(chunk, final=final), None
+    except UnicodeDecodeError as err:
+        logger.debug("%s for %s", message, file_path, exc_info=True)
+        return "", f"unicode decode error: {err}"
+
+
+def _process_remainder(
+    decoder: codecs.IncrementalDecoder,
+    fh: BinaryIO,
+    *,
+    file_path: Path,
+    decoded_chunk: str,
+) -> tuple[str, str | None]:
+    """Read the remainder of the probe and extend the decoded content."""
+    remainder = fh.read()
+    if b"\x00" in remainder:
+        return "", "null byte detected"
+    if remainder:
+        decoded_remainder, detail = _decode_with_logging(
+            decoder,
+            remainder,
+            file_path=file_path,
+            final=True,
+            message="utf-8 remainder decode failed",
+        )
+        if detail:
+            return "", detail
+        return decoded_chunk + decoded_remainder, None
+    trimmed, detail = _decode_with_logging(
+        decoder,
+        b"",
+        file_path=file_path,
+        final=True,
+        message="utf-8 probe flush failed",
+    )
+    if detail:
+        return "", detail
+    return decoded_chunk + trimmed, None
+
+
 def detect_text(file_path: Path, *, probe_size: int = 4096) -> TextDetectionResult:
     """Probe ``file_path`` to determine if it is text and prefetch its contents."""
     try:
@@ -78,21 +134,28 @@ def detect_text(file_path: Path, *, probe_size: int = 4096) -> TextDetectionResu
             chunk = fh.read(probe_size)
             if b"\x00" in chunk:
                 return TextDetectionResult(is_text=False, detail="null byte detected")
-            try:
-                decoded_chunk = chunk.decode("utf-8")
-            except UnicodeDecodeError as err:
-                return TextDetectionResult(is_text=False, detail=f"unicode decode error: {err}")
-            remainder = fh.read()
-            if b"\x00" in remainder:
-                return TextDetectionResult(is_text=False, detail="null byte detected")
-            if remainder:
-                decoded_remainder = remainder.decode("utf-8", errors="ignore")
-                content = decoded_chunk + decoded_remainder
-            else:
-                content = decoded_chunk
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            decoded_chunk, detail = _decode_with_logging(
+                decoder,
+                chunk,
+                file_path=file_path,
+                final=False,
+                message="utf-8 probe chunk failed",
+            )
+            if detail:
+                return TextDetectionResult(is_text=False, detail=detail)
+            content, detail = _process_remainder(
+                decoder,
+                fh,
+                file_path=file_path,
+                decoded_chunk=decoded_chunk,
+            )
+            if detail:
+                return TextDetectionResult(is_text=False, detail=detail)
+            return TextDetectionResult(is_text=True, content=content)
     except OSError as err:
+        logger.debug("io error while probing %s", file_path, exc_info=True)
         return TextDetectionResult(is_text=False, detail=f"read error: {err}")
-    return TextDetectionResult(is_text=True, content=content)
 
 
 def is_text(file_path: Path) -> bool:

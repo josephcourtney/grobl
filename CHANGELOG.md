@@ -12,6 +12,13 @@
 
 ## [Unreleased]
 
+## [1.0.35] - 2026-01-15
+
+### Fixed
+- harden `detect_text` against 4 KB probe boundaries by using an incremental UTF-8 decoder that flushes buffered bytes so partial code points no longer mark files as binary.
+- log decoder/IO failures at `DEBUG` so `-vv`/`--log-level DEBUG` prints tracebacks when probing files.
+- add regression tests that cover both chunk-boundary and delayed invalid-UTF-8 failures to keep binary detection reliable.
+
 ## [1.0.33] - 2026-01-08
 
 ### Changed

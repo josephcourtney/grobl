@@ -63,6 +63,45 @@ def test_detect_text_binary_payload(tmp_path: Path) -> None:
     assert detection.content is None
 
 
+def test_detect_text_handles_utf8_chunk_boundary(tmp_path: Path) -> None:
+    plan = tmp_path / "plan.md"
+    em_dash = b"\xe2\x80\x94"
+    payload = b"a" * 4095 + em_dash + b"rest"
+    plan.write_bytes(payload)
+
+    detection = detect_text(plan)
+
+    assert detection.is_text is True
+    expected_content = payload.decode("utf-8", errors="ignore")
+    assert detection.content == expected_content
+
+
+def test_detect_text_returns_false_on_invalid_utf8(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.txt"
+    bad.write_bytes(b"\xff\xfe\xff")
+
+    detection = detect_text(bad)
+
+    assert detection.is_text is False
+    assert detection.content is None
+    assert detection.detail is not None
+    assert "unicode decode error" in detection.detail
+
+
+def test_detect_text_catches_invalid_after_probe(tmp_path: Path) -> None:
+    file = tmp_path / "spread.txt"
+    chunk = b"a" * 4096
+    invalid = b"\xff\xfe"
+    file.write_bytes(chunk + invalid)
+
+    detection = detect_text(file)
+
+    assert detection.is_text is False
+    assert detection.content is None
+    assert detection.detail is not None
+    assert "unicode decode error" in detection.detail
+
+
 @pytest.mark.parametrize(
     ("components", "expected_rel"),
     [
