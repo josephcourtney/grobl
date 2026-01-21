@@ -3,6 +3,9 @@
 # (exclude from directory tree listings)
 # ============================================
 exclude_tree = [
+  ".import_linter_cache",
+  ".ropeproject",
+
   # ---------------- grobl-specific ----------------
   ".grobl.toml",
 
@@ -127,7 +130,7 @@ exclude_print = [
   "CONTRIBUTING.md",
 
   # ---------------- docs (structure useful, content too verbose) ----------------
-  "docs",
+  # "docs",
 
   # ---------------- build artifacts (defensive) ----------------
   "dist",
