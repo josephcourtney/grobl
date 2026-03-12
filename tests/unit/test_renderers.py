@@ -9,6 +9,7 @@ from grobl.config import load_default_config
 from grobl.constants import ContentScope
 from grobl.core import run_scan
 from grobl.directory import DirectoryTreeBuilder
+from grobl.metadata_visibility import MetadataVisibility
 from grobl.renderers import (
     DirectoryRenderer,
     build_llm_payload,
@@ -16,6 +17,7 @@ from grobl.renderers import (
     build_markdown_snapshot,
     format_begin_file_header,
 )
+from grobl.token_counting import count_tokens
 from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small
@@ -35,7 +37,7 @@ def test_tree_lines_with_metadata_shows_columns_and_markers(tmp_path: Path) -> N
     builder.add_directory(d, "", is_last=False)
     builder.add_file_to_tree(f, "", is_last=True)
     rel = f.relative_to(tmp_path)
-    builder.add_file(f, rel, lines=1, chars=len("hello\n"), content="hello\n")
+    builder.add_file(f, rel, lines=1, chars=len("hello\n"), tokens=count_tokens("hello\n"), content="hello\n")
 
     renderer = DirectoryRenderer(builder)
     lines = renderer.tree_lines(include_metadata=True)
@@ -63,6 +65,7 @@ def test_tree_and_markdown_views_fall_back_to_plain_tree_on_invariant_break(tmp_
         f.relative_to(tmp_path),
         lines=1,
         chars=len("print('hi')\n"),
+        tokens=count_tokens("print('hi')\n"),
         content="print('hi')\n",
     )
 
@@ -84,10 +87,27 @@ def test_files_payload_contains_file_content_block(tmp_path: Path) -> None:
     f.write_text("```code```", encoding="utf-8")
     rel = f.relative_to(tmp_path)
     # add_file applies Markdown fence escaping
-    builder.add_file(f, rel, lines=1, chars=9, content=f.read_text("utf-8"))
+    content = f.read_text("utf-8")
+    builder.add_file(f, rel, lines=1, chars=9, tokens=count_tokens(content), content=content)
     payload = DirectoryRenderer(builder).files_payload()
     assert '<file:content name="doc.md"' in payload
     assert r"\`\`\`" in payload  # escaped backticks
+
+
+def test_files_payload_omits_disabled_metadata_attributes(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    file_path = tmp_path / "note.txt"
+    file_path.write_text("hello\n", encoding="utf-8")
+    rel = file_path.relative_to(tmp_path)
+    builder.add_file(file_path, rel, lines=1, chars=6, tokens=count_tokens("hello\n"), content="hello\n")
+
+    payload = DirectoryRenderer(builder).files_payload(
+        visibility=MetadataVisibility(lines=False, chars=True, tokens=False)
+    )
+
+    assert 'chars="6"' in payload
+    assert 'lines="' not in payload
+    assert 'tokens="' not in payload
 
 
 def test_build_llm_payload_respects_scope(tmp_path: Path) -> None:
@@ -103,6 +123,7 @@ def test_build_llm_payload_respects_scope(tmp_path: Path) -> None:
         file_path.relative_to(tmp_path),
         lines=1,
         chars=len("print('hi')\n"),
+        tokens=count_tokens("print('hi')\n"),
         content="print('hi')\n",
     )
 
@@ -225,7 +246,14 @@ def test_markdown_snapshot_schema_separates_tree_and_files(tmp_path: Path) -> No
     file_path.write_text("print('hi')\n", encoding="utf-8")
     rel = file_path.relative_to(tmp_path)
     builder.add_file_to_tree(file_path, "pkg", is_last=True)
-    builder.add_file(file_path, rel, lines=1, chars=len("print('hi')\n"), content="print('hi')\n")
+    builder.add_file(
+        file_path,
+        rel,
+        lines=1,
+        chars=len("print('hi')\n"),
+        tokens=count_tokens("print('hi')\n"),
+        content="print('hi')\n",
+    )
 
     snapshot = build_markdown_snapshot(builder=builder, scope=ContentScope.ALL)
 
@@ -237,6 +265,7 @@ def test_markdown_snapshot_schema_separates_tree_and_files(tmp_path: Path) -> No
     assert entry.start_line == 1
     assert entry.end_line == 1
     assert entry.chars == len("print('hi')\n")
+    assert entry.tokens == count_tokens("print('hi')\n")
     assert entry.content == "print('hi')\n"
 
 
@@ -246,7 +275,14 @@ def test_markdown_payload_uses_formatted_header_once(tmp_path: Path) -> None:
     file_path.write_text("print('ok')\n", encoding="utf-8")
     rel = file_path.relative_to(tmp_path)
     builder.add_file_to_tree(file_path, "", is_last=True)
-    builder.add_file(file_path, rel, lines=1, chars=len("print('ok')\n"), content="print('ok')\n")
+    builder.add_file(
+        file_path,
+        rel,
+        lines=1,
+        chars=len("print('ok')\n"),
+        tokens=count_tokens("print('ok')\n"),
+        content="print('ok')\n",
+    )
 
     snapshot = build_markdown_snapshot(builder=builder, scope=ContentScope.FILES)
     expected_header = format_begin_file_header(snapshot.files[0])
@@ -345,6 +381,7 @@ def test_llm_payload_keeps_raw_xml_like_content(tmp_path: Path) -> None:
         special.relative_to(root),
         lines=1,
         chars=len("<file:content> & closing </file:content>"),
+        tokens=count_tokens("<file:content> & closing </file:content>"),
         content=special.read_text(encoding="utf-8"),
     )
 
@@ -376,6 +413,7 @@ def test_markdown_headers_escape_metadata(tmp_path: Path) -> None:
         special.relative_to(root),
         lines=1,
         chars=len('print("hi")\n'),
+        tokens=count_tokens('print("hi")\n'),
         content=special.read_text(encoding="utf-8"),
     )
 
@@ -385,3 +423,51 @@ def test_markdown_headers_escape_metadata(tmp_path: Path) -> None:
     assert 'path="unsafe &quot;name&quot;%25 &amp;.py"' in header
     assert 'language="python"' in header
     assert '%"' not in header
+
+
+def test_tree_lines_hide_disabled_metadata_columns(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    file_path = tmp_path / "demo.txt"
+    file_path.write_text("hello\n", encoding="utf-8")
+    rel = file_path.relative_to(tmp_path)
+    builder.add_file_to_tree(file_path, "", is_last=True)
+    builder.add_file(file_path, rel, lines=1, chars=6, tokens=count_tokens("hello\n"), content="hello\n")
+
+    lines = DirectoryRenderer(builder).tree_lines(
+        include_metadata=True,
+        visibility=MetadataVisibility(lines=False, chars=True, tokens=False, inclusion_status=False),
+    )
+
+    assert "chars" in lines[0]
+    assert "lines" not in lines[0]
+    assert "tokens" not in lines[0]
+    assert "included" not in lines[0]
+
+
+def test_markdown_header_omits_disabled_metadata_fields(tmp_path: Path) -> None:
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    file_path = tmp_path / "demo.py"
+    file_path.write_text("print('hi')\n", encoding="utf-8")
+    rel = file_path.relative_to(tmp_path)
+    builder.add_file(
+        file_path,
+        rel,
+        lines=1,
+        chars=len("print('hi')\n"),
+        tokens=count_tokens("print('hi')\n"),
+        content="print('hi')\n",
+    )
+
+    snapshot = build_markdown_snapshot(
+        builder=builder,
+        scope=ContentScope.FILES,
+        visibility=MetadataVisibility(lines=False, chars=True, tokens=False),
+    )
+    header = format_begin_file_header(
+        snapshot.files[0],
+        visibility=MetadataVisibility(lines=False, chars=True, tokens=False),
+    )
+
+    assert 'chars="' in header
+    assert 'lines="' not in header
+    assert 'tokens="' not in header

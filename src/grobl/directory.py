@@ -85,6 +85,7 @@ class FileSummary:
 
     lines: int
     chars: int
+    tokens: int
     included: bool
     content_reason: dict[str, object] | None = None
 
@@ -101,6 +102,7 @@ class FileCollector:
         rel: Path,
         lines: int,
         chars: int,
+        tokens: int,
         *,
         content_reason: dict[str, object] | None = None,
     ) -> None:
@@ -108,15 +110,17 @@ class FileCollector:
         self._metadata[str(rel)] = FileSummary(
             lines=lines,
             chars=chars,
+            tokens=tokens,
             included=False,
             content_reason=content_reason,
         )
 
-    def add_file(self, file_path: Path, rel: Path, lines: int, chars: int, content: str) -> None:
+    def add_file(self, file_path: Path, rel: Path, lines: int, chars: int, tokens: int, content: str) -> None:
         """Record metadata plus sanitized content for ``rel``."""
         self._metadata[str(rel)] = FileSummary(
             lines=lines,
             chars=chars,
+            tokens=tokens,
             included=True,
             content_reason=None,
         )
@@ -127,6 +131,7 @@ class FileCollector:
             "path": str(rel),
             "lines": lines,
             "chars": chars,
+            "tokens": tokens,
             "included": True,
             "content": content,
         })
@@ -150,8 +155,10 @@ class SummaryTotals:
 
     total_lines: int
     total_characters: int
+    total_tokens: int
     all_total_lines: int
     all_total_characters: int
+    all_total_tokens: int
     _files: Mapping[str, FileSummary]
     _directories_with_files: frozenset[Path]
     _directories_with_included: frozenset[Path]
@@ -160,8 +167,10 @@ class SummaryTotals:
         return {
             "total_lines": self.total_lines,
             "total_characters": self.total_characters,
+            "total_tokens": self.total_tokens,
             "all_total_lines": self.all_total_lines,
             "all_total_characters": self.all_total_characters,
+            "all_total_tokens": self.all_total_tokens,
         }
 
     def iter_files(self) -> Iterable[tuple[str, FileSummary]]:
@@ -192,16 +201,20 @@ class TotalsTracker:
 
     total_lines: int = 0
     total_characters: int = 0
+    total_tokens: int = 0
     all_total_lines: int = 0
     all_total_characters: int = 0
+    all_total_tokens: int = 0
 
-    def record_seen(self, *, lines: int, chars: int) -> None:
+    def record_seen(self, *, lines: int, chars: int, tokens: int) -> None:
         self.all_total_lines += lines
         self.all_total_characters += chars
+        self.all_total_tokens += tokens
 
-    def record_included(self, *, lines: int, chars: int) -> None:
+    def record_included(self, *, lines: int, chars: int, tokens: int) -> None:
         self.total_lines += lines
         self.total_characters += chars
+        self.total_tokens += tokens
 
     def snapshot(self, metadata: Mapping[str, FileSummary]) -> SummaryTotals:
         files = dict(metadata.items())
@@ -219,8 +232,10 @@ class TotalsTracker:
         return SummaryTotals(
             total_lines=self.total_lines,
             total_characters=self.total_characters,
+            total_tokens=self.total_tokens,
             all_total_lines=self.all_total_lines,
             all_total_characters=self.all_total_characters,
+            all_total_tokens=self.all_total_tokens,
             _files=files,
             _directories_with_files=frozenset(directories_with_files),
             _directories_with_included=frozenset(directories_with_included),
@@ -289,12 +304,13 @@ class DirectoryTreeBuilder:
         rel: Path,
         lines: int,
         chars: int,
+        tokens: int,
         *,
         content_reason: dict[str, object] | None = None,
     ) -> None:
         """Record line/char counts for a file and update ALL-file totals."""
-        self.files.record_metadata(rel, lines, chars, content_reason=content_reason)
-        self._totals.record_seen(lines=lines, chars=chars)
+        self.files.record_metadata(rel, lines, chars, tokens, content_reason=content_reason)
+        self._totals.record_seen(lines=lines, chars=chars, tokens=tokens)
 
     def add_file(
         self,
@@ -302,11 +318,12 @@ class DirectoryTreeBuilder:
         rel: Path,
         lines: int,
         chars: int,
+        tokens: int,
         content: str,
     ) -> None:
         """Store file metadata and content for output (collection only)."""
-        self.files.add_file(file_path, rel, lines, chars, content)
-        self._totals.record_included(lines=lines, chars=chars)
+        self.files.add_file(file_path, rel, lines, chars, tokens, content)
+        self._totals.record_included(lines=lines, chars=chars, tokens=tokens)
 
     def summary_totals(self) -> SummaryTotals:
         """Return a snapshot exposing totals and inclusion metadata."""

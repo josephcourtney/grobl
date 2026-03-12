@@ -11,6 +11,7 @@ from grobl.directory import (
     TreeCallback,
     traverse_dir,
 )
+from grobl.token_counting import count_tokens
 
 pytestmark = pytest.mark.small
 
@@ -113,16 +114,19 @@ def test_summary_totals_exposes_inclusion_and_totals(tmp_path: Path) -> None:
     rel_include = include.relative_to(tmp_path)
     rel_skip = skip.relative_to(tmp_path)
 
-    builder.record_metadata(rel_include, lines=2, chars=4)
-    builder.add_file(include, rel_include, lines=2, chars=4, content="a\nb\n")
+    include_tokens = count_tokens("a\nb\n")
+    builder.record_metadata(rel_include, lines=2, chars=4, tokens=include_tokens)
+    builder.add_file(include, rel_include, lines=2, chars=4, tokens=include_tokens, content="a\nb\n")
 
-    builder.record_metadata(rel_skip, lines=0, chars=2)
+    builder.record_metadata(rel_skip, lines=0, chars=2, tokens=0)
 
     snapshot = builder.summary_totals()
     assert snapshot.total_lines == 2
     assert snapshot.total_characters == 4
+    assert snapshot.total_tokens == include_tokens
     assert snapshot.all_total_lines == 2
     assert snapshot.all_total_characters == 6
+    assert snapshot.all_total_tokens == include_tokens
 
     include_stats = snapshot.for_path(rel_include)
     skip_stats = snapshot.for_path(rel_skip)
@@ -137,8 +141,10 @@ def test_summary_totals_exposes_inclusion_and_totals(tmp_path: Path) -> None:
     assert totals_dict == {
         "total_lines": 2,
         "total_characters": 4,
+        "total_tokens": include_tokens,
         "all_total_lines": 2,
         "all_total_characters": 6,
+        "all_total_tokens": include_tokens,
     }
 
 

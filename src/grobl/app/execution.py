@@ -19,6 +19,7 @@ from grobl.core import ScanResult, run_scan
 from grobl.formatter import human_summary
 from grobl.ignore import LayeredIgnoreMatcher
 from grobl.logging_utils import StructuredLogEvent, get_logger, log_event
+from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
 from grobl.renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
 from grobl.summary import SummaryContext, build_ndjson_payload, build_sink_payload_json, build_summary
 
@@ -36,6 +37,7 @@ class ScanOptions:
     summary_format: SummaryFormat
     summary_style: TableStyle
     repo_root: Path
+    visibility: MetadataVisibility = DEFAULT_METADATA_VISIBILITY
     pattern_base: Path | None = None
 
 
@@ -86,7 +88,7 @@ def build_summary_for_format(
         return "", base_summary
 
     snapshot = builder.summary_totals()
-    tree_lines = renderer.tree_lines(include_metadata=True)
+    tree_lines = renderer.tree_lines(include_metadata=True, visibility=options.visibility)
     omitted_files = [record for _, record in snapshot.iter_files() if not record.included]
     notes: list[str] = []
     if omitted_files:
@@ -98,6 +100,8 @@ def build_summary_for_format(
         tree_lines=tree_lines,
         total_lines=snapshot.total_lines,
         total_chars=snapshot.total_characters,
+        total_tokens=snapshot.total_tokens,
+        visibility=options.visibility,
         table=options.summary_style.value,
         notes=notes,
     )
@@ -165,7 +169,12 @@ class MarkdownPayloadStrategy:
         logger: Logger,  # noqa: ARG002
         config: dict[str, object],  # noqa: ARG002
     ) -> None:
-        payload = self.build_payload(builder=builder, common=result.common, scope=context.scope)
+        payload = self.build_payload(
+            builder=builder,
+            common=result.common,
+            scope=context.scope,
+            visibility=context.visibility,
+        )
         if payload:
             sink(_ensure_trailing_newline(payload))
 
@@ -209,6 +218,7 @@ class LlmPayloadStrategy:
             builder=builder,
             common=result.common,
             scope=context.scope,
+            visibility=context.visibility,
             tree_tag=tree_tag,
             file_tag=file_tag,
         )
@@ -313,6 +323,7 @@ class ScanExecutor:
             common=result.common,
             scope=options.scope,
             style=options.summary_style,
+            visibility=options.visibility,
         )
 
         renderer = self._deps.renderer_factory(builder)
@@ -345,6 +356,7 @@ class ScanExecutor:
                 context={
                     "total_lines": snapshot.total_lines,
                     "total_characters": snapshot.total_characters,
+                    "total_tokens": snapshot.total_tokens,
                 },
             ),
         )

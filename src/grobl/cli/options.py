@@ -133,6 +133,30 @@ _SCAN_OUTPUT_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
         type=click.Path(path_type=Path),
         help="File path to write the summary when --summary-to file is selected",
     ),
+    click.option(
+        "--lines/--no-lines",
+        "show_lines",
+        default=True,
+        help="Include line counts in payload metadata and summaries",
+    ),
+    click.option(
+        "--characters/--no-characters",
+        "show_chars",
+        default=True,
+        help="Include character counts in payload metadata and summaries",
+    ),
+    click.option(
+        "--tokens/--no-tokens",
+        "show_tokens",
+        default=True,
+        help="Include token counts in payload metadata and summaries",
+    ),
+    click.option(
+        "--inclusion-status/--no-inclusion-status",
+        "show_inclusion_status",
+        default=True,
+        help="Include inclusion markers in tree views and machine-readable file metadata",
+    ),
 )
 
 _PATHS_ARGUMENT: CommandDecorator = click.argument(

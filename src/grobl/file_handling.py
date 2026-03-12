@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .provenance import format_content_reason
+from .token_counting import count_tokens
 from .utils import TextDetectionResult, detect_text, read_text
 
 if TYPE_CHECKING:
@@ -47,6 +48,7 @@ class FileAnalysis:
 
     lines: int
     chars: int
+    tokens: int
     include_content: bool
     content: str | None = None
     content_reason: dict[str, object] | None = None
@@ -78,10 +80,11 @@ class BaseFileHandler:
             rel,
             analysis.lines,
             analysis.chars,
+            analysis.tokens,
             content_reason=analysis.content_reason,
         )
         if analysis.include_content and analysis.content is not None:
-            builder.add_file(path, rel, analysis.lines, analysis.chars, analysis.content)
+            builder.add_file(path, rel, analysis.lines, analysis.chars, analysis.tokens, analysis.content)
 
     def _analyze(
         self,
@@ -116,6 +119,7 @@ class TextFileHandler(BaseFileHandler):
         content = deps.text_reader(path) if detection.content is None else detection.content
         line_count = len(content.splitlines())
         char_count = len(content)
+        token_count = count_tokens(content)
         decision = context.ignores.explain_content(path, is_dir=False)
         include = not decision.excluded
         reason_dict: dict[str, object] | None = None
@@ -124,6 +128,7 @@ class TextFileHandler(BaseFileHandler):
         return FileAnalysis(
             lines=line_count,
             chars=char_count,
+            tokens=token_count,
             include_content=include,
             content=content,
             content_reason=reason_dict,
@@ -165,6 +170,7 @@ class BinaryFileHandler(BaseFileHandler):
         return FileAnalysis(
             lines=0,
             chars=size,
+            tokens=0,
             include_content=False,
             content_reason=reason_dict,
         )

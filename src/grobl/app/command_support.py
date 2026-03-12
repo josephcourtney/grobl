@@ -22,6 +22,7 @@ from grobl.constants import (
 from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError, ScanInterrupted
 from grobl.ignore import LayeredIgnoreMatcher
+from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
 
 from .execution import ScanExecutor, ScanOptions
 from .legacy import scan_legacy_references
@@ -45,6 +46,7 @@ class ScanParams:
     payload_output: Path | None
     paths: tuple[Path, ...]
     repo_root: Path
+    visibility: MetadataVisibility = DEFAULT_METADATA_VISIBILITY
     pattern_base: Path | None = None
 
 
@@ -67,6 +69,7 @@ def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: Dire
     snapshot = builder.summary_totals()
     print(f"    total_lines       = {snapshot.total_lines}")
     print(f"    total_characters  = {snapshot.total_characters}")
+    print(f"    total_tokens      = {snapshot.total_tokens}")
     print(f"    exclude_patterns  = {builder.exclude_patterns}")
     print(")")
 
@@ -101,6 +104,7 @@ def execute_scan_with_handling(
                 summary_format=params.summary,
                 summary_style=summary_style,
                 repo_root=params.repo_root,
+                visibility=params.visibility,
                 pattern_base=params.pattern_base,
             ),
         )

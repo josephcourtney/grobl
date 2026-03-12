@@ -6,6 +6,7 @@ import pytest
 
 from grobl.directory import DirectoryTreeBuilder
 from grobl.file_handling import FileProcessingContext, ScanDependencies, TextFileHandler
+from grobl.token_counting import count_tokens
 from grobl.utils import TextDetectionResult
 from tests.support import build_ignore_matcher
 
@@ -75,6 +76,7 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
     inc_summary = m["inc.txt"]
     assert inc_summary.lines == 2
     assert inc_summary.chars == len("hello\nworld\n")
+    assert inc_summary.tokens == count_tokens("hello\nworld\n")
     assert inc_summary.included is True
     skip_summary = m["skip.txt"]
     assert skip_summary.included is False

@@ -241,6 +241,10 @@ The payload is always written to a clipboard or file destination (see below), no
 --summary-style {auto,full,compact}
 --summary-to {stderr,stdout,file}
 --summary-output PATH
+--lines/--no-lines
+--characters/--no-characters
+--tokens/--no-tokens
+--inclusion-status/--no-inclusion-status
 ```
 
 * `--summary auto` (default): behave like `table` when stdout is a TTY and like `none` otherwise.
@@ -263,6 +267,32 @@ The summary is independent of the payload:
 * You can have a payload without a summary (`--format json --summary none`).
 
 There is no separate `--quiet` flag; `--summary none` is the explicit way to suppress summary printing.
+
+### Metadata fields: what per-file details to emit
+
+```bash
+--lines/--no-lines
+--characters/--no-characters
+--tokens/--no-tokens
+--inclusion-status/--no-inclusion-status
+```
+
+These flags control whether scan outputs include line counts, character counts, token counts, and inclusion markers.
+
+They apply consistently across:
+
+* human table summaries
+* JSON payload and summary file entries
+* `<file:content ...>` attributes in LLM payloads
+* `%%%% BEGIN_FILE ...` metadata in Markdown payloads
+
+Example:
+
+```bash
+grobl scan --format json --summary none --output payload.json --no-tokens --no-inclusion-status
+```
+
+That run still emits paths and content, but omits token metadata and inclusion booleans from the machine-readable output.
 
 ### Payload destination: clipboard or file
 
@@ -553,11 +583,11 @@ Tag name (`directory` above) comes from `include_tree_tags` in config.
 
 ```xml
 <file root="PROJECT">
-<file:content name="src/main.py" lines="10" chars="120">
+<file:content name="src/main.py" lines="10" chars="120" tokens="31">
 def main():
     ...
 </file:content>
-<file:content name="README.md" lines="42" chars="1024">
+<file:content name="README.md" lines="42" chars="1024" tokens="221">
 # Title
 ...
 </file:content>
@@ -569,6 +599,9 @@ Each `<file:content>` element captures:
 * `name`: path relative to the root
 * `lines`: number of lines in the captured content
 * `chars`: number of characters in the captured content
+* `tokens`: number of tokens in the captured content using grobl's bundled tokenizer model
+
+These metadata attributes can be suppressed at scan time with `--no-lines`, `--no-characters`, or `--no-tokens`.
 
 Markdown code fences in `.md` files are escaped (` ``` ` → `\\````) inside the `content` so that the entire block can be safely embedded in another Markdown document.
 

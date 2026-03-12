@@ -85,3 +85,37 @@ def test_human_summary_notes_omitted_files(repo_root: Path) -> None:
     assert res.exit_code == 0
     assert "file contents omitted" in res.stderr
     assert "grobl explain <path>" in res.stderr
+
+
+def test_scan_metadata_visibility_flags_filter_json_output(repo_root: Path) -> None:
+    import json
+
+    (repo_root / "f.txt").write_text("data\n", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--format",
+            "json",
+            "--summary",
+            "none",
+            "--output",
+            "-",
+            "--no-lines",
+            "--no-tokens",
+            "--no-inclusion-status",
+        ],
+    )
+    assert res.exit_code == 0
+    payload = json.loads(res.stdout)
+    file_entry = payload["files"][0]
+    assert "chars" in file_entry
+    assert "lines" not in file_entry
+    assert "tokens" not in file_entry
+    assert "included" not in file_entry
+    totals = payload["summary"]["totals"]
+    assert "total_characters" in totals
+    assert "total_lines" not in totals
+    assert "total_tokens" not in totals

@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+## [2.2.0] - 2026-03-12
+
+### Added
+- add scan metadata visibility flags so lines, character counts, token counts, and inclusion markers can be independently omitted from payload metadata and summaries.
+
+## [2.1.0] - 2026-03-12
+
+### Added
+- add per-file token counts to scan payload metadata, summary JSON, markdown file headers, and human scan totals using the bundled tokenizer model.
+
 ## [2.0.0] - 2026-03-12
 
 ### Added

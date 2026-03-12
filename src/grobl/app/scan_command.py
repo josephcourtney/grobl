@@ -11,6 +11,7 @@ import click
 
 from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat, SummaryDestination, SummaryFormat
 from grobl.errors import ConfigLoadError
+from grobl.metadata_visibility import MetadataVisibility
 from grobl.output import build_writer_from_config
 
 from . import output_routing
@@ -54,6 +55,10 @@ def run_scan_command(  # noqa: PLR0914
     summary_style: str | None,
     summary_to: str,
     summary_output: Path | None,
+    show_lines: bool,
+    show_chars: bool,
+    show_tokens: bool,
+    show_inclusion_status: bool,
     ignore_defaults: bool,
     no_ignore_config: bool,
     no_ignore: bool,
@@ -90,6 +95,12 @@ def run_scan_command(  # noqa: PLR0914
         output=output,
         write_to_stdout=write_to_stdout,
         json_mode=json_mode,
+        visibility=MetadataVisibility(
+            lines=show_lines,
+            chars=show_chars,
+            tokens=show_tokens,
+            inclusion_status=show_inclusion_status,
+        ),
         requested_paths=requested_paths,
         repo_root=repo_root,
         pattern_base=config_base,
@@ -213,6 +224,7 @@ def build_scan_params(
     output: Path | None,
     write_to_stdout: bool,
     json_mode: bool,
+    visibility: MetadataVisibility,
     requested_paths: tuple[Path, ...],
     repo_root: Path,
     pattern_base: Path | None,
@@ -276,6 +288,7 @@ def build_scan_params(
         payload_output=payload_output,
         paths=requested_paths,
         repo_root=repo_root,
+        visibility=visibility,
         pattern_base=pattern_base,
     )
 

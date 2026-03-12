@@ -67,6 +67,10 @@ def test_readme_documents_scan_flags() -> None:
     assert "--summary-style {auto,full,compact}" in text
     assert "--summary-to {stderr,stdout,file}" in text
     assert "--summary-output PATH" in text
+    assert "--lines/--no-lines" in text
+    assert "--characters/--no-characters" in text
+    assert "--tokens/--no-tokens" in text
+    assert "--inclusion-status/--no-inclusion-status" in text
     assert "--copy" in text
     assert "--output PATH" in text
     assert "--stdout" in text

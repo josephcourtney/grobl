@@ -14,6 +14,7 @@ from grobl.file_handling import (
     FileProcessingContext,
     ScanDependencies,
 )
+from grobl.token_counting import count_tokens
 from grobl.utils import TextDetectionResult
 from tests.support import build_ignore_matcher
 
@@ -49,6 +50,7 @@ def test_file_collection_and_metadata(tmp_path: Path) -> None:
 
     inc_summary = meta["inc.txt"]
     assert inc_summary.lines == 2
+    assert inc_summary.tokens == count_tokens("hello\nworld\n")
     assert inc_summary.included is True
     skip_summary = meta["skip.txt"]
     assert skip_summary.included is False
@@ -92,6 +94,7 @@ def test_run_scan_handles_single_file_path(tmp_path: Path) -> None:
     assert "solo.txt" in meta
     solo_summary = meta["solo.txt"]
     assert solo_summary.lines == 2
+    assert solo_summary.tokens == count_tokens("line1\nline2\n")
     assert solo_summary.included is True
 
 
@@ -169,6 +172,7 @@ def test_run_scan_accepts_injected_dependencies(tmp_path: Path) -> None:
     assert reads == [sample]
     meta = dict(res.builder.metadata_items())
     assert meta["note.txt"].lines == 1
+    assert meta["note.txt"].tokens == count_tokens("hello")
 
 
 def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
@@ -187,7 +191,7 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
             is_text_file: bool,
             detection: TextDetectionResult,
         ) -> FileAnalysis:
-            return FileAnalysis(lines=0, chars=0, include_content=False)
+            return FileAnalysis(lines=0, chars=0, tokens=0, include_content=False)
 
     handlers = FileHandlerRegistry.default().extend((ZeroHandler(),))
     ignores = _make_ignores([tmp_path], repo_root=tmp_path)

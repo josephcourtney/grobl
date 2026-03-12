@@ -125,6 +125,7 @@ def test_execute_summary_none_returns_minimal_structure(tmp_path):
     totals = summary["totals"]
     assert totals["total_lines"] == 1
     assert totals["total_characters"] == len("hello\n")
+    assert totals["total_tokens"] > 0
 
 
 def test_execute_delegates_payload_emission(monkeypatch, tmp_path):

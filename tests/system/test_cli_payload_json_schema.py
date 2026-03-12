@@ -58,6 +58,6 @@ def test_json_payload_schema_by_scope(
         assert data["files"], "expected non-empty files list for this scope"
         for entry in data["files"]:
             # stable keys for entries
-            assert {"name", "path", "lines", "chars", "included", "content"} <= set(entry.keys())
+            assert {"name", "path", "lines", "chars", "tokens", "included", "content"} <= set(entry.keys())
     else:
         assert data["files"] == []

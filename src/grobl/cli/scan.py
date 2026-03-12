@@ -41,6 +41,9 @@ Examples:
   grobl scan --summary json --summary-to stdout --format none
     Emit only a machine-readable summary.
 
+  grobl scan --no-tokens --no-inclusion-status --format json --output payload.json
+    Omit selected metadata fields from emitted payload and summaries.
+
   grobl scan --exclude '*.min.js' --include 'vendor/**' src
     Exclude minified assets but re-include selected sources for this run.
 
@@ -82,6 +85,10 @@ def scan(
     summary_style: str | None,
     summary_to: str,
     summary_output: Path | None,
+    show_lines: bool,
+    show_chars: bool,
+    show_tokens: bool,
+    show_inclusion_status: bool,
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
@@ -110,6 +117,10 @@ def scan(
         summary_style=summary_style,
         summary_to=summary_to,
         summary_output=summary_output,
+        show_lines=show_lines,
+        show_chars=show_chars,
+        show_tokens=show_tokens,
+        show_inclusion_status=show_inclusion_status,
         scope=scope,
         paths=paths,
     )
