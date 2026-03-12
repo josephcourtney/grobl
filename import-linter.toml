@@ -1,0 +1,58 @@
+[tool.importlinter]
+root_package = "grobl"
+include_external_packages = false
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+id = "layering"
+name = "CLI depends downward"
+type = "layers"
+layers = [
+  "grobl.cli",
+  "grobl.services",
+  "grobl.core : grobl.renderers : grobl.summary : grobl.formatter : grobl.output : grobl.tty",
+  "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.config : grobl.utils : grobl.logging_utils",
+  "grobl.constants : grobl.errors : grobl._version : grobl.resources",
+]
+
+[[tool.importlinter.contracts]]
+id = "no-cli-in-low-level"
+name = "Low-level modules do not import CLI"
+type = "forbidden"
+source_modules = [
+  "grobl.core",
+  "grobl.directory",
+  "grobl.file_handling",
+  "grobl.ignore",
+  "grobl.provenance",
+  "grobl.config",
+  "grobl.utils",
+  "grobl.logging_utils",
+  "grobl.renderers",
+  "grobl.summary",
+  "grobl.formatter",
+  "grobl.output",
+  "grobl.tty",
+  "grobl.constants",
+  "grobl.errors",
+]
+forbidden_modules = ["grobl.cli"]
+
+[[tool.importlinter.contracts]]
+id = "cli-subcommands-independent"
+name = "CLI subcommands share helpers instead of importing each other"
+type = "independence"
+modules = [
+  "grobl.cli.scan",
+  "grobl.cli.explain",
+  "grobl.cli.init",
+  "grobl.cli.version",
+  "grobl.cli.completions",
+]
+ignore_imports = [
+  "grobl.cli.root -> grobl.cli.scan",
+  "grobl.cli.root -> grobl.cli.explain",
+  "grobl.cli.root -> grobl.cli.init",
+  "grobl.cli.root -> grobl.cli.version",
+  "grobl.cli.root -> grobl.cli.completions",
+]

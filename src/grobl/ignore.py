@@ -112,7 +112,7 @@ def _compile_patterns(patterns: Iterable[str]) -> tuple[CompiledPattern, ...]:
         neg = pat.startswith("!")
         core = pat[1:] if neg else pat
         # One-line spec, sequentially evaluated.
-        spec = PathSpec.from_lines("gitwildmatch", [core])
+        spec = PathSpec.from_lines("gitignore", [core])
         compiled.append(CompiledPattern(raw=pat, core=core, negated=neg, spec=spec))
     return tuple(compiled)
 

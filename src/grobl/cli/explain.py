@@ -5,34 +5,37 @@ from __future__ import annotations
 import json
 import operator
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import click
 
 from grobl.cli.common import ScanParams
-from grobl.cli.scan import (
-    _assemble_layered_ignores,
-    _ensure_paths_within_repo,
-    _expand_requested_paths,
-    _gather_runtime_ignore_patterns,
-    _global_cli_options,
-    _warn_legacy_ignore_flag,
-)
 from grobl.config import load_config, resolve_config_base
 from grobl.constants import (
     EXIT_CONFIG,
     ContentScope,
-    IgnorePolicy,
     PayloadFormat,
     SummaryFormat,
     TableStyle,
 )
 from grobl.errors import ConfigLoadError
 from grobl.provenance import exclusion_reason_to_dict, format_content_reason
-from grobl.utils import detect_text, resolve_repo_root
+from grobl.utils import detect_text
+
+from .options import add_ignore_options, add_paths_argument
+from .runtime import (
+    IgnoreCLIArgs,
+    assemble_layered_ignores,
+    ensure_paths_within_repo,
+    gather_runtime_ignore_patterns,
+    global_cli_options,
+    resolve_runtime_paths,
+    warn_legacy_ignore_flags,
+)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from grobl.ignore import LayeredIgnoreMatcher
 
 EXPLAIN_EPILOG = """\
@@ -130,47 +133,7 @@ def _explain_entry(abs_path: Path, ignores: LayeredIgnoreMatcher) -> dict[str, A
 
 
 @click.command(epilog=EXPLAIN_EPILOG)
-@click.option("--exclude", multiple=True, help="Add a tree+content exclude pattern")
-@click.option("--include", multiple=True, help="Add a tree+content include (negated) pattern")
-@click.option(
-    "--exclude-file",
-    "exclude_file",
-    multiple=True,
-    type=click.Path(path_type=Path, exists=False),
-    help="Exclude a specific file path (tree + content)",
-)
-@click.option(
-    "--include-file",
-    "include_file",
-    multiple=True,
-    type=click.Path(path_type=Path, exists=False),
-    help="Include a specific file path (tree + content; negated internally)",
-)
-@click.option("--exclude-tree", multiple=True, help="Add a tree-only exclude pattern")
-@click.option("--include-tree", multiple=True, help="Add a tree-only include (negated) pattern")
-@click.option(
-    "--exclude-content",
-    multiple=True,
-    help="Add a content-only exclude pattern (controls text capture)",
-)
-@click.option(
-    "--include-content",
-    multiple=True,
-    help="Add a content-only include (negated) pattern",
-)
-@click.option("--add-ignore", multiple=True, help="Additional ignore pattern for this run")
-@click.option(
-    "--remove-ignore",
-    multiple=True,
-    help="Unignore an ignore pattern for this run (runtime layer; last match wins)",
-)
-@click.option("--unignore", multiple=True, help="Ignore exception pattern for this run")
-@click.option(
-    "--ignore-file",
-    multiple=True,
-    type=click.Path(path_type=Path),
-    help="Read ignore patterns from file (one per line)",
-)
+@add_ignore_options
 @click.option(
     "--format",
     "explain_format",
@@ -178,9 +141,9 @@ def _explain_entry(abs_path: Path, ignores: LayeredIgnoreMatcher) -> dict[str, A
     default="markdown",
     help="Explain output format",
 )
-@click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
+@add_paths_argument
 @click.pass_context
-def explain(
+def explain(  # noqa: PLR0914
     ctx: click.Context,
     *,
     exclude: tuple[str, ...],
@@ -198,19 +161,25 @@ def explain(
     explain_format: str,
     paths: tuple[Path, ...],
 ) -> None:
-    global_options = _global_cli_options(ctx)
-    if add_ignore:
-        _warn_legacy_ignore_flag("--add-ignore", "--exclude (tree + content)")
-    if remove_ignore:
-        _warn_legacy_ignore_flag("--remove-ignore", "--include (tree + content)")
-    if unignore:
-        _warn_legacy_ignore_flag("--unignore", "--include (tree + content)")
-    if ignore_file:
-        _warn_legacy_ignore_flag("--ignore-file", "--exclude (tree + content)")
+    global_options = global_cli_options(ctx)
+    ignore_args = IgnoreCLIArgs.from_values(
+        exclude=exclude,
+        include=include,
+        exclude_file=exclude_file,
+        include_file=include_file,
+        exclude_tree=exclude_tree,
+        include_tree=include_tree,
+        exclude_content=exclude_content,
+        include_content=include_content,
+        add_ignore=add_ignore,
+        remove_ignore=remove_ignore,
+        unignore=unignore,
+        ignore_file=ignore_file,
+    )
+    warn_legacy_ignore_flags(ignore_args)
 
-    requested_paths = _expand_requested_paths(paths) if paths else (Path(),)
-    repo_root = resolve_repo_root(cwd=Path(), paths=requested_paths)
-    _ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
+    requested_paths, repo_root = resolve_runtime_paths(paths)
+    ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
     config_base = resolve_config_base(base_path=repo_root, explicit_config=global_options.config_path)
 
     (
@@ -220,16 +189,9 @@ def explain(
         runtime_include_tree,
         runtime_exclude_content,
         runtime_include_content,
-    ) = _gather_runtime_ignore_patterns(
+    ) = gather_runtime_ignore_patterns(
         repo_root=repo_root,
-        exclude=exclude,
-        include=include,
-        exclude_file=exclude_file,
-        include_file=include_file,
-        exclude_tree=exclude_tree,
-        include_tree=include_tree,
-        exclude_content=exclude_content,
-        include_content=include_content,
+        ignore_args=ignore_args,
     )
 
     try:
@@ -260,14 +222,11 @@ def explain(
         pattern_base=config_base,
     )
 
-    ignores = _assemble_layered_ignores(
+    ignores = assemble_layered_ignores(
         repo_root=repo_root,
         scan_paths=requested_paths,
         params=params,
-        ignore_policy=IgnorePolicy(global_options.ignore_policy),
-        ignore_defaults_flag=global_options.ignore_defaults_flag,
-        no_ignore_config_flag=global_options.no_ignore_config_flag,
-        no_ignore_flag=global_options.no_ignore_flag,
+        global_options=global_options,
         runtime_exclude=runtime_exclude,
         runtime_include=runtime_include,
         runtime_exclude_tree=runtime_exclude_tree,

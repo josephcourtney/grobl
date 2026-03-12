@@ -77,7 +77,7 @@ def test_traversal_order_and_exclude_patterns(tmp_path: Path) -> None:
     (tmp_path / "dir" / "ignore.me").write_text("x", encoding="utf-8")
 
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=["dir/ignore.*"])
-    spec = PathSpec.from_lines("gitwildmatch", builder.exclude_patterns)
+    spec = PathSpec.from_lines("gitignore", builder.exclude_patterns)
 
     def cb(item: Path, prefix: str, *, is_last: bool) -> bool:  # pragma: no cover - tiny callback
         rel = item.relative_to(tmp_path)
@@ -151,7 +151,7 @@ def test_double_star_excludes_any_depth(tmp_path: Path) -> None:
     (tmp_path / "keep.txt").write_text("k", encoding="utf-8")
 
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=["**/ignore.*"])
-    spec = PathSpec.from_lines("gitwildmatch", builder.exclude_patterns)
+    spec = PathSpec.from_lines("gitignore", builder.exclude_patterns)
 
     def cb(item: Path, prefix: str, *, is_last: bool) -> None:  # pragma: no cover - small callback
         rel = item.relative_to(tmp_path)
@@ -176,7 +176,7 @@ def test_traverse_dir_accepts_precompiled_spec(tmp_path: Path) -> None:
     (tmp_path / "ignored.txt").write_text("nope", encoding="utf-8")
 
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    spec = PathSpec.from_lines("gitwildmatch", ["ignored.txt"])
+    spec = PathSpec.from_lines("gitignore", ["ignored.txt"])
 
     def cb(item: Path, prefix: str, *, is_last: bool) -> bool:  # pragma: no cover - simple callback
         rel = item.relative_to(tmp_path)

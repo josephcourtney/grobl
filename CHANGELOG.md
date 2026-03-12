@@ -1,3 +1,25 @@
+## [Unreleased]
+
+## [1.0.36] - 2026-03-12
+
+### Added
+- add `import-linter` contracts that enforce CLI/application layering and prevent CLI subcommands from importing each other directly.
+
+### Changed
+- refactor shared CLI option and runtime helpers into dedicated modules so `scan` and `explain` stop sharing behavior through subcommand-to-subcommand imports.
+- replace deprecated `pathspec` `gitwildmatch` matching with the supported `gitignore` mode and tighten the repository quality scripts/docs around the new architecture checks.
+
+### Fixed
+- fix the changelog structure by restoring a valid `Unreleased` section, removing merge-marker corruption, and keeping release entries in descending order.
+- fix the README output-routing example so it matches the actual default summary destination.
+
+## [1.0.35] - 2026-01-15
+
+### Fixed
+- harden `detect_text` against 4 KB probe boundaries by using an incremental UTF-8 decoder that flushes buffered bytes so partial code points no longer mark files as binary.
+- log decoder/IO failures at `DEBUG` so `-vv`/`--log-level DEBUG` prints tracebacks when probing files.
+- add regression tests that cover both chunk-boundary and delayed invalid-UTF-8 failures to keep binary detection reliable.
+
 ## [1.0.34] - 2026-01-11
 
 ### Added
@@ -9,15 +31,6 @@
 ### Changed
 - thread CLI runtime edits through both tree and content layers (including `exclude_print`/`exclude_content`) and update documentation to clarify the tree vs content model, new flag surface, and legacy removal timeline.
 - enrich `--summary json` files entries with deterministic `content_reason` details (including `<non-text>` detection sentinels) and describe the new explain workflow, troubleshooting advice, and `docs/` content override in the README/SPEC so users know how to inspect or include those files
-
-## [Unreleased]
-
-## [1.0.35] - 2026-01-15
-
-### Fixed
-- harden `detect_text` against 4 KB probe boundaries by using an incremental UTF-8 decoder that flushes buffered bytes so partial code points no longer mark files as binary.
-- log decoder/IO failures at `DEBUG` so `-vv`/`--log-level DEBUG` prints tracebacks when probing files.
-- add regression tests that cover both chunk-boundary and delayed invalid-UTF-8 failures to keep binary detection reliable.
 
 ## [1.0.33] - 2026-01-08
 
@@ -42,6 +55,7 @@
 - align CLI regression suites with the SPEC by forcing scans to run inside repo roots, rejecting out-of-root targets, and updating summary/clipboard routing expectations based on the new helpers
 
 ## [1.0.30] - 2026-01-06
+
 ### Changed
 - finish the spec-aligned CLI surface for payload emission:
   - standardize `--format` to `llm|markdown|json|ndjson|none`
@@ -57,7 +71,6 @@
   - keep root help concise and render it exactly once per invocation
   - make `-V/--version` emit only the semantic version string with regression tests
 - adopt git-root-aware repo resolution to anchor config discovery and traversal bases for deterministic roots and ordering
-
 
 ## [1.0.29] - 2026-01-06
 
@@ -120,35 +133,41 @@
 
 ### Changed
 - refactor scan executor to delegate payload emission and summary shaping to dedicated helpers
+
 ## [1.0.18] - 2025-11-20
 
 ### Changed
 - refactor directory traversal configuration to use a `TraverseConfig` dataclass instead of overloaded tuples
+
 ## [1.0.17] - 2025-11-19
 
 ### Fixed
 - unify directory tree rendering annotation helpers to share fallbacks across metadata and markdown views
+
 ## [1.0.16] - 2025-11-18
 
 ### Fixed
 - escape XML/Markdown payload metadata and content in CLI outputs
+
 ## [1.0.15] - 2025-11-13
 
 ### Fixed
 - centralize BrokenPipe handling across CLI entry points using a shared helper
+
 ## [1.0.14] - 2025-11-17
 
 ### Fixed
 - allow filesystem root anchors to be used as scan roots without falling back to the current directory
+
 ## [1.0.13] - 2025-11-16
 
 ### Fixed
 - reuse text detection prefetched content to avoid reopening files during scans
+
 ## [1.0.12] - 2025-11-15
 
 ### Fixed
 - ensure invoking grobl without an explicit command routes CLI options to the default scan command
-
 
 ## [1.0.10] - 2025-11-13
 
@@ -161,7 +180,6 @@
 - add inclusion annotations to markdown directory trees indicating which files are included in the payload
 - omit markdown file metadata fields when values are obvious defaults or not defined (e.g. language unknown, kind=full)
 - trim extraneous trailing newlines from markdown file payload blocks to avoid blank lines before closing fences
-
 
 ## [1.0.8] - 2025-11-13
 
@@ -198,8 +216,6 @@
 
 ### Fixed
 - fix scan traversal to accept single-file inputs without raising directory errors
-
-=======
 
 ## [0.7.3] - 2025-10-18
 
@@ -240,15 +256,6 @@
 ### Documentation
 - clarify shell completion setup in the README and add an end-to-end workflow overview
 
-## [0.6.0] - 2025-08-28
-
-### Added
-- add `completions` subcommand to generate shell completion scripts (bash/zsh/fish)
-- document configuration precedence, heavy-dir warnings, exit codes, payload format, and usage in README
-
-### Changed
-- centralize TTY detection and clipboard decisions in `grobl.tty`
-- refine exit codes for path/config/usage errors and interrupt handling
 ## [0.7.0] - 2025-08-28
 
 ### Added
@@ -258,3 +265,13 @@
 
 ### Changed
 - change `grobl init` to write the default config preserving human-friendly formatting
+
+## [0.6.0] - 2025-08-28
+
+### Added
+- add `completions` subcommand to generate shell completion scripts (bash/zsh/fish)
+- document configuration precedence, heavy-dir warnings, exit codes, payload format, and usage in README
+
+### Changed
+- centralize TTY detection and clipboard decisions in `grobl.tty`
+- refine exit codes for path/config/usage errors and interrupt handling

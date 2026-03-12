@@ -56,7 +56,7 @@ Common workflows:
   grobl scan . --output context.txt
   ```
 
-  The payload goes to `context.txt`; the human summary is still printed to stdout.
+  The payload goes to `context.txt`; the human summary is still printed to stderr.
 
 * Show only a summary table (no payload):
 

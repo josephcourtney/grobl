@@ -168,10 +168,10 @@ complexity-raw:
   {{RADON}} raw {{PY_SRC}}
   @just _log_end complexity-raw
 
-# Code Quality: strict complexity check (fail on high-complexity blocks)
-complexity-strict MIN_COMPLEXITY="11":
+# Code Quality: strict complexity check (fail on blocks at or above a radon rank)
+complexity-strict MIN_RANK="C":
   @just _log_start complexity-strict
-  bash -euo pipefail -c 'echo "[complexity-strict] Failing if any block has cyclomatic complexity >= ${MIN_COMPLEXITY}"; output="$({{RADON}} cc -s -n {{MIN_COMPLEXITY}} {{PY_SRC}} || true)"; if [ -n "$output" ]; then echo "[complexity-strict] Found blocks with complexity >= ${MIN_COMPLEXITY}:"; echo "$output"; exit 1; fi; echo "[complexity-strict] All blocks are below complexity ${MIN_COMPLEXITY}."'
+  bash -euo pipefail -c 'echo "[complexity-strict] Failing if any block has radon rank >= {{MIN_RANK}}"; output="$({{RADON}} cc -s -n {{MIN_RANK}} {{PY_SRC}} || true)"; if [ -n "$output" ]; then echo "[complexity-strict] Found blocks with rank >= {{MIN_RANK}}:"; echo "$output"; exit 1; fi; echo "[complexity-strict] All blocks are below rank {{MIN_RANK}}."'
   @just _log_end complexity-strict
 
 # Code Quality: duplication detection
@@ -419,7 +419,7 @@ fix:
   @just lint
   @just format
   @just typecheck
-  # @just lint-imports
+  @just lint-imports
   @just build-docs
   @just test
   @just cov
@@ -440,7 +440,7 @@ check-dev:
   @just format-no-fix
   @just lint-no-fix
   @just typecheck
-  # @just lint-imports
+  @just lint-imports
   @just public-api
   @just test-strict
   @just cov
@@ -469,7 +469,7 @@ check-ci:
   @just format-no-fix
   @just lint-no-fix
   @just typecheck
-  # @just lint-imports
+  @just lint-imports
   @just public-api
   @just test-strict
   @just metrics-gate
@@ -495,4 +495,3 @@ check-full:
   @just _log_start check-full
   MODE=ci just check-ci
   @just _log_end check-full
-
