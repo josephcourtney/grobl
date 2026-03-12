@@ -9,5 +9,5 @@ from grobl import __version__
 
 @click.command()
 def version() -> None:
-    """Print version and exit."""
+    """Print the installed grobl version."""
     print(__version__)

@@ -18,6 +18,7 @@ from grobl.app.root_context import (
 
 from .completions import completions
 from .explain import explain
+from .help_format import LiteralEpilogGroup
 from .init import init
 from .scan import scan
 from .version import version
@@ -34,18 +35,23 @@ Default behavior:
 
 Examples:
   grobl
-  grobl .
-  grobl --help
+    Scan the current directory using the default interactive behavior.
+
   grobl src tests
-  grobl scan --format json --output payload.json
+    Build a prompt-ready snapshot from multiple paths.
+
   grobl scan --json
-  grobl scan --stdout --summary table
+    Emit a JSON payload to stdout with no summary.
+
   grobl explain README.md --format json
-  grobl explain docs --include-content 'docs/**'
+    Show inclusion and content-capture decisions for a specific path.
+
+  grobl init
+    Create a starter `.grobl.toml` in the current directory.
 """
 
 
-class RootGroup(click.Group):
+class RootGroup(LiteralEpilogGroup):
     """Group subclass that injects scan for path-like invocations."""
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
@@ -81,7 +87,7 @@ def cli(
     verbose: int,
     log_level: str | None,
 ) -> None:
-    """Scan directories and explain inclusion decisions."""
+    """Build prompt-ready project snapshots and explain filtering decisions."""
     logging.basicConfig(level=resolve_log_level(verbose=verbose, log_level=log_level), force=True)
 
 

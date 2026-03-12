@@ -11,8 +11,22 @@ from grobl.app.command_support import MAX_REF_PREVIEW, _scan_for_legacy_referenc
 from grobl.app.config_defaults import TOML_CONFIG, write_default_config
 from grobl.app.config_loading import LEGACY_TOML_CONFIG
 
+from .help_format import LiteralEpilogCommand
 
-@click.command()
+INIT_EPILOG = """\
+Examples:
+  grobl init
+    Create `.grobl.toml` in the current directory.
+
+  grobl init --path ..
+    Initialize the parent directory instead.
+
+  grobl init --force
+    Overwrite an existing config file.
+"""
+
+
+@click.command(cls=LiteralEpilogCommand, epilog=INIT_EPILOG)
 @click.option(
     "--path",
     "target",
@@ -22,14 +36,7 @@ from grobl.app.config_loading import LEGACY_TOML_CONFIG
 )
 @click.option("--force", is_flag=True, help="Overwrite an existing config file")
 def init(*, target: Path, force: bool) -> None:
-    """Create a default .grobl.toml in the target directory (no auto-creation elsewhere).
-
-    Examples
-    --------
-      grobl init
-      grobl init --path ..
-      grobl init --force
-    """
+    """Create a starter `.grobl.toml` in a target directory."""
     target = target.resolve()
     new = target / TOML_CONFIG
 

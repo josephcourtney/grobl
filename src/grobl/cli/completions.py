@@ -6,6 +6,8 @@ from typing import Final
 
 import click
 
+from .help_format import LiteralEpilogCommand
+
 COMPLETION_TEMPLATES: Final[dict[str, str]] = {
     "bash": (
         '_grobl_completion() {{ eval "$(env {var}=bash_source {prog} "$@")"; }}\n'
@@ -15,16 +17,28 @@ COMPLETION_TEMPLATES: Final[dict[str, str]] = {
     "fish": "eval (env {var}=fish_source {prog})",
 }
 
+COMPLETIONS_EPILOG = """\
+Examples:
+  grobl completions --shell bash
+    Print a Bash completion script to stdout.
 
-@click.command()
+  grobl completions --shell zsh > ~/.zfunc/_grobl
+    Save a Zsh completion file in a common location.
+
+  grobl completions --shell fish > ~/.config/fish/completions/grobl.fish
+    Install Fish completions for the current user.
+"""
+
+
+@click.command(cls=LiteralEpilogCommand, epilog=COMPLETIONS_EPILOG)
 @click.option(
     "--shell",
     type=click.Choice(["bash", "zsh", "fish"], case_sensitive=False),
     required=True,
-    help="Target shell to generate completion script for",
+    help="Shell to generate a completion script for",
 )
 def completions(shell: str) -> None:
-    """Print shell completion script for the given shell."""
+    """Print a shell completion script."""
     click.get_current_context(silent=True)
     prog = "grobl"
     var = "_GROBL_COMPLETE"

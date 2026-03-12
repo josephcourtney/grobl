@@ -8,6 +8,7 @@ import click
 
 from grobl.app.scan_command import run_scan_command
 
+from .help_format import LiteralEpilogCommand
 from .options import (
     add_config_option,
     add_ignore_options,
@@ -23,20 +24,32 @@ if TYPE_CHECKING:
 SCAN_EPILOG = """\
 Examples:
   grobl scan .
+    Scan the current directory using the default interactive behavior.
+
   grobl scan src tests --scope all
+    Build one payload from multiple paths.
+
   grobl scan --copy
-  grobl scan --format json --output payload.json
-  grobl scan --stdout --summary table
+    Force the payload to the clipboard.
+
   grobl scan --json
-  grobl scan --summary json --summary-to stdout
-  grobl scan --ignore-policy defaults
+    Emit a JSON payload to stdout with no summary.
+
+  grobl scan --stdout --summary table
+    Write the payload to stdout and keep the table summary on stderr.
+
+  grobl scan --summary json --summary-to stdout --format none
+    Emit only a machine-readable summary.
+
   grobl scan --exclude '*.min.js' --include 'vendor/**' src
-  grobl explain README.md --format json
+    Exclude minified assets but re-include selected sources for this run.
+
   grobl explain docs --include-content 'docs/**'
+    Verify why docs content is included or excluded before scanning.
 """
 
 
-@click.command(epilog=SCAN_EPILOG)
+@click.command(cls=LiteralEpilogCommand, epilog=SCAN_EPILOG)
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
@@ -72,7 +85,7 @@ def scan(
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
-    """Run a directory scan and delegate orchestration to the application layer."""
+    """Build a prompt-ready snapshot of a directory tree and file contents."""
     run_scan_command(
         ctx=ctx,
         exclude=exclude,

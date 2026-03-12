@@ -26,6 +26,7 @@ from grobl.constants import (
 )
 from grobl.errors import ConfigLoadError
 
+from .help_format import LiteralEpilogCommand
 from .options import add_config_option, add_ignore_options, add_ignore_policy_options, add_paths_argument
 
 if TYPE_CHECKING:
@@ -34,13 +35,20 @@ if TYPE_CHECKING:
 EXPLAIN_EPILOG = """\
 Examples:
   grobl explain .
-  grobl explain --format json src
-  grobl explain --include-content 'docs/**' docs
+    Show tree and content decisions for the current directory.
+
   grobl explain README.md --format human
+    Inspect one path in a human-readable form.
+
+  grobl explain --format json src
+    Emit machine-readable diagnostics for scripting.
+
+  grobl explain --include-content 'docs/**' docs
+    Verify an override before running a full scan.
 """
 
 
-@click.command(epilog=EXPLAIN_EPILOG)
+@click.command(cls=LiteralEpilogCommand, epilog=EXPLAIN_EPILOG)
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
@@ -72,6 +80,7 @@ def explain(
     explain_format: str,
     paths: tuple[Path, ...],
 ) -> None:
+    """Explain why paths are included or excluded for tree and content output."""
     ignore_args = IgnoreCLIArgs.from_values(
         exclude=exclude,
         include=include,
