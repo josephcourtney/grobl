@@ -9,9 +9,8 @@ from typing import TYPE_CHECKING
 import pytest
 from click.testing import CliRunner
 
-from grobl import tty
+from grobl.app import output_routing as app_routing
 from grobl.cli import cli
-from grobl.cli import scan as cli_scan
 from grobl.constants import EXIT_USAGE
 
 if TYPE_CHECKING:
@@ -51,10 +50,10 @@ def test_cli_scan_rejects_paths_outside_repo_root_even_if_root_dir(monkeypatch: 
         observed["base_path"] = base_path
         return {}
 
-    monkeypatch.setattr("grobl.cli.scan.load_config", fake_load_config)
-    monkeypatch.setattr("grobl.cli.scan.build_writer_from_config", lambda **_: lambda _text: None)
-    monkeypatch.setattr("grobl.cli.scan.resolve_table_style", lambda style: style)
-    monkeypatch.setattr("grobl.cli.scan._execute_with_handling", lambda **_: ("", {}))
+    monkeypatch.setattr("grobl.app.scan_command.load_config", fake_load_config)
+    monkeypatch.setattr("grobl.app.scan_command.build_writer_from_config", lambda **_: lambda _text: None)
+    monkeypatch.setattr("grobl.app.output_routing.resolve_table_style", lambda style: style)
+    monkeypatch.setattr("grobl.app.scan_command.execute_scan_with_handling", lambda **_: ("", {}))
 
     runner = CliRunner()
     result = runner.invoke(cli, ["scan", "/"])
@@ -483,11 +482,10 @@ def fake_clipboard(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 @pytest.fixture
 def patch_tty(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
-    # Patch both helpers used across codepaths (your tests already do this)
+    # Patch the application-layer TTY helper used by output routing.
 
     def _apply(*, is_tty: bool) -> None:
-        monkeypatch.setattr(tty, "stdout_is_tty", lambda: is_tty, raising=True)
-        monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: is_tty, raising=True)
+        monkeypatch.setattr(app_routing, "stdout_is_tty", lambda: is_tty, raising=True)
 
     return _apply
 

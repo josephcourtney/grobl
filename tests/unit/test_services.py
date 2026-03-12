@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl import services
+from grobl.app import execution as services
+from grobl.app.execution import ScanExecutor, ScanOptions
 from grobl.constants import (
     ContentScope,
     PayloadFormat,
     SummaryFormat,
     TableStyle,
 )
-from grobl.services import ScanExecutor, ScanOptions
 from tests.support import build_ignore_matcher
 
 pytestmark = pytest.mark.small

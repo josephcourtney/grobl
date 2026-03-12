@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING
 
 from pathspec import PathSpec
 
-from .config import TOML_CONFIG, load_toml_config
+from .config_defaults import TOML_CONFIG
+from .config_loading import load_toml_config
 from .constants import (
     CONFIG_EXCLUDE_CONTENT,
     CONFIG_EXCLUDE_PRINT,

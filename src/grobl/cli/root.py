@@ -9,17 +9,21 @@ from pathlib import Path
 import click
 
 from grobl import __version__
+from grobl.app.command_support import exit_on_broken_pipe
+from grobl.app.root_context import (
+    build_command_option_map,
+    inject_default_scan,
+    normalize_argv,
+    resolve_log_level,
+    store_root_context,
+)
 from grobl.constants import IgnorePolicy, PayloadFormat, SummaryDestination, SummaryFormat, TableStyle
 
-from .argv import build_command_option_map, inject_default_scan, normalize_argv
-from .common import exit_on_broken_pipe
 from .completions import completions
 from .explain import explain
 from .init import init
 from .scan import scan
 from .version import version
-
-VERBOSE_DEBUG_THRESHOLD = 2
 
 CLI_CONTEXT_SETTINGS = {
     "help_option_names": ["-h", "--help"],
@@ -149,42 +153,22 @@ def cli(
     ignore_policy: str,
 ) -> None:
     """Scan directories and emit LLM/Markdown/JSON payloads (default scan command)."""
-    # Stash global options for subcommands.
-    ctx = click.get_current_context(silent=True)
-    if ctx is not None:
-        ctx.obj = ctx.obj or {}
-        final_ignore_policy = ignore_policy
-        if final_ignore_policy == IgnorePolicy.AUTO.value:
-            if no_ignore:
-                final_ignore_policy = IgnorePolicy.NONE.value
-            elif no_ignore_config:
-                final_ignore_policy = IgnorePolicy.DEFAULTS.value
-            elif ignore_defaults:
-                final_ignore_policy = IgnorePolicy.CONFIG.value
-        ctx.obj.update({
-            "config_path": config_path,
-            "payload_format": payload_format,
-            "copy": copy,
-            "output": output,
-            "summary": summary,
-            "summary_style": summary_style,
-            "summary_to": summary_to,
-            "summary_output": summary_output,
-            "ignore_policy": final_ignore_policy,
-            "ignore_defaults_flag": ignore_defaults,
-            "no_ignore_config_flag": no_ignore_config,
-            "no_ignore_flag": no_ignore,
-        })
-    if log_level:
-        level = getattr(logging, log_level.upper())
-    elif verbose >= VERBOSE_DEBUG_THRESHOLD:
-        level = logging.DEBUG
-    elif verbose == 1:
-        level = logging.INFO
-    else:
-        level = logging.WARNING
-
-    logging.basicConfig(level=level, force=True)
+    store_root_context(
+        ctx=click.get_current_context(silent=True),
+        config_path=config_path,
+        payload_format=payload_format,
+        copy=copy,
+        output=output,
+        summary=summary,
+        summary_style=summary_style,
+        summary_to=summary_to,
+        summary_output=summary_output,
+        ignore_defaults=ignore_defaults,
+        no_ignore_config=no_ignore_config,
+        no_ignore=no_ignore,
+        ignore_policy=ignore_policy,
+    )
+    logging.basicConfig(level=resolve_log_level(verbose=verbose, log_level=log_level), force=True)
 
 
 def main(argv: list[str] | None = None) -> None:

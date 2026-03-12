@@ -7,9 +7,9 @@ from pathlib import Path
 
 import click
 
-from grobl.config import LEGACY_TOML_CONFIG, TOML_CONFIG, write_default_config
-
-from .common import MAX_REF_PREVIEW, _scan_for_legacy_references
+from grobl.app.command_support import MAX_REF_PREVIEW, _scan_for_legacy_references
+from grobl.app.config_defaults import TOML_CONFIG, write_default_config
+from grobl.app.config_loading import LEGACY_TOML_CONFIG
 
 
 @click.command()

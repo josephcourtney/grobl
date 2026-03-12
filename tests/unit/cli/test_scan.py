@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 from click.testing import BytesIOCopy, CliRunner
 
+from grobl.app import output_routing as app_routing
+from grobl.app import scan_command as app_scan
 from grobl.cli import scan as cli_scan
 from grobl.constants import SummaryDestination, SummaryFormat, TableStyle
 
@@ -11,25 +13,26 @@ pytestmark = pytest.mark.small
 
 @pytest.fixture(autouse=True)
 def _patch_scan_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli_scan, "load_config", lambda **_: {})
-    monkeypatch.setattr(cli_scan, "build_writer_from_config", lambda **_: lambda _payload: None)
-    monkeypatch.setattr(cli_scan, "resolve_table_style", lambda style: style)
+    monkeypatch.setattr(app_scan, "load_config", lambda **_: {})
+    monkeypatch.setattr(app_scan, "build_writer_from_config", lambda **_: lambda _payload: None)
+    monkeypatch.setattr(app_routing, "resolve_table_style", lambda style: style)
 
 
 def test_broken_pipe_does_not_traceback_and_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = CliRunner()
 
     monkeypatch.setattr(
-        cli_scan,
-        "_execute_with_handling",
+        app_scan,
+        "execute_scan_with_handling",
         lambda **kwargs: ("summary output", {"ok": True}),
         raising=True,
     )
-
-    def raising_summary_writer(_: str) -> None:
-        raise BrokenPipeError
-
-    monkeypatch.setattr(cli_scan, "_build_summary_writer", lambda **_: raising_summary_writer, raising=True)
+    monkeypatch.setattr(
+        app_scan,
+        "emit_scan_outputs",
+        lambda **kwargs: (_ for _ in ()).throw(BrokenPipeError),
+        raising=True,
+    )
 
     orig_getvalue = BytesIOCopy.getvalue
 

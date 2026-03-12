@@ -1,7 +1,7 @@
 # =================================== project ====================================
 [project]
   name = "grobl"
-  version = "1.0.36"
+  version = "1.0.38"
   description = "A tool to copy directory structure and file contents as a single string."
   readme = "README.md"
   authors = [
@@ -121,6 +121,7 @@
   test_categories_distribution_enforcement = "fail"
   asyncio_mode = "auto"
   filterwarnings = [
+    "error",
     "ignore::DeprecationWarning:some_known_third_party",
     "ignore:distutils Version classes are deprecated.*:DeprecationWarning:pytest_freezegun",
   ]

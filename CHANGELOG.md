@@ -1,5 +1,23 @@
 ## [Unreleased]
 
+## [1.0.38] - 2026-03-12
+
+### Added
+- add a `grobl.app` application layer for scan execution, explain rendering, root context handling, and root argv normalization so CLI modules delegate to shared app workflows instead of owning orchestration logic.
+
+### Changed
+- split broad configuration responsibilities into focused modules for bundled defaults, config loading, and runtime ignore edits while keeping `grobl.config` as a compatibility facade.
+- reduce `grobl.services` to a compatibility facade over the extracted application execution layer and tighten import-linter contracts around the new CLI-to-app boundary.
+
+## [1.0.37] - 2026-03-12
+
+### Added
+- add stricter `import-linter` contracts covering CLI shared helpers and application-service isolation from the CLI layer.
+
+### Changed
+- refactor CLI root context handling and scan output routing into dedicated modules so the remaining command modules are smaller and easier to test.
+- make pytest treat warnings as errors while keeping the existing third-party warning allowlist explicit in the test configuration.
+
 ## [1.0.36] - 2026-03-12
 
 ### Added

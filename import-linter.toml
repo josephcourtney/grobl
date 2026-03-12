@@ -5,19 +5,30 @@ exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
 id = "layering"
-name = "CLI depends downward"
+name = "CLI wraps application layer"
 type = "layers"
 layers = [
   "grobl.cli",
-  "grobl.services",
+  "grobl.app : grobl.config : grobl.services",
   "grobl.core : grobl.renderers : grobl.summary : grobl.formatter : grobl.output : grobl.tty",
-  "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.config : grobl.utils : grobl.logging_utils",
+  "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.utils : grobl.logging_utils",
   "grobl.constants : grobl.errors : grobl._version : grobl.resources",
 ]
 
 [[tool.importlinter.contracts]]
-id = "no-cli-in-low-level"
-name = "Low-level modules do not import CLI"
+id = "no-cli-in-app"
+name = "Application layer does not import CLI"
+type = "forbidden"
+source_modules = [
+  "grobl.app",
+  "grobl.config",
+  "grobl.services",
+]
+forbidden_modules = ["grobl.cli"]
+
+[[tool.importlinter.contracts]]
+id = "no-app-in-core"
+name = "Core and infrastructure do not depend on app layer"
 type = "forbidden"
 source_modules = [
   "grobl.core",
@@ -25,7 +36,6 @@ source_modules = [
   "grobl.file_handling",
   "grobl.ignore",
   "grobl.provenance",
-  "grobl.config",
   "grobl.utils",
   "grobl.logging_utils",
   "grobl.renderers",
@@ -36,7 +46,7 @@ source_modules = [
   "grobl.constants",
   "grobl.errors",
 ]
-forbidden_modules = ["grobl.cli"]
+forbidden_modules = ["grobl.app", "grobl.cli"]
 
 [[tool.importlinter.contracts]]
 id = "cli-subcommands-independent"
@@ -55,4 +65,24 @@ ignore_imports = [
   "grobl.cli.root -> grobl.cli.init",
   "grobl.cli.root -> grobl.cli.version",
   "grobl.cli.root -> grobl.cli.completions",
+]
+
+[[tool.importlinter.contracts]]
+id = "cli-shared-helpers-do-not-import-commands"
+name = "CLI shared helpers stay below command modules"
+type = "forbidden"
+source_modules = [
+  "grobl.cli.argv",
+  "grobl.cli.common",
+  "grobl.cli.context",
+  "grobl.cli.options",
+  "grobl.cli.routing",
+  "grobl.cli.runtime",
+]
+forbidden_modules = [
+  "grobl.cli.scan",
+  "grobl.cli.explain",
+  "grobl.cli.init",
+  "grobl.cli.version",
+  "grobl.cli.completions",
 ]

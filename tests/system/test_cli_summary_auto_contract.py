@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import pytest
 from click.testing import CliRunner
 
+from grobl.app import output_routing as app_routing
 from grobl.cli import cli
 
 if TYPE_CHECKING:
@@ -17,13 +18,9 @@ pytestmark = pytest.mark.small
 def test_summary_auto_contract(
     repo_root: Path, monkeypatch: pytest.MonkeyPatch, *, is_tty: bool, expect_summary: bool
 ) -> None:
-    from grobl import tty
-    from grobl.cli import scan as cli_scan
-
     (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
 
-    monkeypatch.setattr(tty, "stdout_is_tty", lambda: is_tty, raising=True)
-    monkeypatch.setattr(cli_scan, "stdout_is_tty", lambda: is_tty, raising=True)
+    monkeypatch.setattr(app_routing, "stdout_is_tty", lambda: is_tty, raising=True)
 
     res = CliRunner().invoke(cli, ["scan", str(repo_root), "--summary", "auto", "--output", "-"])
     assert res.exit_code == 0
