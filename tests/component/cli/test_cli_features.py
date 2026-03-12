@@ -50,3 +50,38 @@ def test_auto_table_compact_when_not_tty(repo_root: Path, monkeypatch: pytest.Mo
     # compact table prints simple totals; full table includes a title with spaces around
     assert "Total lines:" in summary_out
     assert " Project Summary " not in summary_out
+
+
+def test_scan_rejects_empty_work(repo_root: Path) -> None:
+    (repo_root / "f.txt").write_text("data", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(cli, ["scan", str(repo_root), "--format", "none", "--summary", "none"])
+    assert res.exit_code != 0
+    assert "nothing to do" in res.output
+    assert "Traceback" not in res.output
+
+
+def test_scan_json_alias_emits_json_to_stdout(repo_root: Path) -> None:
+    (repo_root / "f.txt").write_text("data", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(cli, ["scan", str(repo_root), "--json"])
+    assert res.exit_code == 0
+    assert '"files"' in res.stdout
+    assert "Total lines:" not in res.stdout
+
+
+def test_scan_stdout_alias_writes_payload_to_stdout(repo_root: Path) -> None:
+    (repo_root / "f.txt").write_text("data", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(cli, ["scan", str(repo_root), "--stdout", "--summary", "none"])
+    assert res.exit_code == 0
+    assert "<directory" in res.stdout
+
+
+def test_human_summary_notes_omitted_files(repo_root: Path) -> None:
+    (repo_root / "LICENSE").write_text("license text\n", encoding="utf-8")
+    runner = CliRunner()
+    res = runner.invoke(cli, ["scan", str(repo_root), "--summary", "table", "--format", "none"])
+    assert res.exit_code == 0
+    assert "file contents omitted" in res.stderr
+    assert "grobl explain <path>" in res.stderr

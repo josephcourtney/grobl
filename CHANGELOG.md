@@ -1,5 +1,20 @@
 ## [Unreleased]
 
+## [2.0.0] - 2026-03-12
+
+### Added
+- add `--stdout` and `--json` convenience flags so the common automation flows are directly discoverable from `grobl scan --help`.
+- add omission notes to human table summaries so users are told when file contents were filtered and directed to `grobl explain`.
+
+### Changed
+- make `grobl --help` render a real top-level command help page while keeping bare `grobl` path-like invocations as shorthand for `grobl scan`.
+- move scan execution and ignore-policy options onto `grobl scan` and `grobl explain` so subcommand help exposes the effective CLI surface directly.
+- make CLI misuse render normal Click usage errors instead of Python tracebacks, and reject `--format none --summary none` as an explicit no-op.
+- update README, usage docs, and the CLI spec to describe stderr-default summaries, the new convenience flags, and the explain-first troubleshooting workflow.
+
+### Removed
+- remove legacy ignore compatibility flags (`--add-ignore`, `--remove-ignore`, `--unignore`, `--ignore-file`) from the public CLI surface in favor of the include/exclude model.
+
 ## [1.0.38] - 2026-03-12
 
 ### Added

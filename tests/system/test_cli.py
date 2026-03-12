@@ -24,6 +24,9 @@ def test_cli_help_and_scan_help() -> None:
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "Usage" in result.output
+    assert "Commands:" in result.output
+    assert "scan" in result.output
+    assert "explain" in result.output
 
     scan_help = runner.invoke(cli, ["scan", "--help"])
     assert scan_help.exit_code == 0
@@ -87,7 +90,7 @@ def test_cli_root_invocation_forwards_scan_options(
             "--output",
             "-",
             "--ignore-defaults",
-            "--add-ignore",
+            "--exclude",
             "tests",
             str(base),
         ],
@@ -143,7 +146,7 @@ def test_cli_modes_human_payload_variants(
     assert "<directory" not in out_files
 
 
-def test_cli_ignore_file_hides_matching_entries(
+def test_cli_exclude_patterns_hide_matching_entries(
     repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -158,9 +161,6 @@ def test_cli_ignore_file_hides_matching_entries(
     logs.mkdir()
     (logs / "app.log").write_text("log\n", encoding="utf-8")
 
-    ignore_file = repo_root / "ignore.txt"
-    ignore_file.write_text("# comment\nlogs/**\nskip.txt\n", encoding="utf-8")
-
     runner = CliRunner()
     result = runner.invoke(
         cli,
@@ -174,8 +174,10 @@ def test_cli_ignore_file_hides_matching_entries(
             "--output",
             "-",
             "--ignore-defaults",
-            "--ignore-file",
-            str(ignore_file),
+            "--exclude",
+            "logs/**",
+            "--exclude",
+            "skip.txt",
         ],
     )
     assert result.exit_code == 0
@@ -186,7 +188,7 @@ def test_cli_ignore_file_hides_matching_entries(
     assert "logs/" not in out
 
 
-def test_cli_add_and_remove_ignore_roundtrip(
+def test_cli_include_overrides_exclude_roundtrip(
     repo_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -201,7 +203,7 @@ def test_cli_add_and_remove_ignore_roundtrip(
 
     runner = CliRunner()
 
-    # With an added ignore pattern, ignore.me should be excluded from the tree
+    # With an exclude pattern, ignore.me should be excluded from the tree.
     res_add = runner.invoke(
         cli,
         [
@@ -214,7 +216,7 @@ def test_cli_add_and_remove_ignore_roundtrip(
             "--output",
             "-",
             "--ignore-defaults",
-            "--add-ignore",
+            "--exclude",
             "dir/ignore.*",
         ],
     )
@@ -223,7 +225,7 @@ def test_cli_add_and_remove_ignore_roundtrip(
     assert "keep.txt" in out_add
     assert "ignore.me" not in out_add
 
-    # Adding then removing the same pattern should restore ignore.me
+    # Excluding then explicitly including the same pattern should restore ignore.me.
     res_roundtrip = runner.invoke(
         cli,
         [
@@ -236,9 +238,9 @@ def test_cli_add_and_remove_ignore_roundtrip(
             "--output",
             "-",
             "--ignore-defaults",
-            "--add-ignore",
+            "--exclude",
             "dir/ignore.*",
-            "--remove-ignore",
+            "--include",
             "dir/ignore.*",
         ],
     )
@@ -581,12 +583,14 @@ def test_payload_format_contract(repo_root: Path, fmt: str) -> None:
         cli,
         ["scan", str(repo_root), "--format", fmt, "--summary", "none", "--output", "-"],
     )
+    if fmt == "none":
+        assert res.exit_code == EXIT_USAGE
+        assert "nothing to do" in (res.stdout + res.stderr)
+        return
+
     assert res.exit_code == 0
 
     out = res.stdout
-    if fmt == "none":
-        assert out.strip() == ""
-        return
 
     assert out.endswith("\n")  # §11 trailing newline requirement (if you want it global)
 
@@ -837,7 +841,7 @@ def test_json_payload_and_json_summary_on_separate_streams_are_independently_val
     assert "totals" in summary
 
 
-def test_global_output_flags_work_before_or_after_command(
+def test_root_logging_flags_work_before_or_after_command(
     repo_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
@@ -845,16 +849,29 @@ def test_global_output_flags_work_before_or_after_command(
     (repo_root / "a.txt").write_text("x\n", encoding="utf-8")
     runner = CliRunner()
 
-    # flags after command
+    # scan flags live on the subcommand
     res1 = runner.invoke(
-        cli, ["scan", str(repo_root), "--format", "json", "--summary", "none", "--output", "-"]
+        cli,
+        ["scan", str(repo_root), "--format", "json", "--summary", "none", "--output", "-"],
     )
     assert res1.exit_code == 0
     json.loads(res1.stdout)
 
-    # flags before command (globals-anywhere)
+    # true root flags still work after the command
     res2 = runner.invoke(
-        cli, ["--format", "json", "--summary", "none", "--output", "-", "scan", str(repo_root)]
+        cli,
+        [
+            "scan",
+            "--log-level",
+            "DEBUG",
+            str(repo_root),
+            "--format",
+            "json",
+            "--summary",
+            "none",
+            "--output",
+            "-",
+        ],
     )
     assert res2.exit_code == 0
     json.loads(res2.stdout)

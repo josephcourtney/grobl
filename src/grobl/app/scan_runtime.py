@@ -6,11 +6,11 @@ import os
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import click
 
-from grobl.constants import IgnorePolicy, PayloadFormat, SummaryDestination, SummaryFormat
+from grobl.constants import IgnorePolicy
 from grobl.ignore import LayeredIgnoreMatcher, build_layered_ignores
 from grobl.utils import resolve_repo_root
 
@@ -19,22 +19,6 @@ from .config_runtime import apply_runtime_ignore_edits
 
 if TYPE_CHECKING:
     from grobl.app.command_support import ScanParams
-
-
-@dataclass(frozen=True, slots=True)
-class GlobalCLIOptions:
-    config_path: Path | None
-    payload_format: str
-    copy: bool
-    output: Path | None
-    summary: str
-    summary_style: str | None
-    summary_to: str
-    summary_output: Path | None
-    ignore_policy: str
-    ignore_defaults_flag: bool
-    no_ignore_config_flag: bool
-    no_ignore_flag: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,10 +31,6 @@ class IgnoreCLIArgs:
     include_tree: tuple[str, ...]
     exclude_content: tuple[str, ...]
     include_content: tuple[str, ...]
-    add_ignore: tuple[str, ...]
-    remove_ignore: tuple[str, ...]
-    unignore: tuple[str, ...]
-    ignore_file: tuple[Path, ...]
 
     @classmethod
     def from_values(
@@ -64,10 +44,6 @@ class IgnoreCLIArgs:
         include_tree: tuple[str, ...],
         exclude_content: tuple[str, ...],
         include_content: tuple[str, ...],
-        add_ignore: tuple[str, ...],
-        remove_ignore: tuple[str, ...],
-        unignore: tuple[str, ...],
-        ignore_file: tuple[Path, ...],
     ) -> IgnoreCLIArgs:
         return cls(
             exclude=exclude,
@@ -78,30 +54,7 @@ class IgnoreCLIArgs:
             include_tree=include_tree,
             exclude_content=exclude_content,
             include_content=include_content,
-            add_ignore=add_ignore,
-            remove_ignore=remove_ignore,
-            unignore=unignore,
-            ignore_file=ignore_file,
         )
-
-
-def global_cli_options(ctx: click.Context) -> GlobalCLIOptions:
-    root = ctx.find_root()
-    obj = root.obj or {}
-    return GlobalCLIOptions(
-        config_path=cast("Path | None", obj.get("config_path")),
-        payload_format=cast("str", obj.get("payload_format", PayloadFormat.LLM.value)),
-        copy=cast("bool", obj.get("copy", False)),
-        output=cast("Path | None", obj.get("output")),
-        summary=cast("str", obj.get("summary", SummaryFormat.AUTO.value)),
-        summary_style=cast("str | None", obj.get("summary_style")),
-        summary_to=cast("str", obj.get("summary_to", SummaryDestination.STDERR.value)),
-        summary_output=cast("Path | None", obj.get("summary_output")),
-        ignore_policy=cast("str", obj.get("ignore_policy", IgnorePolicy.AUTO.value)),
-        ignore_defaults_flag=cast("bool", obj.get("ignore_defaults_flag", False)),
-        no_ignore_config_flag=cast("bool", obj.get("no_ignore_config_flag", False)),
-        no_ignore_flag=cast("bool", obj.get("no_ignore_flag", False)),
-    )
 
 
 def expand_path_token(path: Path) -> Path:
@@ -114,17 +67,6 @@ def expand_path_token(path: Path) -> Path:
 def resolve_runtime_paths(paths: tuple[Path, ...]) -> tuple[tuple[Path, ...], Path]:
     requested_paths = tuple(expand_path_token(path) for path in paths) if paths else (Path(),)
     return requested_paths, resolve_repo_root(cwd=Path(), paths=requested_paths)
-
-
-def warn_legacy_ignore_flags(ignore_args: IgnoreCLIArgs) -> None:
-    if ignore_args.add_ignore:
-        click.echo("warning: --add-ignore is deprecated; use --exclude (tree + content)", err=True)
-    if ignore_args.remove_ignore:
-        click.echo("warning: --remove-ignore is deprecated; use --include (tree + content)", err=True)
-    if ignore_args.unignore:
-        click.echo("warning: --unignore is deprecated; use --include (tree + content)", err=True)
-    if ignore_args.ignore_file:
-        click.echo("warning: --ignore-file is deprecated; use --exclude (tree + content)", err=True)
 
 
 def gather_runtime_ignore_patterns(
@@ -179,7 +121,10 @@ def assemble_layered_ignores(
     repo_root: Path,
     scan_paths: tuple[Path, ...],
     params: ScanParams,
-    global_options: GlobalCLIOptions,
+    ignore_policy: str,
+    ignore_defaults_flag: bool,
+    no_ignore_config_flag: bool,
+    no_ignore_flag: bool,
     runtime_exclude: tuple[str, ...] = (),
     runtime_include: tuple[str, ...] = (),
     runtime_exclude_tree: tuple[str, ...] = (),
@@ -188,13 +133,16 @@ def assemble_layered_ignores(
     runtime_include_content: tuple[str, ...] = (),
 ) -> LayeredIgnoreMatcher:
     default_cfg = load_default_config()
-    effective_unignore = tuple(params.unignore) + tuple(params.remove_ignore)
-
     cli_ignore_used = bool(
-        params.add_ignore or params.remove_ignore or params.unignore or params.add_ignore_file
+        runtime_exclude
+        or runtime_include
+        or runtime_exclude_tree
+        or runtime_include_tree
+        or runtime_exclude_content
+        or runtime_include_content
     )
-    ignore_policy = IgnorePolicy(global_options.ignore_policy)
-    if ignore_policy is IgnorePolicy.NONE and cli_ignore_used:
+    ignore_policy_value = IgnorePolicy(ignore_policy)
+    if ignore_policy_value is IgnorePolicy.NONE and cli_ignore_used:
         msg = (
             "--ignore-policy none (or --no-ignore) disables all ignore rules, "
             "so CLI ignore flags may not be used.\n"
@@ -205,10 +153,10 @@ def assemble_layered_ignores(
     runtime_edits = apply_runtime_ignore_edits(
         base_tree=[],
         base_print=[],
-        add_ignore=params.add_ignore,
+        add_ignore=(),
         remove_ignore=(),
-        add_ignore_files=params.add_ignore_file,
-        unignore=effective_unignore,
+        add_ignore_files=(),
+        unignore=(),
         no_ignore=False,
         exclude=runtime_exclude,
         include=runtime_include,
@@ -218,7 +166,12 @@ def assemble_layered_ignores(
         include_content=runtime_include_content,
     )
 
-    include_defaults, include_config = _ignore_source_flags(global_options, ignore_policy=ignore_policy)
+    include_defaults, include_config = _ignore_source_flags(
+        ignore_policy=ignore_policy_value,
+        ignore_defaults_flag=ignore_defaults_flag,
+        no_ignore_config_flag=no_ignore_config_flag,
+        no_ignore_flag=no_ignore_flag,
+    )
     return build_layered_ignores(
         repo_root=repo_root,
         scan_paths=scan_paths,
@@ -245,17 +198,19 @@ def _path_to_runtime_pattern(path: Path, *, repo_root: Path) -> str:
 
 
 def _ignore_source_flags(
-    global_options: GlobalCLIOptions,
     *,
     ignore_policy: IgnorePolicy,
+    ignore_defaults_flag: bool,
+    no_ignore_config_flag: bool,
+    no_ignore_flag: bool,
 ) -> tuple[bool, bool]:
     include_defaults = False
     include_config = False
-    if global_options.no_ignore_flag:
+    if no_ignore_flag:
         return include_defaults, include_config
     if ignore_policy is IgnorePolicy.AUTO:
-        include_defaults = not global_options.ignore_defaults_flag
-        include_config = not global_options.no_ignore_config_flag
+        include_defaults = not ignore_defaults_flag
+        include_config = not no_ignore_config_flag
     elif ignore_policy is IgnorePolicy.ALL:
         include_defaults = True
         include_config = True

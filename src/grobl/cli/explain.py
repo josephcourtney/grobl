@@ -15,9 +15,7 @@ from grobl.app.scan_runtime import (
     assemble_layered_ignores,
     ensure_paths_within_repo,
     gather_runtime_ignore_patterns,
-    global_cli_options,
     resolve_runtime_paths,
-    warn_legacy_ignore_flags,
 )
 from grobl.constants import (
     EXIT_CONFIG,
@@ -28,7 +26,7 @@ from grobl.constants import (
 )
 from grobl.errors import ConfigLoadError
 
-from .options import add_ignore_options, add_paths_argument
+from .options import add_config_option, add_ignore_options, add_ignore_policy_options, add_paths_argument
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -43,6 +41,8 @@ Examples:
 
 
 @click.command(epilog=EXPLAIN_EPILOG)
+@add_config_option
+@add_ignore_policy_options
 @add_ignore_options
 @click.option(
     "--format",
@@ -64,14 +64,14 @@ def explain(
     include_tree: tuple[str, ...],
     exclude_content: tuple[str, ...],
     include_content: tuple[str, ...],
-    add_ignore: tuple[str, ...],
-    remove_ignore: tuple[str, ...],
-    unignore: tuple[str, ...],
-    ignore_file: tuple[Path, ...],
+    config_path: Path | None,
+    ignore_defaults: bool,
+    no_ignore_config: bool,
+    no_ignore: bool,
+    ignore_policy: str,
     explain_format: str,
     paths: tuple[Path, ...],
 ) -> None:
-    global_options = global_cli_options(ctx)
     ignore_args = IgnoreCLIArgs.from_values(
         exclude=exclude,
         include=include,
@@ -81,16 +81,11 @@ def explain(
         include_tree=include_tree,
         exclude_content=exclude_content,
         include_content=include_content,
-        add_ignore=add_ignore,
-        remove_ignore=remove_ignore,
-        unignore=unignore,
-        ignore_file=ignore_file,
     )
-    warn_legacy_ignore_flags(ignore_args)
 
     requested_paths, repo_root = resolve_runtime_paths(paths)
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
-    config_base = resolve_config_base(base_path=repo_root, explicit_config=global_options.config_path)
+    config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
     (
         runtime_exclude,
@@ -107,7 +102,7 @@ def explain(
     try:
         load_config(
             base_path=config_base,
-            explicit_config=global_options.config_path,
+            explicit_config=config_path,
             ignore_defaults=False,
         )
     except ConfigLoadError as err:
@@ -115,14 +110,9 @@ def explain(
         raise SystemExit(EXIT_CONFIG) from err
 
     params = ScanParams(
-        output=None,
-        add_ignore=add_ignore,
-        remove_ignore=remove_ignore,
-        unignore=unignore,
-        add_ignore_file=ignore_file,
         scope=ContentScope.ALL,
         summary_style=TableStyle.AUTO,
-        config_path=global_options.config_path,
+        config_path=config_path,
         payload=PayloadFormat.NONE,
         summary=SummaryFormat.NONE,
         payload_copy=False,
@@ -136,7 +126,10 @@ def explain(
         repo_root=repo_root,
         scan_paths=requested_paths,
         params=params,
-        global_options=global_options,
+        ignore_policy=ignore_policy,
+        ignore_defaults_flag=ignore_defaults,
+        no_ignore_config_flag=no_ignore_config,
+        no_ignore_flag=no_ignore,
         runtime_exclude=runtime_exclude,
         runtime_include=runtime_include,
         runtime_exclude_tree=runtime_exclude_tree,

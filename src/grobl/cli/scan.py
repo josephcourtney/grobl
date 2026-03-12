@@ -8,7 +8,14 @@ import click
 
 from grobl.app.scan_command import run_scan_command
 
-from .options import add_ignore_options, add_paths_argument, add_scope_option
+from .options import (
+    add_config_option,
+    add_ignore_options,
+    add_ignore_policy_options,
+    add_paths_argument,
+    add_scan_output_options,
+    add_scope_option,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -17,19 +24,23 @@ SCAN_EPILOG = """\
 Examples:
   grobl scan .
   grobl scan src tests --scope all
-  grobl scan --format llm --copy
+  grobl scan --copy
   grobl scan --format json --output payload.json
+  grobl scan --stdout --summary table
+  grobl scan --json
   grobl scan --summary json --summary-to stdout
   grobl scan --ignore-policy defaults
-  grobl scan --ignore-policy none
-  grobl scan --add-ignore '*.min.js' --unignore 'vendor/**' src
+  grobl scan --exclude '*.min.js' --include 'vendor/**' src
   grobl explain README.md --format json
   grobl explain docs --include-content 'docs/**'
 """
 
 
 @click.command(epilog=SCAN_EPILOG)
+@add_config_option
+@add_ignore_policy_options
 @add_ignore_options
+@add_scan_output_options
 @add_scope_option
 @add_paths_argument
 @click.pass_context
@@ -44,10 +55,20 @@ def scan(
     include_tree: tuple[str, ...],
     exclude_content: tuple[str, ...],
     include_content: tuple[str, ...],
-    add_ignore: tuple[str, ...],
-    remove_ignore: tuple[str, ...],
-    unignore: tuple[str, ...],
-    ignore_file: tuple[Path, ...],
+    config_path: Path | None,
+    ignore_defaults: bool,
+    no_ignore_config: bool,
+    no_ignore: bool,
+    ignore_policy: str,
+    payload_format: str,
+    copy: bool,
+    output: Path | None,
+    write_to_stdout: bool,
+    json_mode: bool,
+    summary: str,
+    summary_style: str | None,
+    summary_to: str,
+    summary_output: Path | None,
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
@@ -62,10 +83,20 @@ def scan(
         include_tree=include_tree,
         exclude_content=exclude_content,
         include_content=include_content,
-        add_ignore=add_ignore,
-        remove_ignore=remove_ignore,
-        unignore=unignore,
-        ignore_file=ignore_file,
+        config_path=config_path,
+        ignore_defaults=ignore_defaults,
+        no_ignore_config=no_ignore_config,
+        no_ignore=no_ignore,
+        ignore_policy=ignore_policy,
+        payload_format=payload_format,
+        copy=copy,
+        output=output,
+        write_to_stdout=write_to_stdout,
+        json_mode=json_mode,
+        summary=summary,
+        summary_style=summary_style,
+        summary_to=summary_to,
+        summary_output=summary_output,
         scope=scope,
         paths=paths,
     )

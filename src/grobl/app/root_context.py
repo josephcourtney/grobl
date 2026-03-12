@@ -1,16 +1,13 @@
-"""Root CLI argument normalization and context storage."""
+"""Root CLI argument normalization helpers."""
 
 from __future__ import annotations
 
 import logging
 import os
-from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
-
-from grobl.constants import IgnorePolicy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -22,68 +19,6 @@ VERBOSE_DEBUG_THRESHOLD = 2
 _HELP_FLAGS = {"-h", "--help"}
 _VERSION_FLAGS = {"-V", "--version"}
 _VERBOSE_FLAGS = {"--verbose"}
-
-
-@dataclass(frozen=True, slots=True)
-class RootContextOptions:
-    config_path: Path | None
-    payload_format: str
-    copy: bool
-    output: Path | None
-    summary: str
-    summary_style: str | None
-    summary_to: str
-    summary_output: Path | None
-    ignore_policy: str
-    ignore_defaults_flag: bool
-    no_ignore_config_flag: bool
-    no_ignore_flag: bool
-
-
-def store_root_context(
-    *,
-    ctx: click.Context | None,
-    config_path: Path | None,
-    payload_format: str,
-    copy: bool,
-    output: Path | None,
-    summary: str,
-    summary_style: str | None,
-    summary_to: str,
-    summary_output: Path | None,
-    ignore_defaults: bool,
-    no_ignore_config: bool,
-    no_ignore: bool,
-    ignore_policy: str,
-) -> None:
-    """Persist resolved root options for subcommands."""
-    if ctx is None:
-        return
-    final_ignore_policy = _effective_ignore_policy(
-        ignore_policy=ignore_policy,
-        ignore_defaults=ignore_defaults,
-        no_ignore_config=no_ignore_config,
-        no_ignore=no_ignore,
-    )
-    ctx.obj = ctx.obj or {}
-    ctx.obj.update(
-        asdict(
-            RootContextOptions(
-                config_path=config_path,
-                payload_format=payload_format,
-                copy=copy,
-                output=output,
-                summary=summary,
-                summary_style=summary_style,
-                summary_to=summary_to,
-                summary_output=summary_output,
-                ignore_policy=final_ignore_policy,
-                ignore_defaults_flag=ignore_defaults,
-                no_ignore_config_flag=no_ignore_config,
-                no_ignore_flag=no_ignore,
-            )
-        )
-    )
 
 
 def resolve_log_level(*, verbose: int, log_level: str | None) -> int:
@@ -139,15 +74,13 @@ def inject_default_scan(
 ) -> list[str]:
     """Insert ``scan`` when the first non-global token looks like a scan target."""
     normalized = list(args)
-    if command_names is None:
-        return normalized
-
-    known_commands = set(command_names)
-    if not known_commands:
-        return normalized
-
+    known_commands = set(command_names or ())
     pre = normalized[: normalized.index("--")] if "--" in normalized else normalized
-    if any(token in known_commands for token in pre):
+    if (
+        not known_commands
+        or any(token in known_commands for token in pre)
+        or any(token in _HELP_FLAGS for token in pre)
+    ):
         return normalized
 
     idx = _first_non_global_index(normalized)
@@ -156,36 +89,16 @@ def inject_default_scan(
         return normalized
 
     token = normalized[idx]
-    if token in known_commands:
-        return normalized
-    if _should_inject_for_token(token):
+    if token not in known_commands and _should_inject_for_token(token):
         normalized.insert(idx, DEFAULT_COMMAND)
         return normalized
 
     msg = (
         f"Unknown command: {token}\n"
-        "See `grobl --help`.\n"
+        "See `grobl --help` for available commands.\n"
         "If you meant to scan a path, ensure it exists or run `grobl scan <path>`."
     )
     raise click.UsageError(msg)
-
-
-def _effective_ignore_policy(
-    *,
-    ignore_policy: str,
-    ignore_defaults: bool,
-    no_ignore_config: bool,
-    no_ignore: bool,
-) -> str:
-    if ignore_policy != IgnorePolicy.AUTO.value:
-        return ignore_policy
-    if no_ignore:
-        return IgnorePolicy.NONE.value
-    if no_ignore_config:
-        return IgnorePolicy.DEFAULTS.value
-    if ignore_defaults:
-        return IgnorePolicy.CONFIG.value
-    return ignore_policy
 
 
 def _split_on_ddash(args: list[str]) -> tuple[list[str], list[str], bool]:
@@ -332,19 +245,6 @@ def _resolves_to_existing_path(token: str) -> bool:
 
 ROOT_FLAGS_WITH_VALUES = {
     "--log-level",
-    "--config",
-    "--format",
-    "--output",
-    "--summary",
-    "--summary-style",
-    "--summary-to",
-    "--summary-output",
-    "--ignore-policy",
 }
-ROOT_FLAGS_NO_VALUES = {
-    "--copy",
-    "--ignore-defaults",
-    "--no-ignore-config",
-    "--no-ignore",
-}
+ROOT_FLAGS_NO_VALUES = {}
 ROOT_EQUALS_FORMS = tuple(f"{flag}=" for flag in ROOT_FLAGS_WITH_VALUES)

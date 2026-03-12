@@ -8,7 +8,14 @@ from typing import Any
 
 import click
 
-from grobl.constants import ContentScope
+from grobl.constants import (
+    ContentScope,
+    IgnorePolicy,
+    PayloadFormat,
+    SummaryDestination,
+    SummaryFormat,
+    TableStyle,
+)
 
 CommandDecorator = Callable[[Callable[..., Any]], Callable[..., Any]]
 
@@ -41,18 +48,90 @@ _IGNORE_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
         multiple=True,
         help="Add a content-only include (negated) pattern",
     ),
-    click.option("--add-ignore", multiple=True, help="Additional ignore pattern for this run"),
+)
+
+_CONFIG_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
     click.option(
-        "--remove-ignore",
-        multiple=True,
-        help="Unignore an ignore pattern for this run (runtime layer; last match wins)",
-    ),
-    click.option("--unignore", multiple=True, help="Ignore exception pattern for this run"),
-    click.option(
-        "--ignore-file",
-        multiple=True,
+        "--config",
+        "config_path",
         type=click.Path(path_type=Path),
-        help="Read ignore patterns from file (one per line)",
+        help="Explicit config file path",
+    ),
+)
+
+_IGNORE_POLICY_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
+    click.option(
+        "-I",
+        "--ignore-defaults",
+        is_flag=True,
+        help="Disable bundled default ignore rules (alias for --ignore-policy config)",
+    ),
+    click.option(
+        "--no-ignore-config",
+        is_flag=True,
+        help="Disable ignore rules from discovered .grobl.toml files (alias for --ignore-policy defaults)",
+    ),
+    click.option(
+        "--no-ignore",
+        is_flag=True,
+        help="Disable all ignore patterns (alias for --ignore-policy none)",
+    ),
+    click.option(
+        "--ignore-policy",
+        type=click.Choice([p.value for p in IgnorePolicy], case_sensitive=False),
+        default=IgnorePolicy.AUTO.value,
+        help="Ignore source policy: auto|all|none|defaults|config|cli",
+    ),
+)
+
+_SCAN_OUTPUT_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
+    click.option(
+        "--format",
+        "payload_format",
+        type=click.Choice([p.value for p in PayloadFormat], case_sensitive=False),
+        default=PayloadFormat.LLM.value,
+        help="Payload format to emit",
+    ),
+    click.option("--copy", is_flag=True, help="Copy the payload to the clipboard"),
+    click.option(
+        "--output",
+        type=click.Path(path_type=Path),
+        help="Write the payload to a file path (use '-' for stdout).",
+    ),
+    click.option(
+        "--stdout",
+        "write_to_stdout",
+        is_flag=True,
+        help="Write the payload to stdout (shorthand for --output -)",
+    ),
+    click.option(
+        "--json",
+        "json_mode",
+        is_flag=True,
+        help="Emit machine-oriented JSON to stdout with no summary",
+    ),
+    click.option(
+        "--summary",
+        type=click.Choice([s.value for s in SummaryFormat], case_sensitive=False),
+        default=SummaryFormat.AUTO.value,
+        help="Summary mode to display",
+    ),
+    click.option(
+        "--summary-style",
+        type=click.Choice([t.value for t in TableStyle], case_sensitive=False),
+        default=None,
+        help="Summary table style (auto/full/compact; only valid with --summary table)",
+    ),
+    click.option(
+        "--summary-to",
+        type=click.Choice([d.value for d in SummaryDestination], case_sensitive=False),
+        default=SummaryDestination.STDERR.value,
+        help="Destination for summary output (defaults to stderr)",
+    ),
+    click.option(
+        "--summary-output",
+        type=click.Path(path_type=Path),
+        help="File path to write the summary when --summary-to file is selected",
     ),
 )
 
@@ -78,6 +157,16 @@ def add_ignore_options(func: Callable[..., Any]) -> Callable[..., Any]:
     return _apply_decorators(func, _IGNORE_OPTION_DECORATORS)
 
 
+def add_config_option(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Attach the shared config option to a subcommand."""
+    return _apply_decorators(func, _CONFIG_OPTION_DECORATORS)
+
+
+def add_ignore_policy_options(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Attach ignore source selection options to a subcommand."""
+    return _apply_decorators(func, _IGNORE_POLICY_OPTION_DECORATORS)
+
+
 def add_scope_option(func: Callable[..., Any]) -> Callable[..., Any]:
     """Attach the shared scan scope option."""
     decorators: tuple[CommandDecorator, ...] = (
@@ -94,3 +183,8 @@ def add_scope_option(func: Callable[..., Any]) -> Callable[..., Any]:
 def add_paths_argument(func: Callable[..., Any]) -> Callable[..., Any]:
     """Attach the shared paths argument."""
     return _PATHS_ARGUMENT(func)
+
+
+def add_scan_output_options(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Attach the payload/summary routing options used by ``scan``."""
+    return _apply_decorators(func, _SCAN_OUTPUT_OPTION_DECORATORS)

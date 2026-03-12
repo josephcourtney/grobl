@@ -15,10 +15,10 @@ With default options and an interactive terminal, grobl writes the payload to th
 ### Save a payload to disk
 
 ```bash
-grobl --output context.txt
+grobl scan --output context.txt
 ```
 
-Equivalent to `grobl scan . --output context.txt`. The payload is written to `context.txt` and the summary remains on stdout.
+The payload is written to `context.txt` and the summary remains on stderr.
 
 ### Emit only a summary
 
@@ -33,10 +33,18 @@ Use `--summary-to stdout` to combine the summary with stdout or `--summary-to fi
 ### Machine-oriented output
 
 ```bash
-grobl scan --format json --summary none --output -
+grobl scan --json
 ```
 
 Produces a JSON payload with no human summary and writes it directly to stdout.
+
+### Payload to stdout with operator feedback
+
+```bash
+grobl scan --stdout --summary table
+```
+
+Writes the payload to stdout while keeping the human summary on stderr.
 
 ## Subcommands
 
@@ -64,7 +72,7 @@ Refer to the README for shell-specific installation guidance.
 
 ### Ignore controls
 
-The `scan` command exposes `--exclude` / `--include` for tree+content rules; `--include` is emitted as a gitignore-style negation (`!PATTERN`). Use scoped variants (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) when you only want to affect tree visibility or content capture. `--exclude-file` / `--include-file` normalize the provided path into a repository-root-relative pattern that matches the exact file or directory (directories append `/` automatically). Legacy ignore flags (`--add-ignore`, `--remove-ignore`, `--unignore`, `--ignore-file`) still function but emit a deprecation warning and will be removed in a future major release. `--no-ignore` disables every ignore rule (tree + content).
+The `scan` command exposes `--exclude` / `--include` for tree+content rules; `--include` is emitted as a gitignore-style negation (`!PATTERN`). Use scoped variants (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) when you only want to affect tree visibility or content capture. `--exclude-file` / `--include-file` normalize the provided path into a repository-root-relative pattern that matches the exact file or directory (directories append `/` automatically). `--no-ignore` disables every ignore rule (tree + content).
 
 ## Global CLI options
 

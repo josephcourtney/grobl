@@ -87,11 +87,19 @@ def build_summary_for_format(
 
     snapshot = builder.summary_totals()
     tree_lines = renderer.tree_lines(include_metadata=True)
+    omitted_files = [record for _, record in snapshot.iter_files() if not record.included]
+    notes: list[str] = []
+    if omitted_files:
+        notes.append(
+            f"{len(omitted_files)} file contents omitted by filters or text detection; "
+            "run `grobl explain <path>` for details."
+        )
     human_summary_text = human_formatter(
         tree_lines=tree_lines,
         total_lines=snapshot.total_lines,
         total_chars=snapshot.total_characters,
         table=options.summary_style.value,
+        notes=notes,
     )
     return human_summary_text, base_summary
 

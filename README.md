@@ -2,6 +2,14 @@
 
 grobl is a command-line utility that condenses a directory into a concise context payload for LLMs. It scans input paths, builds a directory tree, collects text file contents (with metadata), and emits a well-structured payload while respecting ignore patterns.
 
+## Principles
+
+grobl optimizes for three things:
+
+* prompt-ready output for humans and LLM tooling
+* deterministic machine-readable payloads and summaries
+* explainable exclusions via `grobl explain`
+
 ## Documentation
 
 Project documentation is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). To work on the docs locally, install the development dependencies and launch the preview server:
@@ -47,13 +55,7 @@ Common workflows:
 * Save payload to a file:
 
   ```bash
-  grobl --output context.txt
-  ```
-
-  This is equivalent to:
-
-  ```bash
-  grobl scan . --output context.txt
+  grobl scan --output context.txt
   ```
 
   The payload goes to `context.txt`; the human summary is still printed to stderr.
@@ -73,12 +75,18 @@ grobl scan --format none --summary json
 * Emit a JSON payload and no summary (machine-only):
 
   ```bash
-grobl scan --format json --summary none --output -
+  grobl scan --json
+  ```
+
+* Emit a payload to stdout while keeping the human summary on stderr:
+
+  ```bash
+  grobl scan --stdout --summary table
   ```
 
 ## Commands
 
-The `grobl` entry point behaves like `grobl scan` when no subcommand is given.
+The `grobl` entry point behaves like `grobl scan` when no subcommand is given, but `grobl --help` shows the real top-level command list.
 
 ### `grobl scan [OPTIONS] [PATHS...]`
 
@@ -212,6 +220,8 @@ Scope affects:
 
 ```bash
 --format {llm,markdown,json,ndjson,none}
+--stdout
+--json
 ```
 
 * `llm` (default): emit an XML-like, LLM-oriented payload (see **LLM payload format** below)
@@ -219,6 +229,8 @@ Scope affects:
 * `json`: emit a structured JSON payload (see **JSON formats** below)
 * `ndjson`: emit the same summary data as JSON but as newline-delimited records with stable key ordering
 * `none`: do not emit any payload; only build a summary (if enabled)
+* `--stdout`: shorthand for `--output -`
+* `--json`: shorthand for `--format json --summary none --output -`
 
 The payload is always written to a clipboard or file destination (see below), not to stderr. If you choose `--format none` and also disable the summary (`--summary none`), grobl exits with a usage error (there would be nothing to do).
 
@@ -243,6 +255,7 @@ The payload is always written to a clipboard or file destination (see below), no
 Summary routing uses `--summary-to`. The default destination is `stderr`, keeping the summary separate from payload streams.
 `--summary-to stdout` routes the summary into stdout (useful for simple scripts) and `--summary-to file` requires `--summary-output PATH` to write the summary to disk.
 When the payload already writes to stdout (for example via `--output -`), the summary remains on stderr unless you explicitly route it elsewhere.
+When files are present in the tree but their contents are omitted, the human table summary adds a short note pointing to `grobl explain`.
 
 The summary is independent of the payload:
 
@@ -256,23 +269,25 @@ There is no separate `--quiet` flag; `--summary none` is the explicit way to sup
 ```bash
 --copy
 --output PATH
+--stdout
 ```
 
 * When neither `--copy` nor `--output` is provided, the payload is written to the clipboard (the default).
-* `--copy` forces clipboard delivery and cannot be combined with `--output`.
+* `--copy` forces clipboard delivery and cannot be combined with `--output` or `--stdout`.
 * `--output -` writes the payload to stdout.
+* `--stdout` writes the payload to stdout.
 * `--output PATH` writes the payload to the specified file.
 
-The **summary** is always printed to stdout (unless `--summary none`) regardless of the payload destination. This makes it easy to both pipe or capture payloads while still seeing a quick human or JSON summary.
+The **summary** defaults to `stderr`, not stdout. This keeps operator feedback separate from payload streams.
 
 Examples:
 
 ```bash
-# Default interactive workflow: payload to clipboard, human summary to stdout
+# Default interactive workflow: payload to clipboard, human summary to stderr
 grobl scan .
 
 # Payload to stdout, no summary (ideal for tools)
-grobl scan --format json --summary none --output -
+grobl scan --json
 
 # Human summary only (no payload)
 grobl scan --format none --summary table
@@ -280,7 +295,7 @@ grobl scan --format none --summary table
 # JSON summary only
 grobl scan --format none --summary json
 
-# Payload to a file, human summary to stdout
+# Payload to a file, human summary to stderr
 grobl scan --output context.txt
 
 # Payload to a file in a specific format
@@ -304,10 +319,6 @@ Configuration and ignore behavior are shared across all scan modes:
 --include-content PATTERN # content-only include (`!PATTERN`)
 --exclude-file PATH      # exclude an exact repo-relative path (directories include the subtree)
 --include-file PATH      # include an exact repo-relative path
---ignore-file PATH       # read extra ignore patterns (deprecated; use --exclude/--include)
---add-ignore PATTERN     # deprecated; use --exclude PATTERN
---remove-ignore PATTERN  # deprecated; use --include PATTERN
---unignore PATTERN       # deprecated; use --include PATTERN
 --config PATH            # explicit config file path (highest precedence, must exist)
 --ignore-policy {auto,all,none,defaults,config,cli}  # choose which ignore sources apply
 ```
@@ -318,7 +329,6 @@ Rules:
 * `--exclude` / `--include` target both scopes; `--include` is folded into a negated gitignore-style rule (`!PATTERN`).
 * Scoped flags (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) only impact the indicated scope.
 * `--exclude-file` / `--include-file` normalize `PATH` to a repository-root-relative, POSIX-style pattern and match that exact path (directories append `/` to cover the subtree).
-* Legacy ignore flags (`--ignore-file`, `--add-ignore`, `--remove-ignore`, `--unignore`) still work for compatibility but emit a warning pointing to the new flags and will be removed in the next major release.
 * `--config PATH` must point to an existing file; if it does not, grobl treats this as a configuration error and exits.
 * `--ignore-policy` selects the ignore sources:
   * `auto`: defaults + config + CLI
@@ -410,7 +420,6 @@ CLI overrides:
 * `--exclude-tree` / `--include-tree`: scope excludes/includes to the tree alone.
 * `--exclude-content` / `--include-content`: scope excludes/includes to the content capture layer.
 * `--exclude-file` / `--include-file`: normalize `PATH` to a repository-root-relative pattern that matches that exact path (directories append `/`).
-* Legacy ignore flags (`--add-ignore`, `--remove-ignore`, `--unignore`, `--ignore-file`) still work for compatibility but emit a warning and will be removed in the next major release.
 
 Example:
 
@@ -500,15 +509,15 @@ instead of `<directory>` / `<file>`.
    * Depending on `--scope`, `--format`, `--summary`, and the destination flags:
 
      * The selected payload is emitted to the clipboard or the requested file/stdout.
-     * A human or JSON summary is printed to stdout (unless `--summary none`).
+     * A human or JSON summary is printed to the requested summary destination (stderr by default, unless `--summary none`).
 
 ## Output destinations and clipboard behavior
 
-grobl copies payloads to the clipboard by default. Use `--copy` to force clipboard delivery, or `--output PATH` (use `-` for stdout) to write directly to a file or the terminal. `--copy` and `--output` cannot be used together; doing so emits a usage error.
+grobl copies payloads to the clipboard by default. Use `--copy` to force clipboard delivery, `--output PATH` (use `-` for stdout) to write directly to a file or the terminal, or `--stdout` as a convenience shorthand. `--copy`, `--output`, and `--stdout` are mutually exclusive payload destinations.
 
 When writing to the clipboard fails (e.g., missing backend), grobl logs a structured warning and re-raises the exception so the failure is visible to the caller.
 
-The summary is printed to stdout independently, unless suppressed by `--summary none`.
+The summary is routed independently and defaults to stderr unless suppressed by `--summary none`.
 
 ### Broken pipes
 
@@ -575,7 +584,7 @@ Which blocks appear is controlled by `--scope`:
 
 grobl uses JSON in two ways:
 
-1. **JSON summary** – printed to stdout when `--summary json`
+1. **JSON summary** – printed to the selected summary destination when `--summary json`
 2. **JSON payload** – written to the selected destination when `--format json`
 
 ### JSON summary schema

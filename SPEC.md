@@ -378,17 +378,9 @@ If supported:
 
 CLI-provided rules **MUST** be applied in left-to-right order as they appear in the command line (argv), independent of option grouping.
 
-### 7.6 Deprecated Legacy Ignore Flags
+### 7.6 Ignore Flag Surface
 
-If the CLI supports legacy flags using “ignore/unignore” terminology (e.g. `--add-ignore`, `--unignore`, `--remove-ignore`, `--ignore-file`), they **MUST** remain functional for compatibility.
-
-Behavioral requirements:
-
-* Legacy flags **MUST** map onto the include/exclude model described in §7.2–§7.5.
-* Legacy flags **SHOULD** emit a deprecation warning that points users to the equivalent `--exclude*` / `--include*` flags.
-* Deprecation warnings **MUST** be emitted to the summary stream destination (or stderr if no summary destination applies).
-
-This specification does not require a particular removal timeline; if one exists, it **MUST** be documented in release notes.
+The CLI **MUST NOT** require legacy “ignore/unignore” compatibility flags. The supported public surface is the include/exclude model described in §7.2–§7.5.
 
 ### 7.7 Config Keys for Two Scopes
 

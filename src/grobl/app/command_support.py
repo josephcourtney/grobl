@@ -36,11 +36,6 @@ MAX_REF_PREVIEW = 50
 
 @dataclass(frozen=True, slots=True)
 class ScanParams:
-    output: Path | None
-    add_ignore: tuple[str, ...]
-    remove_ignore: tuple[str, ...]
-    unignore: tuple[str, ...]
-    add_ignore_file: tuple[Path, ...]
     scope: ContentScope
     summary_style: TableStyle
     config_path: Path | None

@@ -69,5 +69,7 @@ def test_readme_documents_scan_flags() -> None:
     assert "--summary-output PATH" in text
     assert "--copy" in text
     assert "--output PATH" in text
+    assert "--stdout" in text
+    assert "--json" in text
     assert "--ignore-policy {auto,all,none,defaults,config,cli}" in text
     assert "--mode" not in text

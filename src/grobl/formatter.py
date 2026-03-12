@@ -7,10 +7,13 @@ def human_summary(
     total_chars: int,
     *,
     table: str = "full",
+    notes: list[str] | None = None,
 ) -> str:
     """Build a human-readable summary table and return it as a string."""
+    notes = [] if notes is None else notes
     if table == "compact":
-        return f"Total lines: {total_lines}\nTotal characters: {total_chars}\n"
+        note_lines = "".join(f"Note: {note}\n" for note in notes)
+        return f"{note_lines}Total lines: {total_lines}\nTotal characters: {total_chars}\n"
 
     max_width = max(len(line) for line in tree_lines) if tree_lines else len(" Project Summary ")
     title = " Project Summary "
@@ -23,6 +26,7 @@ def human_summary(
         "─" * max_width,
         f"Total lines: {total_lines}",
         f"Total characters: {total_chars}",
-        "═" * max_width,
     ))
+    out.extend(f"Note: {note}" for note in notes)
+    out.append("═" * max_width)
     return "\n".join(out) + ("\n" if out else "")

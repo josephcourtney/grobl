@@ -80,11 +80,6 @@ class _DummyExecRaises:
 
 def _params_for(tmp_path: Path) -> ccommon.ScanParams:
     return ccommon.ScanParams(
-        output=None,
-        add_ignore=(),
-        remove_ignore=(),
-        unignore=(),
-        add_ignore_file=(),
         scope=ContentScope.ALL,
         summary_style=TableStyle.COMPACT,
         config_path=None,

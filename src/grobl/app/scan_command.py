@@ -9,7 +9,7 @@ from typing import cast
 
 import click
 
-from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat
+from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat, SummaryDestination, SummaryFormat
 from grobl.errors import ConfigLoadError
 from grobl.output import build_writer_from_config
 
@@ -29,9 +29,7 @@ from .scan_runtime import (
     assemble_layered_ignores,
     ensure_paths_within_repo,
     gather_runtime_ignore_patterns,
-    global_cli_options,
     resolve_runtime_paths,
-    warn_legacy_ignore_flags,
 )
 
 
@@ -46,15 +44,24 @@ def run_scan_command(  # noqa: PLR0914
     include_tree: tuple[str, ...],
     exclude_content: tuple[str, ...],
     include_content: tuple[str, ...],
-    add_ignore: tuple[str, ...],
-    remove_ignore: tuple[str, ...],
-    unignore: tuple[str, ...],
-    ignore_file: tuple[Path, ...],
+    config_path: Path | None,
+    payload_format: str,
+    copy: bool,
+    output: Path | None,
+    write_to_stdout: bool,
+    json_mode: bool,
+    summary: str,
+    summary_style: str | None,
+    summary_to: str,
+    summary_output: Path | None,
+    ignore_defaults: bool,
+    no_ignore_config: bool,
+    no_ignore: bool,
+    ignore_policy: str,
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
     """Execute the scan workflow from validated CLI inputs."""
-    global_options = global_cli_options(ctx)
     ignore_args = IgnoreCLIArgs.from_values(
         exclude=exclude,
         include=include,
@@ -64,36 +71,25 @@ def run_scan_command(  # noqa: PLR0914
         include_tree=include_tree,
         exclude_content=exclude_content,
         include_content=include_content,
-        add_ignore=add_ignore,
-        remove_ignore=remove_ignore,
-        unignore=unignore,
-        ignore_file=ignore_file,
     )
-    warn_legacy_ignore_flags(ignore_args)
 
     cwd = Path()
     requested_paths, repo_root = resolve_runtime_paths(paths)
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
-    config_base = resolve_config_base(base_path=repo_root, explicit_config=global_options.config_path)
-
-    if global_options.copy and global_options.output is not None:
-        msg = "--copy cannot be combined with --output"
-        raise click.UsageError(msg, ctx=ctx)
+    config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
     params = build_scan_params(
         ctx=ctx,
-        config_path=global_options.config_path,
+        config_path=config_path,
         scope=scope,
-        payload_format=global_options.payload_format,
-        summary=global_options.summary,
-        summary_style=global_options.summary_style,
-        summary_to=global_options.summary_to,
-        copy=global_options.copy,
-        output=global_options.output,
-        add_ignore=add_ignore,
-        remove_ignore=remove_ignore,
-        unignore=unignore,
-        ignore_file=ignore_file,
+        payload_format=payload_format,
+        summary=summary,
+        summary_style=summary_style,
+        summary_to=summary_to,
+        copy=copy,
+        output=output,
+        write_to_stdout=write_to_stdout,
+        json_mode=json_mode,
         requested_paths=requested_paths,
         repo_root=repo_root,
         pattern_base=config_base,
@@ -125,7 +121,10 @@ def run_scan_command(  # noqa: PLR0914
         repo_root=repo_root,
         scan_paths=requested_paths,
         params=params,
-        global_options=global_options,
+        ignore_policy=ignore_policy,
+        ignore_defaults_flag=ignore_defaults,
+        no_ignore_config_flag=no_ignore_config,
+        no_ignore_flag=no_ignore,
         runtime_exclude=runtime_exclude,
         runtime_include=runtime_include,
         runtime_exclude_tree=runtime_exclude_tree,
@@ -135,8 +134,8 @@ def run_scan_command(  # noqa: PLR0914
     )
 
     destination = normalize_summary_destination(
-        summary_to=global_options.summary_to,
-        summary_output=global_options.summary_output,
+        summary_to=summary_to,
+        summary_output=summary_output,
         ctx=ctx,
     )
     payload_dest = payload_destination_label(
@@ -147,7 +146,7 @@ def run_scan_command(  # noqa: PLR0914
     summary_dest = summary_destination_label(
         summary_format=params.summary,
         summary_destination=destination,
-        summary_output=global_options.summary_output,
+        summary_output=summary_output,
         ctx=ctx,
     )
     merged_destination = (
@@ -161,7 +160,7 @@ def run_scan_command(  # noqa: PLR0914
         payload_output=params.payload_output,
         summary_format=params.summary,
         summary_destination=destination,
-        summary_output=global_options.summary_output,
+        summary_output=summary_output,
         payload_dest=payload_dest,
         summary_dest=summary_dest,
     )
@@ -190,7 +189,7 @@ def run_scan_command(  # noqa: PLR0914
     try:
         emit_scan_outputs(
             params=params,
-            global_options=global_options,
+            summary_output=summary_output,
             destination=destination,
             direct_writer=direct_writer,
             payload_buffer=payload_buffer,
@@ -212,14 +211,39 @@ def build_scan_params(
     summary_to: str,
     copy: bool,
     output: Path | None,
-    add_ignore: tuple[str, ...],
-    remove_ignore: tuple[str, ...],
-    unignore: tuple[str, ...],
-    ignore_file: tuple[Path, ...],
+    write_to_stdout: bool,
+    json_mode: bool,
     requested_paths: tuple[Path, ...],
     repo_root: Path,
     pattern_base: Path | None,
 ) -> ScanParams:
+    if copy and output is not None:
+        msg = "--copy cannot be combined with --output"
+        raise click.UsageError(msg, ctx=ctx)
+    if copy and write_to_stdout:
+        msg = "--copy cannot be combined with --stdout"
+        raise click.UsageError(msg, ctx=ctx)
+    if output is not None and write_to_stdout:
+        msg = "--output cannot be combined with --stdout"
+        raise click.UsageError(msg, ctx=ctx)
+    json_conflicts = (
+        payload_format != PayloadFormat.LLM.value,
+        summary != SummaryFormat.AUTO.value,
+        summary_style is not None,
+        copy,
+        output is not None,
+        write_to_stdout,
+        summary_to != SummaryDestination.STDERR.value,
+    )
+    if json_mode and any(json_conflicts):
+        msg = "--json cannot be combined with other payload or summary routing flags"
+        raise click.UsageError(msg, ctx=ctx)
+
+    if json_mode:
+        payload_format = PayloadFormat.JSON.value
+        summary = SummaryFormat.NONE.value
+        output = Path("-")
+
     actual_summary, actual_summary_style = resolve_summary_settings(
         summary=summary,
         summary_style=summary_style,
@@ -227,9 +251,9 @@ def build_scan_params(
         ctx=ctx,
     )
 
-    if copy or output is not None:
+    if copy or output is not None or write_to_stdout:
         payload_copy = copy
-        payload_output = output
+        payload_output = Path("-") if write_to_stdout else output
     elif output_routing.stdout_is_tty():
         payload_copy = True
         payload_output = None
@@ -237,16 +261,16 @@ def build_scan_params(
         payload_copy = False
         payload_output = Path("-")
 
+    payload = PayloadFormat(payload_format)
+    if payload is PayloadFormat.NONE and actual_summary is SummaryFormat.NONE:
+        msg = "nothing to do: choose a payload format, a summary mode, or both"
+        raise click.UsageError(msg, ctx=ctx)
+
     return ScanParams(
-        output=output,
-        add_ignore=add_ignore,
-        remove_ignore=remove_ignore,
-        unignore=unignore,
-        add_ignore_file=ignore_file,
         scope=ContentScope(scope),
         summary_style=actual_summary_style,
         config_path=config_path,
-        payload=PayloadFormat(payload_format),
+        payload=payload,
         summary=actual_summary,
         payload_copy=payload_copy,
         payload_output=payload_output,

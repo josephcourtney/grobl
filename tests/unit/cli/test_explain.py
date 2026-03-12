@@ -63,14 +63,14 @@ def test_explain_include_content_overrides_docs(repo_root: Path) -> None:
     assert entries[0]["content"]["included"] is True
 
 
-def test_explain_preserves_local_format_when_global_options_follow_command(repo_root: Path) -> None:
+def test_explain_preserves_local_format_when_root_options_follow_command(repo_root: Path) -> None:
     target = repo_root / "notes.md"
     target.write_text("hello\n", encoding="utf-8")
 
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["explain", "--summary", "none", "--format", "json", str(target)],
+        ["explain", "--format", "json", "--log-level", "DEBUG", str(target)],
     )
     assert result.exit_code == 0
 

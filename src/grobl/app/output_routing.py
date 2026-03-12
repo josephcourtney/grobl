@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .command_support import ScanParams
-    from .scan_runtime import GlobalCLIOptions
 
 resolve_table_style = tty.resolve_table_style
 stdout_is_tty = tty.stdout_is_tty
@@ -179,7 +178,7 @@ def validate_stream_compatibility(
 def emit_scan_outputs(
     *,
     params: ScanParams,
-    global_options: GlobalCLIOptions,
+    summary_output: Path | None,
     destination: SummaryDestination,
     direct_writer: Callable[[str], None],
     payload_buffer: list[str] | None,
@@ -193,7 +192,7 @@ def emit_scan_outputs(
     ) == summary_destination_label(
         summary_format=params.summary,
         summary_destination=destination,
-        summary_output=global_options.summary_output,
+        summary_output=summary_output,
         ctx=click.get_current_context(),
     )
     if merged_destination:
@@ -207,7 +206,7 @@ def emit_scan_outputs(
             direct_writer(merged_text)
         return
 
-    summary_writer = build_summary_writer(destination=destination, output=global_options.summary_output)
+    summary_writer = build_summary_writer(destination=destination, output=summary_output)
     if params.summary is SummaryFormat.TABLE and summary_text:
         summary_writer(summary_text)
     elif params.summary is SummaryFormat.JSON:
