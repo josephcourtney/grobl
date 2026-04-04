@@ -16,4 +16,4 @@ def _encoding_for_model(model: str) -> tiktoken.Encoding:
 
 def count_tokens(text: str, *, model: str = DEFAULT_TOKEN_MODEL) -> int:
     """Return the token count for ``text`` using the configured default model."""
-    return len(_encoding_for_model(model).encode(text))
+    return len(_encoding_for_model(model).encode(text, disallowed_special=()))

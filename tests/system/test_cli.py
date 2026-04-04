@@ -12,6 +12,7 @@ from click.testing import CliRunner
 from grobl.app import output_routing as app_routing
 from grobl.cli import cli
 from grobl.constants import EXIT_USAGE
+from grobl.token_counting import count_tokens
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -301,6 +302,29 @@ def test_cli_no_ignore_includes_default_excluded_dir(
     assert res_no_ignore.exit_code == 0
     out_no_ignore = res_no_ignore.output
     assert ".venv/" in out_no_ignore
+
+
+def test_cli_scan_handles_text_matching_tokenizer_special_tokens(
+    repo_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
+
+    base = repo_root / "proj"
+    base.mkdir()
+    (base / "prompt.txt").write_text("<|endoftext|>\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["scan", str(base), "--format", "json", "--summary", "none", "--output", "-"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    file_entry = payload["files"][0]
+    assert file_entry["name"] == "prompt.txt"
+    assert file_entry["tokens"] == count_tokens("<|endoftext|>\n")
 
 
 def test_cli_config_tag_customisation_applies_to_llm_payload(

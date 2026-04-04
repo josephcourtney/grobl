@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [2.2.1] - 2026-04-04
+
+### Fixed
+- fix token counting so scanning files containing tokenizer special-token text such as `<|endoftext|>` no longer crashes the CLI.
+
 ## [2.2.0] - 2026-03-12
 
 ### Added

@@ -87,3 +87,9 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
     assert len(file_payloads) == 1
     assert file_payloads[0]["name"] == "inc.txt"
     assert reader_calls == []
+
+
+def test_count_tokens_accepts_text_with_special_token_markers() -> None:
+    count = count_tokens("prefix <|endoftext|> suffix")
+
+    assert count > 0
