@@ -13,14 +13,21 @@ from grobl.config_loading import (
     load_toml_config,
     resolve_config_base,
 )
-from grobl.config_runtime import RuntimeIgnoreEdits, apply_runtime_ignore_edits
+from grobl.config_runtime import (
+    RuntimeIgnoreEdits,
+    RuntimeInclusionEdits,
+    apply_runtime_ignore_edits,
+    apply_runtime_inclusion_edits,
+)
 
 __all__ = [
     "LEGACY_TOML_CONFIG",
     "PYPROJECT_TOML",
     "TOML_CONFIG",
     "RuntimeIgnoreEdits",
+    "RuntimeInclusionEdits",
     "apply_runtime_ignore_edits",
+    "apply_runtime_inclusion_edits",
     "load_config",
     "load_default_config",
     "load_default_config_text",

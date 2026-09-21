@@ -1,50 +1,47 @@
 # ============================================
-# Files/folders whose *presence* isn't helpful
+# Paths whose presence is not useful
 # ============================================
-exclude_tree = [
+exclude = [
   ".ropeproject/",
   "uv.lock",
   ".artifacts",
 
-  # ---------------- project-specific ----------------
+  # project-specific
   "./best practices - automated testing.md",
   "./best practices - command line interfaces.md",
 
-  # ---------------- grobl-specific ----------------
+  # grobl-specific
   ".grobl.toml",
 
-  # ---------------- secrets ----------------
+  # secrets
   ".envrc",
   ".direnv",
-  ".env",    # runtime secrets, not useful to include
+  ".env",
 
-  # ---------------- version control ----------------
-  # git
+  # version control
   ".git",
   ".gitattributes",
   ".gitignore",
   ".gitmodules",
   ".git-rewrite",
-
-  # non-git VCS
   ".hg",
   ".svn",
 
-  # CI/repo service config (workflows rarely helpful for AI context)
+  # CI/repo service config
   ".github",
 
-  # ---------------- editor / IDE state ----------------
+  # editor / IDE state
   ".idea",
   ".vscode",
   "*.sublime-workspace",
   "*.sublime-project",
-  ".history",            # VSCode local history
+  ".history",
 
-  # ---------------- OS junk ----------------
+  # OS junk
   ".DS_Store",
   "Thumbs.db",
 
-  # ---------------- environments / dependency caches ----------------
+  # environments / dependency caches
   "__pycache__",
   ".venv",
   "venv",
@@ -56,73 +53,68 @@ exclude_tree = [
   ".hypothesis",
   ".tox",
   ".nox",
-  ".ruff_cache",      # Ruff linter cache
-  ".cache",           # Generic cache dir
+  ".ruff_cache",
+  ".cache",
   ".pnpm-store",
   ".parcel-cache",
-  "__pypackages__",   # PEP 582 local package installs
+  "__pypackages__",
 
-  # ---------------- build artifacts ----------------
+  # build artifacts
   "dist",
   "build",
-  "target",  # Rust, Maven, etc.
-  "wheels",  # Python distribution wheels
-  "mutants", # mutation testing artifacts
-  "htmlcov", # coverage HTML reports
-  "site/",   # MkDocs static site
+  "target",
+  "wheels",
+  "mutants",
+  "htmlcov",
+  "site/",
 
-  # ---------------- coverage ----------------
-  ".coverage",     # coverage.py raw db
-  ".coverage.*",   # coverage.py shards
+  # coverage
+  ".coverage",
+  ".coverage.*",
   ".coverage.xml",
   "coverage.xml",
 
-  # ---------------- Apple / Xcode ----------------
+  # Apple / Xcode
   "*.xcuserdatad",
   "*.xcworkspace",
   "DerivedData",
   "Pods",
 
-  # ---------------- Frontend frameworks ----------------
-  ".next",       # Next.js build output
-  ".nuxt",       # Nuxt build output
-  ".svelte-kit", # SvelteKit build output
+  # frontend frameworks
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
 
-  # ---------------- Build systems / infra ----------------
-  ".gradle",            # Gradle cache
-  ".terraform",         # Terraform state
+  # build systems / infra
+  ".gradle",
+  ".terraform",
   ".terraform*",
-  ".ipynb_checkpoints", # Jupyter notebook temp dirs
+  ".ipynb_checkpoints",
 
-  # ---------------- misc fixtures ----------------
-  "tests/fixtures/*.yaml", # vcrpy recordings (non-essential for AI)
+  # misc fixtures
+  "tests/fixtures/*.yaml",
 
-  # ---------------- tooling configs ----------------
+  # tooling configs
   ".sourcery.yaml",
 ]
 
-# =================================================
-# Files/folders where presence is useful in the tree
-# but contents usually aren't
-# =================================================
-exclude_print = [
-  # ---------------- legal / boilerplate ----------------
+# ============================================
+# Paths whose hierarchy is useful but whose contents usually are not
+# ============================================
+tree_only = [
+  # legal / boilerplate
   "LICENSE",
   "LICENSE.*",
   "COPYING",
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
 
-  # ---------------- docs (structure useful, content too verbose) ----------------
+  # docs
   "docs",
 
-  # ---------------- build artifacts (already excluded in tree, but defensive) ----------------
-  "dist",
-  "build",
-
-  # ---------------- assets / binaries ----------------
-  "*.lproj",    # Xcode localization
-  "*.xcassets", # Xcode assets
+  # assets / binaries
+  "*.lproj",
+  "*.xcassets",
   "*.pdf",
   "*.png",
   "*.jpg",
@@ -130,7 +122,7 @@ exclude_print = [
   "*.gif",
   "*.svg",
 
-  # ---------------- lock/config files ----------------
+  # lock/config files
   "package-lock.json",
   "yarn.lock",
   "pnpm-lock.yaml",
@@ -139,14 +131,15 @@ exclude_print = [
   "Cargo.lock",
   "composer.lock",
   "Gemfile.lock",
-  "uv.lock",
-  "ruff.default.toml", # auto-generated lint defaults, not hand-authored
+  "ruff.default.toml",
   "ruff.toml",
 
-  # ---------------- tooling configs ----------------
+  # tooling configs
   ".pre-commit-config.yaml",
   ".python-version",
 ]
+
+include = []
 
 # ============================================
 # Tag settings

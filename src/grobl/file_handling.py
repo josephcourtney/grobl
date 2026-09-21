@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .provenance import format_content_reason
+from .constants import InclusionLevel
+from .provenance import format_content_reason, inclusion_reason_to_dict
 from .token_counting import count_tokens
 from .utils import TextDetectionResult, detect_text, read_text
 
@@ -26,10 +27,7 @@ class ScanDependencies:
 
     @classmethod
     def default(cls) -> ScanDependencies:
-        return cls(
-            text_detector=detect_text,
-            text_reader=read_text,
-        )
+        return cls(text_detector=detect_text, text_reader=read_text)
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,7 +82,14 @@ class BaseFileHandler:
             content_reason=analysis.content_reason,
         )
         if analysis.include_content and analysis.content is not None:
-            builder.add_file(path, rel, analysis.lines, analysis.chars, analysis.tokens, analysis.content)
+            builder.add_file(
+                path,
+                rel,
+                analysis.lines,
+                analysis.chars,
+                analysis.tokens,
+                analysis.content,
+            )
 
     def _analyze(
         self,
@@ -98,7 +103,7 @@ class BaseFileHandler:
 
 
 class TextFileHandler(BaseFileHandler):
-    """Handle text files by capturing metadata and, optionally, contents."""
+    """Handle text files by capturing metadata and contents."""
 
     def supports(self, *, path: Path, is_text_file: bool) -> bool:
         _ = self
@@ -120,24 +125,13 @@ class TextFileHandler(BaseFileHandler):
         line_count = len(content.splitlines())
         char_count = len(content)
         token_count = count_tokens(content)
-        decision = context.ignores.explain_content(path, is_dir=False)
-        include = not decision.excluded
-        reason_dict: dict[str, object] | None = None
-        if not include and decision.reason is not None:
-            reason_dict = format_content_reason(reason=decision.reason, subject=path)
         return FileAnalysis(
             lines=line_count,
             chars=char_count,
             tokens=token_count,
-            include_content=include,
+            include_content=True,
             content=content,
-            content_reason=reason_dict,
         )
-
-
-# --------------------------------------------------------------------------- #
-# NEW: simple handler for binary files                                        #
-# --------------------------------------------------------------------------- #
 
 
 class BinaryFileHandler(BaseFileHandler):
@@ -166,7 +160,6 @@ class BinaryFileHandler(BaseFileHandler):
             size = path.stat().st_size
         except OSError:
             size = 0
-        # For binary blobs we expose character-count as byte size, 0 lines.
         return FileAnalysis(
             lines=0,
             chars=size,
@@ -187,6 +180,28 @@ class FileHandlerRegistry:
         return cls(handlers=(TextFileHandler(), BinaryFileHandler()))
 
     def handle(self, *, path: Path, context: FileProcessingContext) -> None:
+        decision = context.ignores.explain_inclusion(path, is_dir=False)
+        if decision.level is InclusionLevel.TREE_ONLY:
+            # TREE_ONLY is intentionally cheap: do not read or text-detect the
+            # file merely to report metadata for content that will not be sent.
+            try:
+                size = path.stat().st_size
+            except OSError:
+                size = 0
+            reason = (
+                inclusion_reason_to_dict(decision.reason)
+                if decision.reason is not None
+                else None
+            )
+            context.builder.record_metadata(
+                path.relative_to(context.common),
+                0,
+                size,
+                0,
+                content_reason=reason,
+            )
+            return
+
         deps = context.dependencies
         detection = deps.text_detector(path)
         is_text_file = detection.is_text

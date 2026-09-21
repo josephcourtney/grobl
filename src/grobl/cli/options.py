@@ -20,34 +20,39 @@ from grobl.constants import (
 CommandDecorator = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 _IGNORE_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
-    click.option("--exclude", multiple=True, help="Add a tree+content exclude pattern"),
-    click.option("--include", multiple=True, help="Add a tree+content include (negated) pattern"),
+    click.option("--exclude", multiple=True, help="Omit matching paths entirely"),
+    click.option(
+        "--tree-only",
+        "tree_only",
+        multiple=True,
+        help="Keep matching paths in the hierarchy but omit file contents",
+    ),
+    click.option("--include", multiple=True, help="Fully include matching paths"),
     click.option(
         "--exclude-file",
         "exclude_file",
         multiple=True,
         type=click.Path(path_type=Path, exists=False),
-        help="Exclude a specific file path (tree + content)",
+        help="Omit a specific file or directory",
+    ),
+    click.option(
+        "--tree-only-file",
+        "tree_only_file",
+        multiple=True,
+        type=click.Path(path_type=Path, exists=False),
+        help="Keep a specific file or directory in the hierarchy without contents",
     ),
     click.option(
         "--include-file",
         "include_file",
         multiple=True,
         type=click.Path(path_type=Path, exists=False),
-        help="Include a specific file path (tree + content; negated internally)",
+        help="Fully include a specific file or directory",
     ),
-    click.option("--exclude-tree", multiple=True, help="Add a tree-only exclude pattern"),
-    click.option("--include-tree", multiple=True, help="Add a tree-only include (negated) pattern"),
-    click.option(
-        "--exclude-content",
-        multiple=True,
-        help="Add a content-only exclude pattern (controls text capture)",
-    ),
-    click.option(
-        "--include-content",
-        multiple=True,
-        help="Add a content-only include (negated) pattern",
-    ),
+    click.option("--exclude-tree", multiple=True, hidden=True),
+    click.option("--include-tree", multiple=True, hidden=True),
+    click.option("--exclude-content", multiple=True, hidden=True),
+    click.option("--include-content", multiple=True, hidden=True),
 )
 
 _CONFIG_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
@@ -64,23 +69,23 @@ _IGNORE_POLICY_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
         "-I",
         "--ignore-defaults",
         is_flag=True,
-        help="Disable bundled default ignore rules (alias for --ignore-policy config)",
+        help="Disable bundled default inclusion rules (alias for --ignore-policy config)",
     ),
     click.option(
         "--no-ignore-config",
         is_flag=True,
-        help="Disable ignore rules from discovered .grobl.toml files (alias for --ignore-policy defaults)",
+        help="Disable inclusion rules from discovered .grobl.toml files",
     ),
     click.option(
         "--no-ignore",
         is_flag=True,
-        help="Disable all ignore patterns (alias for --ignore-policy none)",
+        help="Disable all inclusion-policy rules (alias for --ignore-policy none)",
     ),
     click.option(
         "--ignore-policy",
         type=click.Choice([p.value for p in IgnorePolicy], case_sensitive=False),
         default=IgnorePolicy.AUTO.value,
-        help="Ignore source policy: auto|all|none|defaults|config|cli",
+        help="Rule source policy: auto|all|none|defaults|config|cli",
     ),
 )
 
@@ -177,7 +182,7 @@ def _apply_decorators(
 
 
 def add_ignore_options(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Attach the shared ignore/runtime options to a subcommand."""
+    """Attach the shared inclusion-policy runtime options to a subcommand."""
     return _apply_decorators(func, _IGNORE_OPTION_DECORATORS)
 
 
@@ -187,7 +192,7 @@ def add_config_option(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def add_ignore_policy_options(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Attach ignore source selection options to a subcommand."""
+    """Attach rule source selection options to a subcommand."""
     return _apply_decorators(func, _IGNORE_POLICY_OPTION_DECORATORS)
 
 
@@ -210,5 +215,5 @@ def add_paths_argument(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def add_scan_output_options(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Attach the payload/summary routing options used by ``scan``."""
+    """Attach payload and summary routing options used by scan."""
     return _apply_decorators(func, _SCAN_OUTPUT_OPTION_DECORATORS)

@@ -1,4 +1,4 @@
-"""Thin Click wrapper for the ``grobl scan`` application workflow."""
+"""Thin Click wrapper for the grobl scan application workflow."""
 
 from __future__ import annotations
 
@@ -44,11 +44,11 @@ Examples:
   grobl scan --no-tokens --no-inclusion-status --format json --output payload.json
     Omit selected metadata fields from emitted payload and summaries.
 
-  grobl scan --exclude '*.min.js' --include 'vendor/**' src
-    Exclude minified assets but re-include selected sources for this run.
+  grobl scan --exclude '*.min.js' --tree-only 'docs/**' src
+    Omit minified assets while keeping documentation names without contents.
 
-  grobl explain docs --include-content 'docs/**'
-    Verify why docs content is included or excluded before scanning.
+  grobl scan --include 'docs/architecture.md' .
+    Override lower-precedence rules and fully include one path.
 """
 
 
@@ -64,8 +64,10 @@ def scan(
     ctx: click.Context,
     *,
     exclude: tuple[str, ...],
+    tree_only: tuple[str, ...],
     include: tuple[str, ...],
     exclude_file: tuple[Path, ...],
+    tree_only_file: tuple[Path, ...],
     include_file: tuple[Path, ...],
     exclude_tree: tuple[str, ...],
     include_tree: tuple[str, ...],
@@ -96,8 +98,10 @@ def scan(
     run_scan_command(
         ctx=ctx,
         exclude=exclude,
+        tree_only=tree_only,
         include=include,
         exclude_file=exclude_file,
+        tree_only_file=tree_only_file,
         include_file=include_file,
         exclude_tree=exclude_tree,
         include_tree=include_tree,

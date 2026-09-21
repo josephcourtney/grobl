@@ -1,4 +1,4 @@
-"""CLI command implementation for the ``grobl explain`` workflow."""
+"""CLI command implementation for the grobl explain workflow."""
 
 from __future__ import annotations
 
@@ -17,13 +17,7 @@ from grobl.app.scan_runtime import (
     gather_runtime_ignore_patterns,
     resolve_runtime_paths,
 )
-from grobl.constants import (
-    EXIT_CONFIG,
-    ContentScope,
-    PayloadFormat,
-    SummaryFormat,
-    TableStyle,
-)
+from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat, SummaryFormat, TableStyle
 from grobl.errors import ConfigLoadError
 
 from .help_format import LiteralEpilogCommand
@@ -35,7 +29,7 @@ if TYPE_CHECKING:
 EXPLAIN_EPILOG = """\
 Examples:
   grobl explain .
-    Show tree and content decisions for the current directory.
+    Show the effective inclusion state for the current directory.
 
   grobl explain README.md --format human
     Inspect one path in a human-readable form.
@@ -43,8 +37,8 @@ Examples:
   grobl explain --format json src
     Emit machine-readable diagnostics for scripting.
 
-  grobl explain --include-content 'docs/**' docs
-    Verify an override before running a full scan.
+  grobl explain --tree-only 'docs/**' docs
+    Verify a hierarchy-only override before running a full scan.
 """
 
 
@@ -65,8 +59,10 @@ def explain(
     ctx: click.Context,
     *,
     exclude: tuple[str, ...],
+    tree_only: tuple[str, ...],
     include: tuple[str, ...],
     exclude_file: tuple[Path, ...],
+    tree_only_file: tuple[Path, ...],
     include_file: tuple[Path, ...],
     exclude_tree: tuple[str, ...],
     include_tree: tuple[str, ...],
@@ -80,11 +76,13 @@ def explain(
     explain_format: str,
     paths: tuple[Path, ...],
 ) -> None:
-    """Explain why paths are included or excluded for tree and content output."""
+    """Explain the effective inclusion state for one or more paths."""
     ignore_args = IgnoreCLIArgs.from_values(
         exclude=exclude,
+        tree_only=tree_only,
         include=include,
         exclude_file=exclude_file,
+        tree_only_file=tree_only_file,
         include_file=include_file,
         exclude_tree=exclude_tree,
         include_tree=include_tree,
@@ -96,14 +94,7 @@ def explain(
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
     config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
-    (
-        runtime_exclude,
-        runtime_include,
-        runtime_exclude_tree,
-        runtime_include_tree,
-        runtime_exclude_content,
-        runtime_include_content,
-    ) = gather_runtime_ignore_patterns(
+    runtime_exclude, runtime_tree_only, runtime_include = gather_runtime_ignore_patterns(
         repo_root=repo_root,
         ignore_args=ignore_args,
     )
@@ -140,11 +131,8 @@ def explain(
         no_ignore_config_flag=no_ignore_config,
         no_ignore_flag=no_ignore,
         runtime_exclude=runtime_exclude,
+        runtime_tree_only=runtime_tree_only,
         runtime_include=runtime_include,
-        runtime_exclude_tree=runtime_exclude_tree,
-        runtime_include_tree=runtime_include_tree,
-        runtime_exclude_content=runtime_exclude_content,
-        runtime_include_content=runtime_include_content,
     )
 
     entries = build_explain_entries(paths=requested_paths, ignores=ignores)

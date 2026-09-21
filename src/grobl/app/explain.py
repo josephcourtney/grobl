@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 import click
 
-from grobl.provenance import exclusion_reason_to_dict, format_content_reason
+from grobl.constants import InclusionLevel
+from grobl.provenance import format_content_reason, inclusion_reason_to_dict
 from grobl.utils import detect_text
 
 if TYPE_CHECKING:
@@ -54,7 +55,7 @@ def render_explain(entries: list[dict[str, Any]], *, explain_format: str) -> str
 def _build_reason(reason: dict[str, Any] | None) -> str:
     if reason is None:
         return "none"
-    parts = [f"pattern={reason['pattern']}"]
+    parts = [f"pattern={reason['pattern']}", f"state={reason['state']}"]
     if reason.get("negated"):
         parts.append("negated")
     parts.extend((f"source={reason['source']}", f"base={reason['base_dir']}"))
@@ -69,13 +70,14 @@ def _render_human(entries: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for entry in entries:
         lines.append(f"Path: {entry['path']}")
+        lines.append(f"  state: {entry['state']}")
+        if entry.get("reason"):
+            lines.append(f"    reason: {_build_reason(entry['reason'])}")
         tree = entry["tree"]
         lines.append(f"  tree: {'included' if tree['included'] else 'excluded'}")
-        if tree.get("reason"):
-            lines.append(f"    reason: {_build_reason(tree['reason'])}")
         content = entry["content"]
         lines.append(f"  content: {'included' if content['included'] else 'excluded'}")
-        if content.get("reason"):
+        if content.get("reason") and content.get("reason") != entry.get("reason"):
             lines.append(f"    reason: {_build_reason(content['reason'])}")
         if entry.get("text_detection"):
             details = entry["text_detection"]
@@ -91,26 +93,33 @@ def _render_json(entries: list[dict[str, Any]]) -> str:
 
 def _explain_entry(abs_path: Path, ignores: LayeredIgnoreMatcher) -> dict[str, Any]:
     is_dir = abs_path.is_dir()
-    tree_decision = ignores.explain_tree(abs_path, is_dir=is_dir)
-    content_decision = ignores.explain_content(abs_path, is_dir=is_dir)
+    decision = ignores.explain_inclusion(abs_path, is_dir=is_dir)
+    reason = inclusion_reason_to_dict(decision.reason) if decision.reason is not None else None
 
-    tree_reason = exclusion_reason_to_dict(tree_decision.reason) if tree_decision.reason else None
     entry: dict[str, Any] = {
         "path": str(abs_path),
-        "tree": {"included": not tree_decision.excluded, "reason": tree_reason},
+        "state": decision.level.value,
+        "reason": reason,
+        "tree": {
+            "included": decision.level is not InclusionLevel.OMIT,
+            "reason": reason if decision.level is InclusionLevel.OMIT else None,
+        },
     }
 
-    content_included = not content_decision.excluded
-    content_reason: dict[str, Any] | None = None
+    content_included = decision.level is InclusionLevel.FULL
+    content_reason: dict[str, Any] | None = (
+        reason if decision.level is InclusionLevel.TREE_ONLY else None
+    )
     text_detection: dict[str, Any] | None = None
 
-    if content_decision.excluded and content_decision.reason is not None:
-        content_reason = exclusion_reason_to_dict(content_decision.reason)
-    elif abs_path.is_file() and not content_decision.excluded:
+    if abs_path.is_file() and decision.level is InclusionLevel.FULL:
         detection = detect_text(abs_path)
         if not detection.is_text:
             content_included = False
-            content_reason = format_content_reason(detection_detail=detection.detail, subject=abs_path)
+            content_reason = format_content_reason(
+                detection_detail=detection.detail,
+                subject=abs_path,
+            )
             detail = detection.detail or "binary file"
             text_detection = {"is_text": False, "detail": detail}
 

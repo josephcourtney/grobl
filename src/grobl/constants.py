@@ -57,10 +57,24 @@ class IgnorePolicy(StrEnum):
     CLI = "cli"
 
 
-# Add these constants:
+class InclusionLevel(StrEnum):
+    """Amount of information emitted for a path."""
+
+    OMIT = "omit"
+    TREE_ONLY = "tree_only"
+    FULL = "full"
+
+
+# Canonical inclusion-policy configuration keys.
+CONFIG_EXCLUDE = "exclude"
+CONFIG_TREE_ONLY = "tree_only"
+CONFIG_INCLUDE = "include"
+
+# Legacy two-scope keys accepted as compatibility inputs.
 CONFIG_EXCLUDE_TREE = "exclude_tree"
 CONFIG_EXCLUDE_PRINT = "exclude_print"
 CONFIG_EXCLUDE_CONTENT = "exclude_content"
+
 CONFIG_INCLUDE_TREE_TAGS = "include_tree_tags"
 CONFIG_INCLUDE_FILE_TAGS = "include_file_tags"
 

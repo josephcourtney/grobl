@@ -1,4 +1,4 @@
-"""Application workflow behind the ``grobl scan`` CLI wrapper."""
+"""Application workflow behind the grobl scan CLI wrapper."""
 
 from __future__ import annotations
 
@@ -38,8 +38,10 @@ def run_scan_command(  # noqa: PLR0914
     *,
     ctx: click.Context,
     exclude: tuple[str, ...],
+    tree_only: tuple[str, ...],
     include: tuple[str, ...],
     exclude_file: tuple[Path, ...],
+    tree_only_file: tuple[Path, ...],
     include_file: tuple[Path, ...],
     exclude_tree: tuple[str, ...],
     include_tree: tuple[str, ...],
@@ -69,8 +71,10 @@ def run_scan_command(  # noqa: PLR0914
     """Execute the scan workflow from validated CLI inputs."""
     ignore_args = IgnoreCLIArgs.from_values(
         exclude=exclude,
+        tree_only=tree_only,
         include=include,
         exclude_file=exclude_file,
+        tree_only_file=tree_only_file,
         include_file=include_file,
         exclude_tree=exclude_tree,
         include_tree=include_tree,
@@ -106,14 +110,7 @@ def run_scan_command(  # noqa: PLR0914
         pattern_base=config_base,
     )
 
-    (
-        runtime_exclude,
-        runtime_include,
-        runtime_exclude_tree,
-        runtime_include_tree,
-        runtime_exclude_content,
-        runtime_include_content,
-    ) = gather_runtime_ignore_patterns(
+    runtime_exclude, runtime_tree_only, runtime_include = gather_runtime_ignore_patterns(
         repo_root=repo_root,
         ignore_args=ignore_args,
     )
@@ -137,11 +134,8 @@ def run_scan_command(  # noqa: PLR0914
         no_ignore_config_flag=no_ignore_config,
         no_ignore_flag=no_ignore,
         runtime_exclude=runtime_exclude,
+        runtime_tree_only=runtime_tree_only,
         runtime_include=runtime_include,
-        runtime_exclude_tree=runtime_exclude_tree,
-        runtime_include_tree=runtime_include_tree,
-        runtime_exclude_content=runtime_exclude_content,
-        runtime_include_content=runtime_include_content,
     )
 
     destination = normalize_summary_destination(
