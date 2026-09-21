@@ -4,11 +4,15 @@ import pytest
 
 import grobl.constants as const_mod
 from grobl.constants import (
+    CONFIG_EXCLUDE,
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
+    CONFIG_INCLUDE,
+    CONFIG_TREE_ONLY,
     CONFIG_INCLUDE_FILE_TAGS,
     CONFIG_INCLUDE_TREE_TAGS,
     ContentScope,
+    InclusionLevel,
     PayloadFormat,
     SummaryFormat,
     TableStyle,
@@ -22,7 +26,12 @@ def test_enum_values_and_config_keys() -> None:
     assert {p.value for p in PayloadFormat} == {"llm", "markdown", "json", "ndjson", "none"}
     assert {t.value for t in TableStyle} == {"auto", "full", "compact"}
     assert {f.value for f in SummaryFormat} == {"auto", "table", "json", "none"}
-    # config keys are the canonical strings used throughout the codebase
+    assert {level.value for level in InclusionLevel} == {"omit", "tree_only", "full"}
+    # Canonical policy keys.
+    assert CONFIG_EXCLUDE == "exclude"
+    assert CONFIG_TREE_ONLY == "tree_only"
+    assert CONFIG_INCLUDE == "include"
+    # Legacy keys remain accepted as compatibility inputs.
     assert CONFIG_EXCLUDE_TREE == "exclude_tree"
     assert CONFIG_EXCLUDE_PRINT == "exclude_print"
     assert CONFIG_INCLUDE_TREE_TAGS == "include_tree_tags"

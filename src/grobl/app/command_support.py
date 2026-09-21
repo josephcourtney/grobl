@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
 from grobl.constants import (
-    CONFIG_EXCLUDE_PRINT,
-    CONFIG_EXCLUDE_TREE,
+    CONFIG_EXCLUDE,
+    CONFIG_INCLUDE,
+    CONFIG_TREE_ONLY,
     EXIT_INTERRUPT,
     EXIT_PATH,
     EXIT_USAGE,
@@ -62,8 +63,9 @@ def _scan_for_legacy_references(base: Path) -> list[tuple[Path, int, str]]:
 def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: DirectoryTreeBuilder) -> None:
     print("\nInterrupted by user. Dumping debug info:")
     print(f"cwd: {cwd}")
-    print(f"{CONFIG_EXCLUDE_TREE}: {cfg.get(CONFIG_EXCLUDE_TREE)}")
-    print(f"{CONFIG_EXCLUDE_PRINT}: {cfg.get(CONFIG_EXCLUDE_PRINT)}")
+    print(f"{CONFIG_EXCLUDE}: {cfg.get(CONFIG_EXCLUDE)}")
+    print(f"{CONFIG_TREE_ONLY}: {cfg.get(CONFIG_TREE_ONLY)}")
+    print(f"{CONFIG_INCLUDE}: {cfg.get(CONFIG_INCLUDE)}")
     print("DirectoryTreeBuilder(")
     print(f"    base_path         = {builder.base_path}")
     snapshot = builder.summary_totals()

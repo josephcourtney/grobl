@@ -125,12 +125,20 @@ class TextFileHandler(BaseFileHandler):
         line_count = len(content.splitlines())
         char_count = len(content)
         token_count = count_tokens(content)
+        decision = context.ignores.explain_inclusion(path, is_dir=False)
+        include_content = decision.level is InclusionLevel.FULL
+        reason = (
+            inclusion_reason_to_dict(decision.reason)
+            if not include_content and decision.reason is not None
+            else None
+        )
         return FileAnalysis(
             lines=line_count,
             chars=char_count,
             tokens=token_count,
-            include_content=True,
+            include_content=include_content,
             content=content,
+            content_reason=reason,
         )
 
 
