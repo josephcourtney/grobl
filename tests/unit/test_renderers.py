@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -20,7 +19,7 @@ from grobl.renderers import (
 from grobl.token_counting import count_tokens
 from tests.support import build_ignore_matcher
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -175,7 +174,7 @@ def _extract_begin_file_lines(markdown: str) -> list[str]:
     return [line for line in markdown.splitlines() if line.startswith("%%%% BEGIN_FILE ")]
 
 
-def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:  # noqa: PLR0914
+def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:  # ruff: ignore[too-many-locals]
     root = tmp_path / "proj"
     root.mkdir()
 

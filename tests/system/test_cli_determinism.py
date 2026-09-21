@@ -8,7 +8,7 @@ from click.testing import CliRunner
 
 from grobl.cli import cli
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 if TYPE_CHECKING:

@@ -11,7 +11,7 @@ from grobl.cli import cli
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 @pytest.mark.parametrize(("is_tty", "expect_summary"), [(True, True), (False, False)])

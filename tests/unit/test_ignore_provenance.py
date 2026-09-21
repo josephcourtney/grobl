@@ -10,7 +10,7 @@ from grobl.ignore import LayeredIgnoreMatcher, LayerSource, build_layered_ignore
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 def _matcher(

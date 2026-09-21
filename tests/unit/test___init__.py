@@ -6,4 +6,4 @@ pytestmark = pytest.mark.small
 
 
 def test_import():
-    assert grobl
+    assert grobl.__name__ == "grobl"

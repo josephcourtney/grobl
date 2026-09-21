@@ -11,7 +11,7 @@ from grobl.constants import EXIT_CONFIG, EXIT_USAGE
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 def test_usage_error_invalid_scope(repo_root: Path) -> None:

@@ -15,7 +15,7 @@ from grobl.constants import (
 )
 from tests.support import build_ignore_matcher
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -180,8 +180,12 @@ def test_execute_delegates_payload_emission(monkeypatch, tmp_path):
 
     assert calls, "expected payload strategy to be invoked"
     emitted = calls[0]
-    assert emitted["sink"].__self__ is writes
-    assert emitted["context"].scope is services.ContentScope.ALL
+    sink = emitted["sink"]
+    assert callable(sink)
+    assert getattr(sink, "__self__", None) is writes
+    context = emitted["context"]
+    assert isinstance(context, services.SummaryContext)
+    assert context.scope is services.ContentScope.ALL
     assert emitted["config"] is cfg
 
 

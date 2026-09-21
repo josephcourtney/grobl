@@ -11,7 +11,7 @@ from grobl.logging_utils import (
     log_event,
 )
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,8 +30,8 @@ def test_serialise_and_mask(tmp_path: Path) -> None:
         "meta": {"a": 1, "b": p},
     }
     # add secret-looking keys via variables to keep linter quiet; still validate masking
-    secret_key = "token"  # noqa: S105
-    password_key = "password"  # noqa: S105
+    secret_key = "token"  # ruff: ignore[hardcoded-password-string]
+    password_key = "password"  # ruff: ignore[hardcoded-password-string]
     ctx[secret_key] = "shh"
     ctx[password_key] = "p"
 
@@ -48,8 +48,8 @@ def test_serialise_and_mask(tmp_path: Path) -> None:
     assert sorted(roles) == ["admin", "user"]
 
     # token/password masked
-    assert sc["token"] == "***"  # noqa: S105
-    assert sc["password"] == "***"  # noqa: S105
+    assert sc["token"] == "***"  # ruff: ignore[hardcoded-password-string]
+    assert sc["password"] == "***"  # ruff: ignore[hardcoded-password-string]
 
     # nested mapping converted; path inside mapping serialised to string
     assert isinstance(sc["meta"], dict)
