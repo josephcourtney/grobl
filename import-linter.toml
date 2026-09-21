@@ -88,4 +88,5 @@ forbidden_modules = [
   "grobl.cli.init",
   "grobl.cli.version",
   "grobl.cli.completions",
+  "grobl.cli.config_cmd",
 ]
