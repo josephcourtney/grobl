@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import tomlkit
 from tomlkit.exceptions import TOMLKitError
-from tomlkit.toml_document import TOMLDocument
 
 from grobl.constants import (
     CONFIG_EXCLUDE,
@@ -18,6 +18,9 @@ from grobl.constants import (
     CONFIG_INCLUDE,
     CONFIG_TREE_ONLY,
 )
+
+if TYPE_CHECKING:
+    from tomlkit.toml_document import TOMLDocument
 
 CANONICAL_POLICY_KEYS = (CONFIG_EXCLUDE, CONFIG_TREE_ONLY, CONFIG_INCLUDE)
 LEGACY_POLICY_KEYS = (CONFIG_EXCLUDE_TREE, CONFIG_EXCLUDE_PRINT, CONFIG_EXCLUDE_CONTENT)
