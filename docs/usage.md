@@ -70,10 +70,24 @@ grobl completions --shell bash > /usr/local/etc/bash_completion.d/grobl
 
 Refer to the README for shell-specific installation guidance.
 
-### Ignore controls
+### Inclusion controls
 
-The `scan` command exposes `--exclude` / `--include` for tree+content rules; `--include` is emitted as a gitignore-style negation (`!PATTERN`). Use scoped variants (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) when you only want to affect tree visibility or content capture. `--exclude-file` / `--include-file` normalize the provided path into a repository-root-relative pattern that matches the exact file or directory (directories append `/` automatically). `--no-ignore` disables every ignore rule (tree + content).
+The scan and explain commands expose the three valid path states directly:
 
+```bash
+--exclude PATTERN          # omit path from hierarchy and contents
+--tree-only PATTERN        # keep hierarchy entry, omit contents
+--include PATTERN          # fully include path
+--exclude-file PATH
+--tree-only-file PATH
+--include-file PATH
+```
+
+Unmatched paths are fully included by default. `--exclude` therefore does not need a second content-exclusion rule. `--tree-only` is the explicit case for names or hierarchy that are useful even when file contents are not.
+
+CLI rules have higher precedence than bundled defaults and discovered configuration. The legacy scoped flags (`--exclude-tree`, `--include-tree`, `--exclude-content`, and `--include-content`) remain accepted for compatibility but are hidden from normal help and compile into the three-state model.
+
+Use `--ignore-policy auto|all|none|defaults|config|cli` to choose which rule sources participate. `--no-ignore` disables all inclusion-policy rules.
 ## Global CLI options
 
 All subcommands share the following options:

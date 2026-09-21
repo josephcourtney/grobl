@@ -1,3 +1,11 @@
+## Three-state inclusion policy
+
+- [x] replace independent tree/content decisions with `full`, `tree_only`, and `omit`
+- [x] make `exclude`, `tree_only`, and `include` the canonical config surface
+- [x] add canonical CLI state controls and retain legacy scoped aliases
+- [x] preserve layered defaults/config/explicit-config/CLI precedence and provenance
+- [x] add regression coverage for state projection and tree-only no-read behavior
+- [x] update specification, README, configuration, usage, and changelog documentation
 ## Explain/diagnostics (“why is this excluded?”)
 
 - [x] add `grobl explain [PATHS...]` subcommand (preferred) OR `grobl scan --explain [PATHS...]` (alias)

@@ -1,52 +1,92 @@
 # Configuration
 
-grobl reads configuration from `.grobl.toml` files. The bundled defaults ship with the project and the `grobl init` command can write them to a target directory.
-
-## Default configuration locations
-
-1. `.grobl.toml` in the current working directory
-2. `.grobl.toml` in ancestor directories
-3. Legacy `.grobl.config.toml` files (merged when a modern config is not present)
-4. Built-in defaults packaged with grobl
+grobl reads hierarchical `.grobl.toml` files. The bundled defaults ship with the package, and `grobl init` writes the current default configuration to a target directory.
 
 ## Creating a configuration file
-
-Run the `init` command to scaffold the default configuration:
 
 ```bash
 grobl init --path .
 ```
 
-Add `--force` to overwrite an existing file:
+Add `--force` to replace an existing file.
 
-```bash
-grobl init --path . --force
-```
+## Inclusion policy
 
-## Ignore rules
+Every path resolves to exactly one inclusion state:
 
-Ignore settings let you exclude files, directories, or glob patterns from the payload. Update the `[ignore]` table in `.grobl.toml` to fine-tune traversal. For example:
+| State | In hierarchy | Contents captured |
+| --- | --- | --- |
+| `full` | yes | yes, when the file is text |
+| `tree_only` | yes | no |
+| `omit` | no | no |
+
+The canonical configuration uses three lists:
 
 ```toml
-[ignore]
-patterns = [
-  "node_modules/",
-  "*.pyc",
+exclude = [
+  ".git/",
+  ".venv/",
+  "dist/",
+]
+
+tree_only = [
+  "LICENSE*",
+  "docs/",
+  "*.png",
+]
+
+include = [
+  "docs/architecture.md",
 ]
 ```
 
-Ignore rules cover both tree visibility and content capture. Use `exclude_tree` to hide files from the rendered tree, and `exclude_print` to control whether contents of included files are captured. The configuration loader also accepts `exclude_content` as an alias for `exclude_print`, but existing configs continue to write `exclude_print` as the canonical key.
+Unmatched paths default to `full`. `exclude` assigns `omit`, `tree_only` assigns `tree_only`, and `include` restores `full`.
 
-## Output controls
+A path in `exclude` does not also need to appear in `tree_only`; omission always implies that contents are omitted. This is the main difference from the former independent tree/content configuration.
 
-Payloads and summaries are configured separately. Set defaults in the `[output]` table of `.grobl.toml` to control formats:
+Within one configuration file the shorthand lists are applied in this order:
 
-```toml
-[output]
-payload_format = "markdown"
-summary_format = "auto"
-
-`summary_format` accepts `auto`, `table`, `json`, or `none`; `auto` is the default behavior that prints a table when stdout is a TTY and suppresses output otherwise.
+```text
+exclude < tree_only < include
 ```
 
-Destination flags (`--copy` / `--output`) always override configuration file settings, so you can send payloads to the clipboard, stdout, or a file per invocation.
+Thus a more permissive list can intentionally override a less permissive one for a more specific pattern.
+
+## Hierarchical precedence
+
+Rules are applied from broadest to most specific source:
+
+```text
+bundled defaults
+< repository-root .grobl.toml
+< deeper .grobl.toml files, root to leaf
+< explicit --config
+< CLI rules
+```
+
+Patterns in a `.grobl.toml` are relative to the directory containing that file. Bundled defaults and CLI patterns are relative to the resolved repository root.
+
+Later layers supersede earlier layers. This allows a repository default such as `tree_only = ["docs/"]` to be overridden by a deeper configuration or by `--include docs/architecture.md`.
+
+## Pattern semantics
+
+Patterns use gitignore-style matching, including `**` and negation. A negated restrictive rule restores `full` inclusion. Prefer the explicit `include` list for new configuration because it states the resulting policy directly.
+
+## Compatibility keys
+
+Existing configurations remain readable:
+
+- `exclude_tree` maps to `omit`.
+- `exclude_print` and `exclude_content` map to `tree_only`.
+- If the same path appears in both legacy tree and content exclusion lists, `omit` wins.
+
+When any canonical inclusion key (`exclude`, `tree_only`, or `include`) is present in a configuration source, that source is interpreted using the canonical model. New configurations should not mix canonical and legacy keys.
+
+## Tag settings
+
+The LLM payload wrapper names remain configurable:
+
+```toml
+include_tree_tags = "directory"
+include_file_tags = "files"
+```
