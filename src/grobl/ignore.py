@@ -288,8 +288,9 @@ class LayeredIgnoreMatcher:
     def explain_inclusion(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
         return self._decide(self.layers, abs_path, is_dir=is_dir)
 
-    # Compatibility alias for code written during the policy migration.
-    explain_policy = explain_inclusion
+    def explain_policy(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
+        """Compatibility wrapper for the policy-migration API."""
+        return self.explain_inclusion(abs_path, is_dir=is_dir)
 
     def explain_tree(self, abs_path: Path, *, is_dir: bool) -> MatchDecision:
         decision = self.explain_inclusion(abs_path, is_dir=is_dir)

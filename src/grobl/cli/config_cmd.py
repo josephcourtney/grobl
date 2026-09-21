@@ -9,6 +9,7 @@ import click
 from grobl.app.config_defaults import TOML_CONFIG
 from grobl.config_migration import (
     ConfigMigrationError,
+    ConfigMigrationResult,
     migrate_config_file,
     migrate_config_text,
 )
@@ -31,6 +32,52 @@ Examples:
 @click.group(name="config", cls=LiteralEpilogGroup, epilog=CONFIG_EPILOG)
 def config_command() -> None:
     """Inspect and maintain grobl configuration files."""
+
+
+def _read_migration(path: Path) -> ConfigMigrationResult:
+    try:
+        source = path.read_text(encoding="utf-8")
+        return migrate_config_text(source)
+    except (OSError, ConfigMigrationError) as err:
+        raise click.ClickException(str(err)) from err
+
+
+def _emit_warnings(result: ConfigMigrationResult) -> None:
+    for warning in result.warnings:
+        click.echo(f"warning: {warning}", err=True)
+
+
+def _run_check(path: Path, result: ConfigMigrationResult) -> None:
+    if result.changed:
+        msg = f"{path} uses legacy inclusion keys"
+        raise click.ClickException(msg)
+    click.echo(f"{path} is already canonical")
+
+
+def _run_preview(path: Path, *, check: bool) -> None:
+    result = _read_migration(path)
+    if check:
+        _run_check(path, result)
+        return
+    click.echo(result.text, nl=False)
+    _emit_warnings(result)
+
+
+def _run_in_place(path: Path, *, backup: bool) -> None:
+    try:
+        result, backup_path = migrate_config_file(path, backup=backup)
+    except ConfigMigrationError as err:
+        raise click.ClickException(str(err)) from err
+
+    if not result.changed:
+        click.echo(f"{path} is already canonical")
+        return
+
+    if backup_path is None:
+        click.echo(f"Migrated {path}")
+    else:
+        click.echo(f"Migrated {path} (backup: {backup_path})")
+    _emit_warnings(result)
 
 
 @config_command.command("migrate")
@@ -62,39 +109,7 @@ def migrate(path: Path, *, to_stdout: bool, check: bool, backup: bool) -> None:
     if to_stdout and check:
         msg = "--stdout and --check cannot be used together"
         raise click.UsageError(msg)
-
     if check or to_stdout:
-        try:
-            source = path.read_text(encoding="utf-8")
-            result = migrate_config_text(source)
-        except (OSError, ConfigMigrationError) as err:
-            raise click.ClickException(str(err)) from err
-
-        if check:
-            if result.changed:
-                msg = f"{path} uses legacy inclusion keys"
-                raise click.ClickException(msg)
-            click.echo(f"{path} is already canonical")
-            return
-
-        click.echo(result.text, nl=False)
-        for warning in result.warnings:
-            click.echo(f"warning: {warning}", err=True)
+        _run_preview(path, check=check)
         return
-
-    try:
-        result, backup_path = migrate_config_file(path, backup=backup)
-    except ConfigMigrationError as err:
-        raise click.ClickException(str(err)) from err
-
-    if not result.changed:
-        click.echo(f"{path} is already canonical")
-        return
-
-    if backup_path is None:
-        click.echo(f"Migrated {path}")
-    else:
-        click.echo(f"Migrated {path} (backup: {backup_path})")
-
-    for warning in result.warnings:
-        click.echo(f"warning: {warning}", err=True)
+    _run_in_place(path, backup=backup)

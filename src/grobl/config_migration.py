@@ -8,6 +8,7 @@ from pathlib import Path
 
 import tomlkit
 from tomlkit.exceptions import TOMLKitError
+from tomlkit.toml_document import TOMLDocument
 
 from grobl.constants import (
     CONFIG_EXCLUDE,
@@ -32,6 +33,17 @@ class ConfigMigrationResult:
 
     text: str
     changed: bool
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyPolicy:
+    """Normalized legacy inclusion policy ready for canonical translation."""
+
+    tree_patterns: tuple[str, ...]
+    content_patterns: tuple[str, ...]
+    tree_present: bool
+    content_present: bool
     warnings: tuple[str, ...] = ()
 
 
@@ -64,73 +76,113 @@ def _tree_omission_cores(patterns: Sequence[str]) -> set[str]:
     return {core for core, omitted in final_state.items() if omitted}
 
 
-def migrate_config_text(text: str) -> ConfigMigrationResult:
-    """Translate legacy inclusion keys to the canonical three-state schema."""
+def _parse_document(text: str) -> TOMLDocument:
     try:
-        document = tomlkit.parse(text)
+        return tomlkit.parse(text)
     except TOMLKitError as err:
         msg = f"invalid TOML: {err}"
         raise ConfigMigrationError(msg) from err
 
+
+def _validate_policy_schema(document: TOMLDocument) -> bool:
     canonical = [key for key in CANONICAL_POLICY_KEYS if key in document]
     legacy = [key for key in LEGACY_POLICY_KEYS if key in document]
-
-    if canonical and legacy:
-        canonical_names = ", ".join(canonical)
-        legacy_names = ", ".join(legacy)
-        msg = (
-            "config mixes canonical and legacy inclusion keys "
-            f"(canonical: {canonical_names}; legacy: {legacy_names})"
-        )
-        raise ConfigMigrationError(msg)
-
     if not legacy:
-        return ConfigMigrationResult(text=text, changed=False)
+        return False
+    if not canonical:
+        return True
 
+    canonical_names = ", ".join(canonical)
+    legacy_names = ", ".join(legacy)
+    msg = (
+        "config mixes canonical and legacy inclusion keys "
+        f"(canonical: {canonical_names}; legacy: {legacy_names})"
+    )
+    raise ConfigMigrationError(msg)
+
+
+def _legacy_policy(document: TOMLDocument) -> LegacyPolicy:
     tree_present = CONFIG_EXCLUDE_TREE in document
     print_present = CONFIG_EXCLUDE_PRINT in document
     content_present = CONFIG_EXCLUDE_CONTENT in document
 
-    tree_patterns = _patterns(document.get(CONFIG_EXCLUDE_TREE), key=CONFIG_EXCLUDE_TREE)
-    print_patterns = _patterns(document.get(CONFIG_EXCLUDE_PRINT), key=CONFIG_EXCLUDE_PRINT)
-    content_patterns = _patterns(document.get(CONFIG_EXCLUDE_CONTENT), key=CONFIG_EXCLUDE_CONTENT)
+    tree_patterns = tuple(_patterns(document.get(CONFIG_EXCLUDE_TREE), key=CONFIG_EXCLUDE_TREE))
+    print_patterns = tuple(_patterns(document.get(CONFIG_EXCLUDE_PRINT), key=CONFIG_EXCLUDE_PRINT))
+    content_patterns = tuple(
+        _patterns(document.get(CONFIG_EXCLUDE_CONTENT), key=CONFIG_EXCLUDE_CONTENT)
+    )
 
-    warnings: list[str] = []
+    warnings: tuple[str, ...] = ()
     if content_present:
         selected_content = content_patterns
         if print_present:
-            warnings.append(
+            warnings = (
                 "both exclude_print and exclude_content were present; "
-                "exclude_content takes precedence to match the legacy parser"
+                "exclude_content takes precedence to match the legacy parser",
             )
     else:
         selected_content = print_patterns
 
-    omission_cores = _tree_omission_cores(tree_patterns)
-    tree_only_patterns = [
-        pattern for pattern in selected_content if _pattern_core(pattern) not in omission_cores
-    ]
+    return LegacyPolicy(
+        tree_patterns=tree_patterns,
+        content_patterns=selected_content,
+        tree_present=tree_present,
+        content_present=print_present or content_present,
+        warnings=warnings,
+    )
 
-    if tree_patterns and selected_content:
-        warnings.append(
-            "legacy tree/content glob scopes can overlap in ways that grouped canonical rules "
-            "cannot prove equivalent; exact-pattern tree omissions were preserved, but review "
-            "overlapping glob patterns"
-        )
 
+def _canonical_tree_only(policy: LegacyPolicy) -> tuple[str, ...]:
+    omission_cores = _tree_omission_cores(policy.tree_patterns)
+    return tuple(
+        pattern
+        for pattern in policy.content_patterns
+        if _pattern_core(pattern) not in omission_cores
+    )
+
+
+def _migration_warnings(policy: LegacyPolicy) -> tuple[str, ...]:
+    if not policy.tree_patterns or not policy.content_patterns:
+        return policy.warnings
+    overlap_warning = (
+        "legacy tree/content glob scopes can overlap in ways that grouped canonical rules "
+        "cannot prove equivalent; exact-pattern tree omissions were preserved, but review "
+        "overlapping glob patterns"
+    )
+    return (*policy.warnings, overlap_warning)
+
+
+def _apply_canonical_policy(
+    document: TOMLDocument,
+    *,
+    policy: LegacyPolicy,
+    tree_only_patterns: Sequence[str],
+) -> None:
     for key in LEGACY_POLICY_KEYS:
         if key in document:
             del document[key]
+    if policy.tree_present:
+        document[CONFIG_EXCLUDE] = list(policy.tree_patterns)
+    if policy.content_present:
+        document[CONFIG_TREE_ONLY] = list(tree_only_patterns)
 
-    if tree_present:
-        document[CONFIG_EXCLUDE] = tree_patterns
-    if print_present or content_present:
-        document[CONFIG_TREE_ONLY] = tree_only_patterns
 
+def migrate_config_text(text: str) -> ConfigMigrationResult:
+    """Translate legacy inclusion keys to the canonical three-state schema."""
+    document = _parse_document(text)
+    if not _validate_policy_schema(document):
+        return ConfigMigrationResult(text=text, changed=False)
+
+    policy = _legacy_policy(document)
+    _apply_canonical_policy(
+        document,
+        policy=policy,
+        tree_only_patterns=_canonical_tree_only(policy),
+    )
     return ConfigMigrationResult(
         text=tomlkit.dumps(document),
         changed=True,
-        warnings=tuple(warnings),
+        warnings=_migration_warnings(policy),
     )
 
 
