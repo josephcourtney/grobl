@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [2.3.1] - 2026-09-21
+
+### Fixed
+- fix user documentation that still described the former ignore-only model instead of the canonical three-state inclusion policy.
+- fix output-routing documentation so automatic payload delivery distinguishes TTY clipboard output from non-TTY stdout and summaries consistently default to stderr.
+
 ## [2.3.0] - 2026-09-21
 
 ### Added

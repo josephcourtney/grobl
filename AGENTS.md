@@ -42,7 +42,7 @@ If any command fails due to missing executables or environment configuration, em
 ### Static Typing
 
 - Command: `.venv/bin/ty check src/ tests/`
-- Syntax: Use Python 3.13–compatible type annotations
+- Syntax: remain compatible with the Python versions declared in `pyproject.toml`
 - Constraints: Must follow `pyproject.toml` settings
 
 > If `ty` is not available in `.venv/bin/`, log a failure notice, emit proposed code as a Markdown patch, and halt execution.
@@ -70,11 +70,16 @@ If any command fails due to missing executables or environment configuration, em
 
 ## Logging and Progress Tracking
 
+### Documentation Maintenance
+
+`POLICY.md` is authoritative for the roles of DESIGN, PLAN, STATUS, TODO, CHANGELOG, ADRs, and commit history. Keep those artifacts distinct rather than duplicating the same material across them.
+
 ### To-Do List Maintenance
 
-- As you complete items from `TODO.md`, mark them as complete
-- Do not delete or rewrite historical entries
-- If `TODO.md` is missing, create a new file and notify the user
+- Keep `TODO.md` limited to open, immediate execution tasks.
+- Remove completed items before committing; completed history belongs in git and, when user-visible, in `CHANGELOG.md`.
+- Do not use `TODO.md` as an archive or long-term plan.
+- If `TODO.md` is missing, create a new file and notify the user.
 
 ### Changelog Maintenance
 
@@ -89,10 +94,11 @@ Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format:
 
 Ensure:
 
-- Changelog matches the actual code changes
-- Version in `pyproject.toml` is updated
-- Historical entries are never modified
-- If `CHANGELOG.md` is missing, create a stub file and note this
+- Changelog matches notable user-visible changes and compatibility-affecting internal changes.
+- Task-level detail and development-process notes remain in commits/TODO/STATUS rather than the changelog.
+- Version in `pyproject.toml` is updated for a release.
+- Historical entries are never modified.
+- If `CHANGELOG.md` is missing, create a stub file and note this.
 
 Example:
 
@@ -120,6 +126,8 @@ Use conventional commit messages:
 - `fix: handle missing <class> tag in coverage XML`
 - `test: add tests for merge_blank_gap_groups`
 
+For non-trivial commits, include a body explaining rationale, behavioral consequences, tests, and relevant DESIGN/PLAN/ADR identifiers as required by `POLICY.md`.
+
 Before submitting a pull request:
 
 - Bump the version in `pyproject.toml` if relevant
@@ -137,7 +145,7 @@ Before submitting a pull request:
 You must assume:
 
 - Each task starts with only the current file state
-- You must re-read `TODO.md`, and `CHANGELOG.md` before taking action on historical items
+- Re-read `POLICY.md`, `DESIGN.md`, `PLAN.md`, `STATUS.md`, `TODO.md`, and `CHANGELOG.md` when their responsibilities are relevant to the task
 
 If lacking access to shell or file I/O:
 
@@ -152,5 +160,3 @@ All actions must follow this protocol unless:
 - Overridden by an explicit user instruction
 - Covered by a documented exception in this file
 
-```
-```

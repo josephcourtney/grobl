@@ -50,11 +50,15 @@ Writes the payload to stdout while keeping the human summary on stderr.
 
 ### `grobl scan [OPTIONS] [PATHS...]`
 
-Traverse one or more paths, apply ignore rules, and emit payloads plus optional summaries. If `PATHS` is omitted, the current directory is scanned. Supplying a single file causes grobl to treat the parent directory as the root while still including the file.
+Traverse one or more paths, resolve the layered inclusion policy, and emit payloads plus optional summaries. If `PATHS` is omitted, the current directory is scanned. Supplying a single file causes grobl to treat the parent directory as the root while still including the file.
 
 ### `grobl init [--path DIR] [--force]`
 
 Bootstrap a `.grobl.toml` configuration file using the bundled defaults. Without `--force`, grobl refuses to overwrite an existing configuration file.
+
+### `grobl config migrate [PATH]`
+
+Translate a legacy-only `.grobl.toml` inclusion policy to canonical `exclude`, `tree_only`, and `include` keys. In-place migration keeps a `.bak` copy by default; use `--stdout` to preview or `--check` to test whether migration is needed without writing.
 
 ### `grobl version`
 
@@ -88,6 +92,7 @@ Unmatched paths are fully included by default. `--exclude` therefore does not ne
 CLI rules have higher precedence than bundled defaults and discovered configuration. The legacy scoped flags (`--exclude-tree`, `--include-tree`, `--exclude-content`, and `--include-content`) remain accepted for compatibility but are hidden from normal help and compile into the three-state model.
 
 Use `--ignore-policy auto|all|none|defaults|config|cli` to choose which rule sources participate. `--no-ignore` disables all inclusion-policy rules.
+
 ## Global CLI options
 
 All subcommands share the following options:

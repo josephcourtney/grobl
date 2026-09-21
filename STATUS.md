@@ -1,15 +1,30 @@
 # Status
 
+This file is the short-horizon project snapshot for continuity and handoff. It is intentionally compact; durable architecture is in [DESIGN.md](DESIGN.md), execution strategy in [PLAN.md](PLAN.md), and immediate work in [TODO.md](TODO.md).
+
 Last updated: 2026-09-21
 
-## Highlights
+## Current focus
 
-- Replaced the independent tree/content ignore model with one three-state inclusion policy: `full`, `tree_only`, and `omit`.
-- Canonical configuration now uses `exclude`, `tree_only`, and `include`; an omitted path no longer needs to be repeated in a second content-exclusion list.
-- Preserved layered precedence: bundled defaults < root-to-leaf `.grobl.toml` files < explicit `--config` < CLI rules.
-- Added `--tree-only` and `--tree-only-file`; the former scoped tree/content flags remain hidden compatibility inputs.
-- `tree_only` files are represented in the hierarchy without text detection or content reads.
-- `grobl explain` reports the effective inclusion state, winning rule provenance, compatibility tree/content projections, and downstream binary detection.
-- Added `grobl config migrate` with in-place backup, `--stdout`, and `--check` modes for legacy-only configuration files.
-- Bundled and project configuration, specification, README, usage/configuration docs, changelog, and targeted regression tests use the three-state model.
-- Retained the 2.2.1 tokenizer special-token fix and the current main development-tool configuration.
+Prepare the 2.3.1 maintenance release after integrating the three-state inclusion policy, test-isolation fixes, and documentation-policy cleanup.
+
+## Recently completed
+
+- Integrated the `full | tree_only | omit` policy and canonical `exclude` / `tree_only` / `include` configuration.
+- Added `grobl config migrate`, explain provenance, compatibility adapters, and regression coverage.
+- Corrected test-size/isolation failures and the TTY fixture mismatch found by the full test run.
+- Merged the three-state feature history into `main` and aligned project records with `POLICY.md`.
+
+## Known gaps and limitations
+
+- Legacy policy keys and hidden scoped CLI flags remain intentionally supported at ingress.
+- Migration can only warn about overlapping non-identical legacy globs whose equivalence cannot be proven mechanically.
+- A fresh `just check` and `just release-check` are still required after the 2.3.1 metadata/documentation update.
+
+## Risks / blockers
+
+No known behavioral blocker. Release readiness depends on the pending full validation gates.
+
+## Resume notes
+
+Run the items in [TODO.md](TODO.md). If both validation gates pass, the repository is ready for the 2.3.1 release step.
