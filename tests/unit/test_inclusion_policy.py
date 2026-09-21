@@ -8,12 +8,10 @@ from grobl.constants import InclusionLevel
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
 from grobl.ignore import build_layered_ignores
-from grobl.utils import TextDetectionResult
-
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytestmark = pytest.mark.small
+    from grobl.utils import TextDetectionResult
 
 
 def _matcher(
@@ -35,9 +33,9 @@ def _matcher(
     )
 
 
+@pytest.mark.small
 def test_three_states_have_expected_tree_and_content_projection(tmp_path: Path) -> None:
     target = tmp_path / "sample.txt"
-    target.write_text("sample", encoding="utf-8")
 
     cases = (
         (InclusionLevel.OMIT, _matcher(tmp_path, exclude=("sample.txt",))),
@@ -55,15 +53,18 @@ def test_three_states_have_expected_tree_and_content_projection(tmp_path: Path) 
         )
 
 
+@pytest.mark.medium
 def test_tree_only_scan_does_not_read_or_detect_file(tmp_path: Path) -> None:
     target = tmp_path / "secret.txt"
     target.write_text("do not read me", encoding="utf-8")
 
     def fail_detect(_path: Path) -> TextDetectionResult:
-        raise AssertionError("TREE_ONLY file was text-detected")
+        msg = "TREE_ONLY file was text-detected"
+        raise AssertionError(msg)
 
     def fail_read(_path: Path) -> str:
-        raise AssertionError("TREE_ONLY file was read")
+        msg = "TREE_ONLY file was read"
+        raise AssertionError(msg)
 
     matcher = _matcher(tmp_path, tree_only=("secret.txt",))
     result = run_scan(
@@ -81,6 +82,7 @@ def test_tree_only_scan_does_not_read_or_detect_file(tmp_path: Path) -> None:
     assert summary.content_reason["state"] == "tree_only"
 
 
+@pytest.mark.medium
 def test_omit_needs_no_duplicate_tree_only_rule(tmp_path: Path) -> None:
     target = tmp_path / "generated.txt"
     target.write_text("generated", encoding="utf-8")
@@ -92,6 +94,7 @@ def test_omit_needs_no_duplicate_tree_only_rule(tmp_path: Path) -> None:
     assert "generated.txt" not in dict(result.builder.metadata_items())
 
 
+@pytest.mark.medium
 def test_deeper_config_can_restore_full_inclusion(tmp_path: Path) -> None:
     subtree = tmp_path / "generated"
     subtree.mkdir()
