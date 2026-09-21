@@ -75,7 +75,7 @@ def resolve_runtime_paths(paths: tuple[Path, ...]) -> tuple[tuple[Path, ...], Pa
 
 
 def _rules(patterns: tuple[str, ...], state: InclusionLevel) -> tuple[PolicyRule, ...]:
-    return tuple(PolicyRule(pattern=pattern, state=state) for pattern in patterns)
+    return tuple(PolicyRule(pattern=pattern, level=state) for pattern in patterns)
 
 
 def gather_runtime_policy_rules(
