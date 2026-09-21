@@ -5,6 +5,7 @@
 exclude_tree = [
   ".import_linter_cache",
   ".ropeproject",
+  ".ropefolder",
 
   # ---------------- grobl-specific ----------------
   ".grobl.toml",
@@ -79,6 +80,11 @@ exclude_tree = [
   ".gradle",
   "storybook-static", # Storybook build output
   "public/build",     # Svelte/V
+
+  # ---------------- lock/config files (usually too verbose) ----------------
+  "uv.lock",
+  "ruff.default.toml",
+  "ruff.toml",
 
   # ---------------- coverage ----------------
   ".coverage",     # coverage.py raw db
@@ -176,9 +182,6 @@ exclude_print = [
   "Cargo.lock",
   "composer.lock",
   "Gemfile.lock",
-  "uv.lock",
-  "ruff.default.toml",
-  "ruff.toml",
 
   # ---------------- tooling configs (generally low signal for problem-solving) ----------------
   ".pre-commit-config.yaml",
