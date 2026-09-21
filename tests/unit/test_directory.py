@@ -13,7 +13,7 @@ from grobl.directory import (
 )
 from grobl.token_counting import count_tokens
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -159,15 +159,16 @@ def test_double_star_excludes_any_depth(tmp_path: Path) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=["**/ignore.*"])
     spec = PathSpec.from_lines("gitignore", builder.exclude_patterns)
 
-    def cb(item: Path, prefix: str, *, is_last: bool) -> None:  # pragma: no cover - small callback
+    def cb(item: Path, prefix: str, *, is_last: bool) -> bool:  # pragma: no cover - small callback
         rel = item.relative_to(tmp_path)
         git_path = rel.as_posix()
         if spec.match_file(git_path):
-            return
+            return False
         if item.is_dir():
             builder.add_directory(item, prefix, is_last=is_last)
-        else:
-            builder.add_file_to_tree(item, prefix, is_last=is_last)
+            return True
+        builder.add_file_to_tree(item, prefix, is_last=is_last)
+        return False
 
     config = TraverseConfig(paths=[tmp_path], base=tmp_path, repo_root=tmp_path)
     traverse_dir(tmp_path, config, cb)

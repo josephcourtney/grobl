@@ -11,7 +11,7 @@ from grobl.cli import cli
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 def test_explain_json_reports_content_reason(repo_root: Path) -> None:

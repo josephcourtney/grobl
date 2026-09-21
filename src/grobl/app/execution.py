@@ -5,7 +5,7 @@ from __future__ import annotations
 import json as _json
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from grobl.constants import (
     CONFIG_INCLUDE_FILE_TAGS,
@@ -108,6 +108,7 @@ def build_summary_for_format(
     return human_summary_text, base_summary
 
 
+@runtime_checkable
 class PayloadStrategy(Protocol):
     def emit(
         self,
@@ -259,11 +260,10 @@ def _build_default_payload_strategies(
     sources: dict[PayloadFormat, StrategySource] = dict(_PAYLOAD_STRATEGIES)
     strategies: dict[PayloadFormat, PayloadStrategy] = {}
     for fmt, source in sources.items():
-        if hasattr(source, "emit"):
-            strategies[fmt] = source  # type: ignore[assignment]
+        if isinstance(source, PayloadStrategy):
+            strategies[fmt] = source
         else:
-            factory = source  # type: ignore[assignment]
-            strategies[fmt] = factory(deps)
+            strategies[fmt] = source(deps)
     return strategies
 
 

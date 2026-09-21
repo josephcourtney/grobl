@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -17,7 +17,7 @@ from grobl.token_counting import count_tokens
 from grobl.utils import TextDetectionResult
 from tests.support import build_ignore_matcher
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 
 
 def _make_ignores(paths: Sequence[Path], *, repo_root: Path, cfg: dict[str, object] | None = None):
-    tree_patterns = tuple(cfg.get("exclude_tree", [])) if cfg else ()
-    print_patterns = tuple(cfg.get("exclude_print", [])) if cfg else ()
+    tree_patterns = tuple(cast("Sequence[str]", cfg.get("exclude_tree", ()))) if cfg else ()
+    print_patterns = tuple(cast("Sequence[str]", cfg.get("exclude_print", ()))) if cfg else ()
     return build_ignore_matcher(
         repo_root=repo_root,
         scan_paths=list(paths),
@@ -41,7 +41,7 @@ def test_file_collection_and_metadata(tmp_path: Path) -> None:
     (tmp_path / "skip.txt").write_text("skip\n", encoding="utf-8")
     (tmp_path / "bin.dat").write_bytes(b"\x00\x01\x02\x03")
 
-    cfg = {"exclude_tree": [], "exclude_print": ["skip.txt"]}
+    cfg: dict[str, object] = {"exclude_tree": [], "exclude_print": ["skip.txt"]}
     ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
     res = run_scan(paths=[tmp_path], cfg=cfg, ignores=ignores)
     b = res.builder
@@ -70,7 +70,7 @@ def test_exclude_print_with_gitignore_semantics(tmp_path: Path) -> None:
 
     from grobl.core import run_scan
 
-    cfg = {"exclude_tree": [], "exclude_print": ["**/*.md"]}
+    cfg: dict[str, object] = {"exclude_tree": [], "exclude_print": ["**/*.md"]}
     ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
     res = run_scan(paths=[tmp_path], cfg=cfg, ignores=ignores)
     # The .md file should have included=False in metadata
@@ -104,7 +104,7 @@ def test_run_scan_uses_match_base_for_gitignore_anchors(tmp_path: Path) -> None:
     (tmp_path / "foo" / "root_only.txt").write_text("keep\n", encoding="utf-8")
     (tmp_path / "foo" / "keep.txt").write_text("ok\n", encoding="utf-8")
 
-    cfg = {"exclude_tree": ["/root_only.txt", "foo/**/bar.txt"], "exclude_print": []}
+    cfg: dict[str, object] = {"exclude_tree": ["/root_only.txt", "foo/**/bar.txt"], "exclude_print": []}
     path_list = [tmp_path / "foo"]
     ignores = _make_ignores(path_list, repo_root=tmp_path, cfg=cfg)
     res = run_scan(paths=path_list, cfg=cfg, match_base=tmp_path, ignores=ignores)
@@ -131,7 +131,7 @@ def test_unignore_allows_specific_paths(tmp_path: Path) -> None:
     nested = tmp_path / "tests" / "fixtures" / ".gitignore"
     nested.write_text("nested\n", encoding="utf-8")
 
-    base_cfg = {"exclude_tree": [".gitignore"], "exclude_print": []}
+    base_cfg: dict[str, object] = {"exclude_tree": [".gitignore"], "exclude_print": []}
     edits = apply_runtime_ignore_edits(
         base_tree=list(base_cfg["exclude_tree"]),
         base_print=list(base_cfg["exclude_print"]),
@@ -141,7 +141,7 @@ def test_unignore_allows_specific_paths(tmp_path: Path) -> None:
         unignore=("tests/fixtures/**/.gitignore",),
         no_ignore=False,
     )
-    cfg = {"exclude_tree": edits.tree_patterns, "exclude_print": edits.print_patterns}
+    cfg: dict[str, object] = {"exclude_tree": edits.tree_patterns, "exclude_print": edits.print_patterns}
     ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
     res = run_scan(paths=[tmp_path], cfg=cfg, match_base=tmp_path, ignores=ignores)
     tree = "\n".join(res.builder.tree_output())

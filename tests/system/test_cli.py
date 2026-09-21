@@ -563,7 +563,7 @@ def test_payload_destination_contract(
     fake_clipboard: list[str],
 ) -> None:
     _mk_repo(repo_root)
-    patch_tty(is_tty=case.stdout_tty)
+    patch_tty(case.stdout_tty)
 
     args = [a.format(root=str(repo_root)) for a in case.args]
     res = CliRunner().invoke(cli, args)

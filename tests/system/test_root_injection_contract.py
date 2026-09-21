@@ -12,7 +12,7 @@ from grobl.constants import EXIT_USAGE
 if TYPE_CHECKING:
     from pathlib import Path
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 @pytest.mark.parametrize(
