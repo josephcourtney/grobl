@@ -80,7 +80,6 @@ def gather_runtime_ignore_patterns(
     ignore_args: IgnoreCLIArgs,
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """Return CLI rules projected onto omit, tree_only, and full states."""
-
     file_excludes = tuple(
         _path_to_runtime_pattern(path, repo_root=repo_root) for path in ignore_args.exclude_file
     )

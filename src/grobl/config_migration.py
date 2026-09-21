@@ -50,7 +50,7 @@ def _patterns(value: object, *, key: str) -> list[str]:
 
 def _pattern_core(pattern: str) -> str:
     stripped = pattern.strip()
-    return stripped[1:] if stripped.startswith("!") else stripped
+    return stripped.removeprefix("!")
 
 
 def _tree_omission_cores(patterns: Sequence[str]) -> set[str]:

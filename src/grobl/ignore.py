@@ -142,7 +142,6 @@ def _append_rules(
 
 def rules_from_config(source: dict[str, object]) -> tuple[InclusionRule, ...]:
     """Translate one config source into its ordered inclusion-rule stream."""
-
     canonical = any(key in source for key in (CONFIG_EXCLUDE, CONFIG_TREE_ONLY, CONFIG_INCLUDE))
     rules: list[InclusionRule] = []
 
@@ -159,9 +158,7 @@ def rules_from_config(source: dict[str, object]) -> tuple[InclusionRule, ...]:
     # Compatibility with the former independent scopes. Content exclusions are
     # applied first and tree exclusions second so a path present in both old
     # lists maps to OMIT rather than TREE_ONLY.
-    legacy_content_key = (
-        CONFIG_EXCLUDE_CONTENT if CONFIG_EXCLUDE_CONTENT in source else CONFIG_EXCLUDE_PRINT
-    )
+    legacy_content_key = CONFIG_EXCLUDE_CONTENT if CONFIG_EXCLUDE_CONTENT in source else CONFIG_EXCLUDE_PRINT
     _append_rules(
         rules,
         _extract_patterns(source, legacy_content_key),
@@ -177,7 +174,6 @@ def rules_from_config(source: dict[str, object]) -> tuple[InclusionRule, ...]:
 
 def discover_grobl_toml_files(*, repo_root: Path, scan_paths: Sequence[Path]) -> list[Path]:
     """Return applicable .grobl.toml files ordered from repository root to leaf."""
-
     root = repo_root.resolve()
     targets = [_coerce_to_dir(path.resolve(strict=False)) for path in scan_paths]
 
@@ -372,7 +368,6 @@ def build_layered_ignores(
     runtime_rules: Sequence[InclusionRule] = (),
 ) -> LayeredIgnoreMatcher:
     """Assemble defaults -> hierarchical config -> explicit config -> CLI."""
-
     layers: list[InclusionLayer] = []
 
     if include_defaults:
@@ -426,9 +421,7 @@ def build_layered_ignores(
     )
 
     compiled = compile_layers(layers)
-    has_reinclusions = any(
-        rule.level is InclusionLevel.FULL for layer in compiled for rule in layer.rules
-    )
+    has_reinclusions = any(rule.level is InclusionLevel.FULL for layer in compiled for rule in layer.rules)
     return LayeredIgnoreMatcher(
         layers=compiled,
         has_reinclusions=has_reinclusions,

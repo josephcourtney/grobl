@@ -8,10 +8,11 @@ from grobl.constants import InclusionLevel
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
 from grobl.ignore import build_layered_ignores
-from grobl.utils import TextDetectionResult
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from grobl.utils import TextDetectionResult
 
 pytestmark = pytest.mark.small
 
@@ -47,12 +48,8 @@ def test_three_states_have_expected_tree_and_content_projection(tmp_path: Path) 
     for expected, matcher in cases:
         decision = matcher.explain_inclusion(target, is_dir=False)
         assert decision.level is expected
-        assert matcher.explain_tree(target, is_dir=False).excluded is (
-            expected is InclusionLevel.OMIT
-        )
-        assert matcher.explain_content(target, is_dir=False).excluded is (
-            expected is not InclusionLevel.FULL
-        )
+        assert matcher.explain_tree(target, is_dir=False).excluded is (expected is InclusionLevel.OMIT)
+        assert matcher.explain_content(target, is_dir=False).excluded is (expected is not InclusionLevel.FULL)
 
 
 def test_tree_only_scan_does_not_read_or_detect_file(tmp_path: Path) -> None:
@@ -60,10 +57,12 @@ def test_tree_only_scan_does_not_read_or_detect_file(tmp_path: Path) -> None:
     target.write_text("do not read me", encoding="utf-8")
 
     def fail_detect(_path: Path) -> TextDetectionResult:
-        raise AssertionError("TREE_ONLY file was text-detected")
+        msg = "TREE_ONLY file was text-detected"
+        raise AssertionError(msg)
 
     def fail_read(_path: Path) -> str:
-        raise AssertionError("TREE_ONLY file was read")
+        msg = "TREE_ONLY file was read"
+        raise AssertionError(msg)
 
     matcher = _matcher(tmp_path, tree_only=("secret.txt",))
     result = run_scan(
@@ -97,12 +96,8 @@ def test_deeper_config_can_restore_full_inclusion(tmp_path: Path) -> None:
     subtree.mkdir()
     target = subtree / "keep.txt"
     target.write_text("keep", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text(
-        'exclude = ["generated/**"]\n', encoding="utf-8"
-    )
-    (subtree / ".grobl.toml").write_text(
-        'include = ["keep.txt"]\n', encoding="utf-8"
-    )
+    (tmp_path / ".grobl.toml").write_text('exclude = ["generated/**"]\n', encoding="utf-8")
+    (subtree / ".grobl.toml").write_text('include = ["keep.txt"]\n', encoding="utf-8")
 
     matcher = build_layered_ignores(
         repo_root=tmp_path,

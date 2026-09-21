@@ -196,11 +196,7 @@ class FileHandlerRegistry:
                 size = path.stat().st_size
             except OSError:
                 size = 0
-            reason = (
-                inclusion_reason_to_dict(decision.reason)
-                if decision.reason is not None
-                else None
-            )
+            reason = inclusion_reason_to_dict(decision.reason) if decision.reason is not None else None
             context.builder.record_metadata(
                 path.relative_to(context.common),
                 0,

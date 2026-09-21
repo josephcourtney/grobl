@@ -69,8 +69,7 @@ def _build_reason(reason: dict[str, Any] | None) -> str:
 def _render_human(entries: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for entry in entries:
-        lines.append(f"Path: {entry['path']}")
-        lines.append(f"  state: {entry['state']}")
+        lines.extend((f"Path: {entry['path']}", f"  state: {entry['state']}"))
         if entry.get("reason"):
             lines.append(f"    reason: {_build_reason(entry['reason'])}")
         tree = entry["tree"]
@@ -107,9 +106,7 @@ def _explain_entry(abs_path: Path, ignores: LayeredIgnoreMatcher) -> dict[str, A
     }
 
     content_included = decision.level is InclusionLevel.FULL
-    content_reason: dict[str, Any] | None = (
-        reason if decision.level is InclusionLevel.TREE_ONLY else None
-    )
+    content_reason: dict[str, Any] | None = reason if decision.level is InclusionLevel.TREE_ONLY else None
     text_detection: dict[str, Any] | None = None
 
     if abs_path.is_file() and decision.level is InclusionLevel.FULL:
