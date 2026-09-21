@@ -1,6 +1,6 @@
 # grobl
 
-grobl is a command-line utility that condenses a directory into a concise context payload for LLMs. It scans input paths, builds a directory tree, collects text file contents (with metadata), and emits a well-structured payload while respecting ignore patterns.
+grobl is a command-line utility that condenses a directory into a concise context payload for LLMs. It scans input paths, builds a directory tree, collects eligible text file contents with metadata, and emits a well-structured payload through an explainable three-state inclusion policy.
 
 ## Principles
 
@@ -12,7 +12,9 @@ grobl optimizes for three things:
 
 ## Documentation
 
-Project documentation is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). To work on the docs locally, install the development dependencies and launch the preview server:
+Project documentation is built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/). Repository-document responsibilities are defined in [POLICY.md](POLICY.md); durable architecture is in [DESIGN.md](DESIGN.md), execution strategy in [PLAN.md](PLAN.md), current handoff state in [STATUS.md](STATUS.md), immediate work in [TODO.md](TODO.md), and durable decision rationale in [docs/adr/](docs/adr/).
+
+To work on the user documentation locally, install the development dependencies and launch the preview server:
 
 ```bash
 uv sync --group dev
@@ -63,7 +65,7 @@ Common workflows:
 * Show only a summary table (no payload):
 
   ```bash
-grobl scan --format none --summary table
+  grobl scan --format none --summary table
   ```
 
 * Emit only a JSON summary (no LLM payload):
@@ -303,7 +305,7 @@ That run still emits paths and content, but omits token metadata and inclusion b
 --stdout
 ```
 
-* When neither `--copy` nor `--output` is provided, the payload is written to the clipboard (the default).
+* When neither `--copy` nor `--output` is provided, grobl uses the clipboard when stdout is a TTY and stdout otherwise.
 * `--copy` forces clipboard delivery and cannot be combined with `--output` or `--stdout`.
 * `--output -` writes the payload to stdout.
 * `--stdout` writes the payload to stdout.
