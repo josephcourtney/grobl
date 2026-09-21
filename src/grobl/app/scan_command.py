@@ -29,7 +29,7 @@ from .scan_runtime import (
     IgnoreCLIArgs,
     assemble_layered_ignores,
     ensure_paths_within_repo,
-    gather_runtime_ignore_patterns,
+    gather_runtime_policy_rules,
     resolve_runtime_paths,
 )
 
