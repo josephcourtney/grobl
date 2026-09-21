@@ -7,6 +7,7 @@ import tomlkit
 from click.testing import CliRunner
 
 from grobl.cli import cli
+from grobl.cli.root import main
 
 pytestmark = pytest.mark.medium
 
@@ -47,6 +48,16 @@ def test_config_migrate_stdout_does_not_modify_file(tmp_path: Path) -> None:
     parsed = tomlkit.parse(result.stdout)
     assert list(parsed["exclude"]) == ["dist/"]
     assert not Path(f"{path}.bak").exists()
+
+
+def test_config_migrate_check_exit_code_through_console_wrapper(tmp_path: Path) -> None:
+    path = tmp_path / ".grobl.toml"
+    path.write_text('exclude_tree = ["dist/"]\n', encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["config", "migrate", str(path), "--check"])
+
+    assert excinfo.value.code == 1
 
 
 def test_config_migrate_check_reports_legacy_and_canonical(tmp_path: Path) -> None:

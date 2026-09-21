@@ -60,7 +60,8 @@ def config_command() -> None:
 def migrate(path: Path, *, to_stdout: bool, check: bool, backup: bool) -> None:
     """Translate legacy inclusion keys to exclude/tree_only/include."""
     if to_stdout and check:
-        raise click.UsageError("--stdout and --check cannot be used together")
+        msg = "--stdout and --check cannot be used together"
+        raise click.UsageError(msg)
 
     if check or to_stdout:
         try:
@@ -71,8 +72,8 @@ def migrate(path: Path, *, to_stdout: bool, check: bool, backup: bool) -> None:
 
         if check:
             if result.changed:
-                click.echo(f"{path} uses legacy inclusion keys", err=True)
-                raise click.exceptions.Exit(1)
+                msg = f"{path} uses legacy inclusion keys"
+                raise click.ClickException(msg)
             click.echo(f"{path} is already canonical")
             return
 
