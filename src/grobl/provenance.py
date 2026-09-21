@@ -19,19 +19,19 @@ def _fmt_path(value: Path | str) -> str:
 
 def inclusion_reason_to_dict(reason: InclusionReason) -> dict[str, Any]:
     """Return a JSON-friendly dict describing the winning policy rule."""
+
     return {
         "pattern": reason.raw,
         "state": reason.level.value,
         "negated": reason.negated,
         "source": reason.source.value,
-        "state": reason.state.value,
         "base_dir": _fmt_path(reason.base_dir),
         "config_path": _fmt_path(reason.config_path) if reason.config_path else None,
         "detail": None,
     }
 
 
-# Compatibility name retained for existing consumers.
+# Compatibility name retained for consumers of the former exclusion API.
 exclusion_reason_to_dict = inclusion_reason_to_dict
 
 
@@ -42,6 +42,7 @@ def format_content_reason(
     subject: Path,
 ) -> dict[str, Any] | None:
     """Return a consistent reason dict for content omissions."""
+
     if reason is not None:
         return inclusion_reason_to_dict(reason)
 
