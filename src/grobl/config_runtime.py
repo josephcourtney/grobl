@@ -1,4 +1,4 @@
-"""Runtime ignore editing helpers."""
+"""Runtime inclusion-policy editing helpers."""
 
 from __future__ import annotations
 
@@ -11,8 +11,50 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
+class RuntimeInclusionEdits:
+    """Canonical runtime edits for the three-state inclusion policy."""
+
+    exclude_patterns: list[str]
+    tree_only_patterns: list[str]
+    include_patterns: list[str]
+
+
+def apply_runtime_inclusion_edits(
+    *,
+    exclude: tuple[str, ...] = (),
+    tree_only: tuple[str, ...] = (),
+    include: tuple[str, ...] = (),
+    exclude_files: tuple[Path, ...] = (),
+    tree_only_files: tuple[Path, ...] = (),
+    include_files: tuple[Path, ...] = (),
+    no_ignore: bool = False,
+) -> RuntimeInclusionEdits:
+    """Normalize runtime CLI edits into the canonical three-state lists."""
+    if no_ignore:
+        return RuntimeInclusionEdits([], [], [])
+
+    return RuntimeInclusionEdits(
+        exclude_patterns=_with_file_patterns(exclude, exclude_files),
+        tree_only_patterns=_with_file_patterns(tree_only, tree_only_files),
+        include_patterns=_with_file_patterns(include, include_files),
+    )
+
+
+def _with_file_patterns(values: tuple[str, ...], files: tuple[Path, ...]) -> list[str]:
+    result: list[str] = []
+    _append_unique(result, values)
+    _append_unique(result, tuple(str(path) for path in files))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Legacy two-scope compatibility API.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeIgnoreEdits:
-    """Runtime ignore edits applied on top of a base pattern list."""
+    """Compatibility representation of the former two-scope runtime model."""
 
     tree_patterns: list[str]
     print_patterns: list[str]
@@ -34,7 +76,7 @@ def apply_runtime_ignore_edits(
     exclude_content: tuple[str, ...] = (),
     include_content: tuple[str, ...] = (),
 ) -> RuntimeIgnoreEdits:
-    """Apply CLI ignore overrides to both tree and content layers."""
+    """Translate legacy runtime edits while preserving their observable behavior."""
     tree = list(base_tree)
     if no_ignore:
         return RuntimeIgnoreEdits(tree_patterns=[], print_patterns=[])
@@ -44,13 +86,11 @@ def apply_runtime_ignore_edits(
 
     print_patterns = list(base_print)
 
-    for pat in exclude:
-        _append_unique(tree, (pat,))
-        _append_unique(print_patterns, (pat,))
-    for pat in exclude_tree:
-        _append_unique(tree, (pat,))
-    for pat in exclude_content:
-        _append_unique(print_patterns, (pat,))
+    for pattern in exclude:
+        _append_unique(tree, (pattern,))
+        _append_unique(print_patterns, (pattern,))
+    _append_unique(tree, exclude_tree)
+    _append_unique(print_patterns, exclude_content)
 
     _remove_patterns(tree, remove_ignore)
     _append_unignore_patterns(tree, unignore)

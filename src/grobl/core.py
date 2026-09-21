@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
+from grobl.constants import InclusionLevel
 from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, traverse_dir
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
 from grobl.utils import find_common_ancestor
@@ -45,7 +46,7 @@ def _determine_match_base(match_base: Path | None, resolved: list[Path], default
 
 
 def _coerce_exclude_patterns(value: object | None) -> list[str]:
-    r"""Normalize ``cfg[\"exclude_tree\"]``-like values to a list of strings."""
+    """Normalize an exclusion-like config value to a list of strings."""
     if value is None:
         return []
     if isinstance(value, str):
@@ -65,20 +66,7 @@ def run_scan(
     handlers: FileHandlerRegistry | None = None,
     dependencies: ScanDependencies | None = None,
 ) -> ScanResult:
-    """
-    Run a filesystem scan.
-
-    Corrected invariant:
-      - traversal root
-      - tree builder base
-      - ScanResult.common
-
-    must all agree, otherwise relative paths and rendered output drift.
-
-    We anchor everything at `builder_base`, which is:
-      - repo_root (if supplied and contains all scan paths), else
-      - the common ancestor of the scan paths.
-    """
+    """Run a filesystem scan under the effective three-state inclusion policy."""
     resolved_paths = [p.resolve() for p in paths]
     if not resolved_paths:
         msg = "run_scan requires at least one path"
@@ -95,9 +83,11 @@ def run_scan(
     builder_base = _determine_builder_base(common, resolved_paths, repo_root)
     match_base = _determine_match_base(match_base, resolved_paths, builder_base)
 
+    # Kept only for interrupt diagnostics/backward-compatible builder state.
+    diagnostic_excludes = cfg.get("exclude", cfg.get("exclude_tree"))
     builder = DirectoryTreeBuilder(
         base_path=builder_base,
-        exclude_patterns=_coerce_exclude_patterns(cfg.get("exclude_tree")),
+        exclude_patterns=_coerce_exclude_patterns(diagnostic_excludes),
     )
 
     context = FileProcessingContext(
@@ -108,16 +98,17 @@ def run_scan(
     )
 
     registry = FileHandlerRegistry.default() if handlers is None else handlers
-    tree_has_negations = ignores.tree_has_negations
 
     def collect(path: Path, prefix: str, *, is_last: bool) -> bool:
         is_dir = path.is_dir()
-        excluded = ignores.excluded_from_tree(path, is_dir=is_dir)
+        decision = ignores.explain_inclusion(path, is_dir=is_dir)
         if is_dir:
-            if not excluded:
+            if decision.level is not InclusionLevel.OMIT:
                 builder.add_directory(path, prefix, is_last=is_last)
-            return not excluded or tree_has_negations
-        if excluded:
+                return True
+            return ignores.has_reinclusions
+
+        if decision.level is InclusionLevel.OMIT:
             return False
         builder.add_file_to_tree(path, prefix, is_last=is_last)
         registry.handle(path=path, context=context)
@@ -133,7 +124,4 @@ def run_scan(
         cast("TreeCallback", collect),
     )
 
-    return ScanResult(
-        builder=builder,
-        common=builder_base,
-    )
+    return ScanResult(builder=builder, common=builder_base)

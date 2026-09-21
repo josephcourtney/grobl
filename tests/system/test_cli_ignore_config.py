@@ -26,10 +26,10 @@ def _run(args: list[str]) -> tuple[int, str, str]:
 
 
 def test_layered_config_discovery_root_to_deepest_and_relative_patterns(repo_root: Path) -> None:
-    _mkfile(repo_root / ".grobl.toml", "exclude_tree = ['root_excluded.txt']\nexclude_print = []\n")
+    _mkfile(repo_root / ".grobl.toml", "exclude = ['root_excluded.txt']\n")
     sub = repo_root / "sub"
     sub.mkdir()
-    _mkfile(sub / ".grobl.toml", "exclude_tree = ['sub_excluded.txt']\nexclude_print = []\n")
+    _mkfile(sub / ".grobl.toml", "exclude = ['sub_excluded.txt']\n")
 
     _mkfile(repo_root / "root_excluded.txt", "x\n")
     _mkfile(sub / "sub_excluded.txt", "y\n")
@@ -55,7 +55,7 @@ def test_layered_config_discovery_root_to_deepest_and_relative_patterns(repo_roo
 def test_ignore_negation_can_reinclude_child_when_parent_excluded(repo_root: Path) -> None:
     _mkfile(
         repo_root / ".grobl.toml",
-        "exclude_tree = ['parent/**', '!parent/keep.txt']\nexclude_print = []\n",
+        "exclude = ['parent/**', '!parent/keep.txt']\n",
     )
     _mkfile(repo_root / "parent" / "keep.txt", "keep\n")
     _mkfile(repo_root / "parent" / "drop.txt", "drop\n")
@@ -98,7 +98,7 @@ def test_no_ignore_defaults_disables_bundled_defaults(repo_root: Path) -> None:
 
 
 def test_no_ignore_config_disables_all_grobl_toml_rules(repo_root: Path) -> None:
-    _mkfile(repo_root / ".grobl.toml", "exclude_tree = ['blocked.txt']\nexclude_print = []\n")
+    _mkfile(repo_root / ".grobl.toml", "exclude = ['blocked.txt']\n")
     _mkfile(repo_root / "blocked.txt", "x\n")
 
     code1, out1, _ = _run(["scan", str(repo_root), "--scope", "tree", "--summary", "none", "--output", "-"])

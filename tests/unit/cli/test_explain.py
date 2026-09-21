@@ -25,6 +25,7 @@ def test_explain_json_reports_content_reason(repo_root: Path) -> None:
     entries = json.loads(result.stdout)
     assert len(entries) == 1
     entry = entries[0]
+    assert entry["state"] == "full"
     assert entry["content"]["included"] is True
     assert entry["content"]["reason"] is None
 
@@ -47,7 +48,7 @@ def test_explain_json_returns_text_detection(repo_root: Path) -> None:
     assert entries[0]["text_detection"]["detail"] == "null byte detected"
 
 
-def test_explain_include_content_overrides_docs(repo_root: Path) -> None:
+def test_explain_include_restores_full_docs_state(repo_root: Path) -> None:
     (repo_root / "docs").mkdir()
     doc = repo_root / "docs" / "guide.md"
     doc.write_text("guide", encoding="utf-8")
@@ -55,11 +56,12 @@ def test_explain_include_content_overrides_docs(repo_root: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ["explain", "--format", "json", "--include-content", "docs/**", "docs"],
+        ["explain", "--format", "json", "--include", "docs/**", "docs"],
     )
     assert result.exit_code == 0
 
     entries = json.loads(result.stdout)
+    assert entries[0]["state"] == "full"
     assert entries[0]["content"]["included"] is True
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 def test_changelog_mentions_current_version() -> None:

@@ -1,3 +1,12 @@
+## Three-state inclusion policy
+
+- [x] replace independent tree/content decisions with `full`, `tree_only`, and `omit`
+- [x] make `exclude`, `tree_only`, and `include` the canonical config surface
+- [x] add canonical CLI state controls and retain legacy scoped aliases
+- [x] preserve layered defaults/config/explicit-config/CLI precedence and provenance
+- [x] add regression coverage for state projection and tree-only no-read behavior
+- [x] update specification, README, configuration, usage, and changelog documentation
+- [x] add `grobl config migrate` with backup, preview, check mode, mixed-schema rejection, and migration warnings
 ## Explain/diagnostics (“why is this excluded?”)
 
 - [x] add `grobl explain [PATHS...]` subcommand (preferred) OR `grobl scan --explain [PATHS...]` (alias)
@@ -18,7 +27,7 @@
 ## Defaults and configuration naming
 
 - [x] decide on default handling for `docs/` (policy)
-  - [x] option B: keep current default, but ensure `--include-content 'docs/**'` is prominently documented and demonstrated
+  - [x] keep hierarchy-only handling where configured and document `--include 'docs/**'` as the full-content override
 
 - [x] make config naming clearer (non-breaking)
   - [x] optionally support `exclude_content` as an alias for `exclude_print` when loading config (keep writing canonical key)
@@ -31,8 +40,8 @@
   - [x] verify provenance reports correct base_dir + config origin
 
 - [x] add component/system tests for CLI behavior
-  - [x] `--include-content docs/**` overrides default `exclude_print` and includes doc contents
-  - [x] legacy flags still behave the same and emit deprecation warnings
+  - [x] `--include docs/**` overrides a lower-precedence `tree_only` rule and includes doc contents
+  - [x] legacy scoped flags remain accepted as hidden compatibility aliases
   - [x] `grobl explain` reports correct winning rule for both tree and content
 
 - [x] update SPEC.md with normative behavior for the new flags and explain output

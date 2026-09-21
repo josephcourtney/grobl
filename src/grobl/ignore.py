@@ -1,10 +1,7 @@
-"""Layered ignore discovery and matching.
+"""Layered three-state inclusion policy discovery and matching.
 
-Implements SPEC.md:
-  - hierarchical .grobl.toml discovery from repo root down to scanned dirs
-  - patterns are interpreted relative to the directory containing the file
-  - gitignore semantics including ! negation, evaluated sequentially (last match wins)
-  - negation must be able to re-include children even if parent was excluded (handled by traversal)
+Every path resolves to exactly one level: full, tree_only, or omit.
+Rules are evaluated sequentially across layers and the last matching rule wins.
 """
 
 from __future__ import annotations
@@ -19,9 +16,13 @@ from pathspec import PathSpec
 from .config_defaults import TOML_CONFIG
 from .config_loading import load_toml_config
 from .constants import (
+    CONFIG_EXCLUDE,
     CONFIG_EXCLUDE_CONTENT,
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
+    CONFIG_INCLUDE,
+    CONFIG_TREE_ONLY,
+    InclusionLevel,
 )
 
 if TYPE_CHECKING:
@@ -37,18 +38,32 @@ class LayerSource(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class IgnoreLayer:
+class InclusionRule:
+    """A gitignore-style pattern that assigns an inclusion level."""
+
+    pattern: str
+    level: InclusionLevel
+
+
+# Compatibility name used by the application runtime while the public model is
+# described in terms of inclusion.
+PolicyRule = InclusionRule
+
+
+@dataclass(frozen=True, slots=True)
+class InclusionLayer:
     base_dir: Path
-    patterns: tuple[str, ...]
+    rules: tuple[InclusionRule, ...]
     source: LayerSource
     config_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class CompiledPattern:
+class CompiledRule:
     raw: str
     core: str
     negated: bool
+    level: InclusionLevel
     spec: PathSpec
 
 
@@ -57,149 +72,289 @@ class CompiledLayer:
     base_dir: Path
     source: LayerSource
     config_path: Path | None
-    patterns: tuple[CompiledPattern, ...]
+    rules: tuple[CompiledRule, ...]
 
 
-def _coerce_to_dir(p: Path) -> Path:
-    return p.parent if p.is_file() else p
+@dataclass(frozen=True, slots=True)
+class InclusionReason:
+    """Provenance for the winning inclusion rule."""
+
+    raw: str
+    core: str
+    negated: bool
+    level: InclusionLevel
+    base_dir: Path
+    source: LayerSource
+    config_path: Path | None
 
 
-def _extract_patterns(source: dict[str, object], key: str, *, alias: str | None = None) -> tuple[str, ...]:
-    for candidate in (key, alias):
-        if candidate is None:
-            continue
-        value = source.get(candidate)
-        if value is None:
-            continue
-        if isinstance(value, str):
-            return (value,)
-        if isinstance(value, Sequence) and not isinstance(value, str):
-            return tuple(str(item) for item in value)
+# Historical type name retained for imports in downstream code.
+ExclusionReason = InclusionReason
+
+
+@dataclass(frozen=True, slots=True)
+class InclusionDecision:
+    level: InclusionLevel
+    reason: InclusionReason | None
+
+    @property
+    def tree_included(self) -> bool:
+        return self.level is not InclusionLevel.OMIT
+
+    @property
+    def content_included(self) -> bool:
+        return self.level is InclusionLevel.FULL
+
+
+PolicyDecision = InclusionDecision
+
+
+@dataclass(frozen=True, slots=True)
+class MatchDecision:
+    """Compatibility projection onto the former tree/content booleans."""
+
+    excluded: bool
+    reason: InclusionReason | None
+
+
+def _coerce_to_dir(path: Path) -> Path:
+    return path.parent if path.is_file() else path
+
+
+def _extract_patterns(source: dict[str, object], key: str) -> tuple[str, ...]:
+    value = source.get(key)
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        return tuple(str(item) for item in value)
     return ()
 
 
-def discover_grobl_toml_files(*, repo_root: Path, scan_paths: Sequence[Path]) -> list[Path]:
-    """Return discovered .grobl.toml files ordered from repo root to deepest.
+def _append_rules(
+    target: list[InclusionRule],
+    patterns: Iterable[str],
+    level: InclusionLevel,
+) -> None:
+    target.extend(InclusionRule(pattern=str(pattern), level=level) for pattern in patterns)
 
-    Only returns config files that are ancestors of at least one scanned directory.
-    """
+
+def rules_from_config(source: dict[str, object]) -> tuple[InclusionRule, ...]:
+    """Translate one config source into its ordered inclusion-rule stream."""
+
+    canonical = any(key in source for key in (CONFIG_EXCLUDE, CONFIG_TREE_ONLY, CONFIG_INCLUDE))
+    rules: list[InclusionRule] = []
+
+    if canonical:
+        _append_rules(rules, _extract_patterns(source, CONFIG_EXCLUDE), InclusionLevel.OMIT)
+        _append_rules(
+            rules,
+            _extract_patterns(source, CONFIG_TREE_ONLY),
+            InclusionLevel.TREE_ONLY,
+        )
+        _append_rules(rules, _extract_patterns(source, CONFIG_INCLUDE), InclusionLevel.FULL)
+        return tuple(rules)
+
+    # Compatibility with the former independent scopes. Content exclusions are
+    # applied first and tree exclusions second so a path present in both old
+    # lists maps to OMIT rather than TREE_ONLY.
+    legacy_content_key = (
+        CONFIG_EXCLUDE_CONTENT if CONFIG_EXCLUDE_CONTENT in source else CONFIG_EXCLUDE_PRINT
+    )
+    _append_rules(
+        rules,
+        _extract_patterns(source, legacy_content_key),
+        InclusionLevel.TREE_ONLY,
+    )
+    _append_rules(
+        rules,
+        _extract_patterns(source, CONFIG_EXCLUDE_TREE),
+        InclusionLevel.OMIT,
+    )
+    return tuple(rules)
+
+
+def discover_grobl_toml_files(*, repo_root: Path, scan_paths: Sequence[Path]) -> list[Path]:
+    """Return applicable .grobl.toml files ordered from repository root to leaf."""
+
     root = repo_root.resolve()
-    targets = [_coerce_to_dir(p.resolve(strict=False)) for p in scan_paths]
+    targets = [_coerce_to_dir(path.resolve(strict=False)) for path in scan_paths]
 
     found: set[Path] = set()
-    for t in targets:
-        if not t.is_relative_to(root):
-            # Caller should guard this; keep safe.
+    for target in targets:
+        if not target.is_relative_to(root):
             continue
-        cur = t
+        current = target
         while True:
-            candidate = cur / TOML_CONFIG
+            candidate = current / TOML_CONFIG
             if candidate.exists():
                 found.add(candidate.resolve())
-            if cur == root:
+            if current == root:
                 break
-            cur = cur.parent
+            current = current.parent
 
-    # Order by depth: root-first.
-    return sorted(found, key=lambda p: (len(p.parent.relative_to(root).parts), p.as_posix().casefold()))
+    return sorted(
+        found,
+        key=lambda path: (
+            len(path.parent.relative_to(root).parts),
+            path.as_posix().casefold(),
+        ),
+    )
 
 
-def _compile_patterns(patterns: Iterable[str]) -> tuple[CompiledPattern, ...]:
-    compiled: list[CompiledPattern] = []
-    for raw in patterns:
-        pat = raw.strip()
-        if not pat or pat.startswith("#"):
+def _compile_rules(rules: Iterable[InclusionRule]) -> tuple[CompiledRule, ...]:
+    compiled: list[CompiledRule] = []
+    for rule in rules:
+        raw = rule.pattern.strip()
+        if not raw or raw.startswith("#"):
             continue
-        neg = pat.startswith("!")
-        core = pat[1:] if neg else pat
-        # One-line spec, sequentially evaluated.
-        spec = PathSpec.from_lines("gitignore", [core])
-        compiled.append(CompiledPattern(raw=pat, core=core, negated=neg, spec=spec))
+        negated = raw.startswith("!")
+        core = raw[1:] if negated else raw
+        # Legacy/config gitignore negation is an explicit restoration.
+        level = InclusionLevel.FULL if negated else rule.level
+        compiled.append(
+            CompiledRule(
+                raw=raw,
+                core=core,
+                negated=negated,
+                level=level,
+                spec=PathSpec.from_lines("gitignore", [core]),
+            )
+        )
     return tuple(compiled)
 
 
-def compile_layers(layers: Sequence[IgnoreLayer]) -> tuple[CompiledLayer, ...]:
+def compile_layers(layers: Sequence[InclusionLayer]) -> tuple[CompiledLayer, ...]:
     return tuple(
         CompiledLayer(
             base_dir=layer.base_dir,
             source=layer.source,
             config_path=layer.config_path,
-            patterns=_compile_patterns(layer.patterns),
+            rules=_compile_rules(layer.rules),
         )
         for layer in layers
     )
 
 
 def _to_git_path(rel: Path, *, is_dir: bool) -> str:
-    s = rel.as_posix()
-    if is_dir and not s.endswith("/"):
-        return s + "/"
-    return s
-
-
-@dataclass(frozen=True, slots=True)
-class ExclusionReason:
-    raw: str
-    core: str
-    negated: bool
-    base_dir: Path
-    source: LayerSource
-    config_path: Path | None
-
-
-@dataclass(frozen=True, slots=True)
-class MatchDecision:
-    excluded: bool
-    reason: ExclusionReason | None
+    value = rel.as_posix()
+    if is_dir and not value.endswith("/"):
+        return value + "/"
+    return value
 
 
 @dataclass(frozen=True, slots=True)
 class LayeredIgnoreMatcher:
-    """Sequential ignore matcher with per-layer bases."""
+    """Sequential inclusion matcher with per-layer bases."""
 
-    tree_layers: tuple[CompiledLayer, ...]
-    print_layers: tuple[CompiledLayer, ...]
-    tree_has_negations: bool
-    print_has_negations: bool
+    layers: tuple[CompiledLayer, ...]
+    has_reinclusions: bool
 
     @staticmethod
-    def _decide(layers: tuple[CompiledLayer, ...], abs_path: Path, *, is_dir: bool) -> MatchDecision:
-        """Return the final decision and last matching rule (if any)."""
-        excluded = False
-        reason: ExclusionReason | None = None
+    def _decide(
+        layers: tuple[CompiledLayer, ...],
+        abs_path: Path,
+        *,
+        is_dir: bool,
+    ) -> InclusionDecision:
+        level = InclusionLevel.FULL
+        reason: InclusionReason | None = None
+
         for layer in layers:
-            base = layer.base_dir
             try:
-                if not abs_path.is_relative_to(base):
+                if not abs_path.is_relative_to(layer.base_dir):
                     continue
-                rel = abs_path.relative_to(base)
+                rel = abs_path.relative_to(layer.base_dir)
             except OSError:
                 continue
+
             rel_git = _to_git_path(rel, is_dir=is_dir)
-            for pat in layer.patterns:
-                if pat.spec.match_file(rel_git):
-                    excluded = not pat.negated
-                    reason = ExclusionReason(
-                        raw=pat.raw,
-                        core=pat.core,
-                        negated=pat.negated,
+            for rule in layer.rules:
+                if rule.spec.match_file(rel_git):
+                    level = rule.level
+                    reason = InclusionReason(
+                        raw=rule.raw,
+                        core=rule.core,
+                        negated=rule.negated,
+                        level=rule.level,
                         base_dir=layer.base_dir,
                         source=layer.source,
                         config_path=layer.config_path,
                     )
-        return MatchDecision(excluded=excluded, reason=reason)
+
+        return InclusionDecision(level=level, reason=reason)
+
+    def explain_inclusion(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
+        return self._decide(self.layers, abs_path, is_dir=is_dir)
+
+    def explain_policy(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
+        """Compatibility wrapper for the policy-migration API."""
+        return self.explain_inclusion(abs_path, is_dir=is_dir)
 
     def explain_tree(self, abs_path: Path, *, is_dir: bool) -> MatchDecision:
-        return self._decide(self.tree_layers, abs_path, is_dir=is_dir)
+        decision = self.explain_inclusion(abs_path, is_dir=is_dir)
+        if decision.level is InclusionLevel.OMIT:
+            return MatchDecision(excluded=True, reason=decision.reason)
+        return MatchDecision(excluded=False, reason=None)
 
     def explain_content(self, abs_path: Path, *, is_dir: bool) -> MatchDecision:
-        return self._decide(self.print_layers, abs_path, is_dir=is_dir)
+        decision = self.explain_inclusion(abs_path, is_dir=is_dir)
+        if decision.level is InclusionLevel.FULL:
+            return MatchDecision(excluded=False, reason=None)
+        return MatchDecision(excluded=True, reason=decision.reason)
 
     def excluded_from_tree(self, abs_path: Path, *, is_dir: bool) -> bool:
-        return self.explain_tree(abs_path, is_dir=is_dir).excluded
+        return self.explain_inclusion(abs_path, is_dir=is_dir).level is InclusionLevel.OMIT
 
     def excluded_from_print(self, abs_path: Path, *, is_dir: bool) -> bool:
-        return self.explain_content(abs_path, is_dir=is_dir).excluded
+        return self.explain_inclusion(abs_path, is_dir=is_dir).level is not InclusionLevel.FULL
+
+    @property
+    def has_restore_rules(self) -> bool:
+        return self.has_reinclusions
+
+    @property
+    def tree_has_negations(self) -> bool:
+        return self.has_reinclusions
+
+    @property
+    def print_has_negations(self) -> bool:
+        return self.has_reinclusions
+
+
+def _config_layer(
+    *,
+    base_dir: Path,
+    source: LayerSource,
+    data: dict[str, object],
+    config_path: Path | None = None,
+) -> InclusionLayer:
+    return InclusionLayer(
+        base_dir=base_dir,
+        rules=rules_from_config(data),
+        source=source,
+        config_path=config_path,
+    )
+
+
+def _runtime_rules(
+    *,
+    exclude: Sequence[str],
+    tree_only: Sequence[str],
+    include: Sequence[str],
+    legacy_tree: Sequence[str],
+    legacy_content: Sequence[str],
+    extra_rules: Sequence[InclusionRule],
+) -> tuple[InclusionRule, ...]:
+    rules: list[InclusionRule] = []
+    _append_rules(rules, legacy_content, InclusionLevel.TREE_ONLY)
+    _append_rules(rules, legacy_tree, InclusionLevel.OMIT)
+    _append_rules(rules, exclude, InclusionLevel.OMIT)
+    _append_rules(rules, tree_only, InclusionLevel.TREE_ONLY)
+    _append_rules(rules, include, InclusionLevel.FULL)
+    rules.extend(extra_rules)
+    return tuple(rules)
 
 
 def build_layered_ignores(
@@ -208,34 +363,25 @@ def build_layered_ignores(
     scan_paths: Sequence[Path],
     include_defaults: bool,
     include_config: bool,
-    runtime_tree_patterns: Sequence[str],
-    runtime_print_patterns: Sequence[str],
     default_cfg: dict[str, object],
-    explicit_config: Path | None = None,  # NEW
+    explicit_config: Path | None = None,
+    runtime_exclude: Sequence[str] = (),
+    runtime_tree_only: Sequence[str] = (),
+    runtime_include: Sequence[str] = (),
+    runtime_tree_patterns: Sequence[str] = (),
+    runtime_print_patterns: Sequence[str] = (),
+    runtime_rules: Sequence[InclusionRule] = (),
 ) -> LayeredIgnoreMatcher:
-    """Assemble ignores in the spec order.
+    """Assemble defaults -> hierarchical config -> explicit config -> CLI."""
 
-    1) bundled defaults (optional)
-    2) .grobl.toml files from repo root to deepest (optional)
-    3) explicit --config file (optional; highest precedence among config layers)
-    4) runtime/CLI layer (always present).
-    """
-    tree_layers: list[IgnoreLayer] = []
-    print_layers: list[IgnoreLayer] = []
+    layers: list[InclusionLayer] = []
 
     if include_defaults:
-        tree_layers.append(
-            IgnoreLayer(
+        layers.append(
+            _config_layer(
                 base_dir=repo_root,
-                patterns=_extract_patterns(default_cfg, CONFIG_EXCLUDE_TREE),
                 source=LayerSource.DEFAULTS,
-            )
-        )
-        print_layers.append(
-            IgnoreLayer(
-                base_dir=repo_root,
-                patterns=_extract_patterns(default_cfg, CONFIG_EXCLUDE_PRINT, alias=CONFIG_EXCLUDE_CONTENT),
-                source=LayerSource.DEFAULTS,
+                data=default_cfg,
             )
         )
 
@@ -244,72 +390,47 @@ def build_layered_ignores(
         for cfg_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths):
             real = cfg_path.resolve()
             discovered.add(real)
-            data = load_toml_config(real)
-            base = real.parent
-            tree_layers.append(
-                IgnoreLayer(
-                    base_dir=base,
-                    patterns=_extract_patterns(data, CONFIG_EXCLUDE_TREE),
+            layers.append(
+                _config_layer(
+                    base_dir=real.parent,
                     source=LayerSource.CONFIG,
+                    data=load_toml_config(real),
                     config_path=real,
                 )
             )
-            print_layers.append(
-                IgnoreLayer(
-                    base_dir=base,
-                    patterns=_extract_patterns(data, CONFIG_EXCLUDE_PRINT, alias=CONFIG_EXCLUDE_CONTENT),
-                    source=LayerSource.CONFIG,
-                    config_path=real,
-                )
-            )  # type: ignore[arg-type]
 
         if explicit_config is not None:
             real = explicit_config.resolve(strict=False)
             if real.exists() and real not in discovered:
-                data = load_toml_config(real)
-                base = real.parent
-                tree_layers.append(
-                    IgnoreLayer(
-                        base_dir=base,
-                        patterns=_extract_patterns(data, CONFIG_EXCLUDE_TREE),
+                layers.append(
+                    _config_layer(
+                        base_dir=real.parent,
                         source=LayerSource.EXPLICIT_CONFIG,
+                        data=load_toml_config(real),
                         config_path=real,
                     )
                 )
-                print_layers.append(
-                    IgnoreLayer(
-                        base_dir=base,
-                        patterns=_extract_patterns(data, CONFIG_EXCLUDE_PRINT, alias=CONFIG_EXCLUDE_CONTENT),
-                        source=LayerSource.EXPLICIT_CONFIG,
-                        config_path=real,
-                    )
-                )  # type: ignore[arg-type]
 
-    # CLI runtime layer: base at repo_root for deterministic interpretation.
-    tree_layers.append(
-        IgnoreLayer(
+    layers.append(
+        InclusionLayer(
             base_dir=repo_root,
-            patterns=tuple(runtime_tree_patterns),
-            source=LayerSource.CLI_RUNTIME,
-        )
-    )
-    print_layers.append(
-        IgnoreLayer(
-            base_dir=repo_root,
-            patterns=tuple(runtime_print_patterns),
+            rules=_runtime_rules(
+                exclude=runtime_exclude,
+                tree_only=runtime_tree_only,
+                include=runtime_include,
+                legacy_tree=runtime_tree_patterns,
+                legacy_content=runtime_print_patterns,
+                extra_rules=runtime_rules,
+            ),
             source=LayerSource.CLI_RUNTIME,
         )
     )
 
-    compiled_tree = compile_layers(tree_layers)
-    compiled_print = compile_layers(print_layers)
-
-    tree_has_negations = any(p.negated for layer in compiled_tree for p in layer.patterns)
-    print_has_negations = any(p.negated for layer in compiled_print for p in layer.patterns)
-
+    compiled = compile_layers(layers)
+    has_reinclusions = any(
+        rule.level is InclusionLevel.FULL for layer in compiled for rule in layer.rules
+    )
     return LayeredIgnoreMatcher(
-        tree_layers=compiled_tree,
-        print_layers=compiled_print,
-        tree_has_negations=tree_has_negations,
-        print_has_negations=print_has_negations,
+        layers=compiled,
+        has_reinclusions=has_reinclusions,
     )

@@ -97,17 +97,18 @@ Main command: traverse paths and build LLM/MARKDOWN/JSON-friendly output.
 
 ### `grobl explain [OPTIONS] [PATHS...]`
 
-Report why the provided paths are included or excluded in each scope without emitting a payload.
+Report the effective inclusion state for provided paths without emitting a payload.
 
 * `--format {human,markdown,json}` selects the explain renderer (`human` is an alias for `markdown`).
-* The JSON output lists `tree` and `content` decisions for each path and includes a `content_reason` object when the file contents are omitted (patterns or detection); use `text_detection` for binary-detection diagnostics.
-* Pass `--include-content 'docs/**'` to override the default content suppression for `docs/` or use the explain command to inspect why documentation files are filtered.
+* The output reports the effective `full`, `tree_only`, or `omit` state plus the winning rule and source.
+* JSON retains derived `tree` and `content` booleans for compatibility and reports `text_detection` when a `full` file is omitted because it is non-text.
+* Use `--include PATTERN` to override a lower-precedence `exclude` or `tree_only` rule for the current invocation.
 
 Examples:
 
 ```bash
 grobl explain README.md --format json
-grobl explain --include-content 'docs/**' docs
+grobl explain --include 'docs/architecture.md' docs/architecture.md
 grobl explain src/grobl --format human
 ```
 
@@ -332,68 +333,69 @@ grobl scan --output context.txt
 grobl scan --format json --output context.txt
 ```
 
-### Ignore and config controls
+### Inclusion and config controls
 
-Configuration and ignore behavior are shared across all scan modes:
+Every path has exactly one inclusion state:
+
+| State | In hierarchy | Contents captured |
+| --- | --- | --- |
+| `full` | yes | yes, for text files |
+| `tree_only` | yes | no |
+| `omit` | no | no |
+
+The canonical CLI maps directly to those states:
 
 ```bash
---no-ignore-defaults     # disable bundled default ignore rules
--I, --ignore-defaults    # (alias) disable bundled default ignore rules
---no-ignore-config       # disable ignore rules from discovered .grobl.toml files
---no-ignore              # disable all ignore patterns (built-in + config + CLI)
---exclude PATTERN        # add a tree+content exclude rule
---include PATTERN        # add a tree+content include rule (`!PATTERN`)
---exclude-tree PATTERN   # tree-only exclude rule
---include-tree PATTERN   # tree-only include (`!PATTERN`)
---exclude-content PATTERN # content-only exclude rule (controls `exclude_print`)
---include-content PATTERN # content-only include (`!PATTERN`)
---exclude-file PATH      # exclude an exact repo-relative path (directories include the subtree)
---include-file PATH      # include an exact repo-relative path
---config PATH            # explicit config file path (highest precedence, must exist)
---ignore-policy {auto,all,none,defaults,config,cli}  # choose which ignore sources apply
+--exclude PATTERN          # assign omit
+--tree-only PATTERN        # assign tree_only
+--include PATTERN          # assign full
+--exclude-file PATH
+--tree-only-file PATH
+--include-file PATH
+--config PATH
+--ignore-policy {auto,all,none,defaults,config,cli}
 ```
 
-Rules:
+Unmatched paths are `full`. Because `omit` already implies no content, an excluded path never needs to be repeated in a second content-exclusion list.
 
-* `--no-ignore` disables every ignore rule across tree and content scopes.
-* `--exclude` / `--include` target both scopes; `--include` is folded into a negated gitignore-style rule (`!PATTERN`).
-* Scoped flags (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) only impact the indicated scope.
-* `--exclude-file` / `--include-file` normalize `PATH` to a repository-root-relative, POSIX-style pattern and match that exact path (directories append `/` to cover the subtree).
-* `--config PATH` must point to an existing file; if it does not, grobl treats this as a configuration error and exits.
-* `--ignore-policy` selects the ignore sources:
-  * `auto`: defaults + config + CLI
-  * `all`: all sources enabled
-  * `none`: disable every ignore source
-  * `defaults`: enable only the bundled defaults
-  * `config`: enable only `.grobl.toml` rules
-  * `cli`: enable only the CLI-provided ignore edits
+The former scoped flags (`--exclude-tree`, `--include-tree`, `--exclude-content`, `--include-content`) are still accepted as compatibility inputs but are hidden from normal help. They compile immediately into `omit`, `tree_only`, or `full`; the core policy does not maintain independent tree/content decisions.
 
-### Configuration precedence
+### Inclusion-policy precedence
 
 From lowest to highest precedence:
 
-1. **Bundled defaults** (unless `-I/--ignore-defaults` is passed)
+1. bundled defaults
+2. hierarchical `.grobl.toml` files from the repository root toward the scanned path
+3. an explicit `--config PATH`
+4. CLI inclusion rules
 
-2. **XDG config**:
+Patterns contributed by each `.grobl.toml` are relative to that file's directory. Default and CLI patterns are relative to the resolved repository root. A later layer supersedes an earlier layer when both match.
 
-   * `$XDG_CONFIG_HOME/grobl/config.toml`, or
-   * `~/.config/grobl/config.toml`
+Within one canonical TOML source, the shorthand lists are evaluated in this order:
 
-3. **Project config** in the scan root:
+```text
+exclude < tree_only < include
+```
 
-   * `.grobl.toml`
+This makes the common exception pattern direct:
 
-4. **`pyproject.toml`** at the scan root:
+```toml
+exclude = [
+  ".git/",
+  ".venv/",
+]
 
-   * `[tool.grobl]` table
+tree_only = [
+  "docs/",
+  "*.png",
+]
 
-5. **Environment override**:
+include = [
+  "docs/architecture.md",
+]
+```
 
-   * `GROBL_CONFIG_PATH=/path/to/config.toml`
-
-6. **Explicit `--config PATH`**
-
-Later sources override earlier ones (dictionary-style merge).
+General non-policy configuration is still loaded through grobl's normal config merge (`XDG`, project config, `pyproject.toml`, environment override, explicit `--config`). Inclusion rules specifically use the hierarchical policy layering above so their pattern bases remain well-defined.
 
 ### `extends` in TOML
 
@@ -401,65 +403,41 @@ Config files loaded by grobl can use an `extends` key to reference base configs:
 
 ```toml
 extends = ["../base.toml", "shared/settings.toml"]
-
-[tool]
-# local overrides...
 ```
 
-Rules:
+Relative paths are resolved relative to the config file containing `extends`. Later files in the chain override earlier values, and cycles are ignored rather than recursed indefinitely.
 
-* Value may be a string or a list of strings.
-* Relative paths are resolved relative to the config file's directory.
-* Later files override earlier ones in the `extends` chain.
-* Cycles are detected and break the inheritance chain instead of recursing indefinitely.
+### Inclusion patterns
 
-### Ignore patterns
+Canonical `.grobl.toml` keys are:
 
-Configuration keys (also available to CLI overrides):
+* `exclude`: assign `omit`.
+* `tree_only`: assign `tree_only`.
+* `include`: assign `full`.
 
-* `exclude_tree` (list of patterns)
-* `exclude_print` (list of patterns; `exclude_content` is accepted as an alias at read time)
+Patterns use gitignore-style matching, including `**` and `!pattern`. Negation in a restrictive list restores full inclusion; prefer the explicit `include` list for new configuration.
 
-Patterns use **gitignore-style semantics** via `pathspec`:
+Legacy configuration remains readable:
 
-* `**` matches multiple directory levels.
-* Directories are matched with a trailing `/` in the internal representation.
-* Matching uses separators.
+* `exclude_tree` maps to `omit`.
+* `exclude_print` and `exclude_content` map to `tree_only`.
+* if a legacy path is excluded from both tree and content, `omit` wins.
 
-Ignore sources are layered and have different “pattern bases”:
-
-1. **Bundled defaults** (base = repository root)
-2. **Hierarchical `.grobl.toml` ignores** discovered from repository root down to the scanned directories
-   * Each `.grobl.toml` contributes `exclude_tree` plus the print/content overrides.
-   * Patterns from a given `.grobl.toml` are interpreted **relative to that file's directory**
-3. **Runtime/CLI ignores** (base = repository root)
-
-Within a layer, patterns are evaluated sequentially and **the last matching pattern wins**.
-Negation (`!pattern`) is supported.
-
-At runtime:
-
-* `exclude_tree` controls which files/directories are **hidden from the rendered tree and payload**.
-  * Note: traversal does not prune excluded directories, so a later negation can re-include descendants.
-* `exclude_print` (or the `exclude_content` alias) controls which files have metadata only (no content captured).
-
-CLI overrides:
-
-* `--exclude PATTERN`: append a tree+content exclude rule.
-* `--include PATTERN`: append a tree+content include (negated) rule.
-* `--exclude-tree` / `--include-tree`: scope excludes/includes to the tree alone.
-* `--exclude-content` / `--include-content`: scope excludes/includes to the content capture layer.
-* `--exclude-file` / `--include-file`: normalize `PATH` to a repository-root-relative pattern that matches that exact path (directories append `/`).
-
-Example:
+To rewrite a legacy-only file into canonical form:
 
 ```bash
-# Re-include only .gitignore files under tests/fixtures
-grobl scan --include "tests/fixtures/**/.gitignore" .
+grobl config migrate .grobl.toml
 ```
 
-Use `--no-ignore` cautiously: it disables every ignore rule (tree and content) and can make scans significantly slower and payloads very large.
+The command writes in place and creates `.grobl.toml.bak` by default. `--stdout` previews without writing, `--check` reports whether migration is still needed, and `--no-backup` disables the backup. Mixed canonical/legacy files are rejected. If both old tree and content scopes contain patterns, the command warns that overlapping globs should be reviewed after migration.
 
+Example runtime override:
+
+```bash
+grobl scan --tree-only "docs/**" --include "docs/architecture.md" .
+```
+
+Use `--no-ignore` cautiously: it disables every inclusion-policy rule and can make scans significantly slower and payloads very large.
 ### Tag customization
 
 Two config keys control the XML-like tag names for the payload:
@@ -496,37 +474,35 @@ instead of `<directory>` / `<file>`.
    * A common ancestor directory is computed. If only a single file is passed, the ancestor is its parent directory.
    * If the only shared ancestor is the filesystem root (e.g., `/` and `/tmp` on POSIX), the scan fails with a path error.
 
-2. **Apply ignore rules**
+2. **Resolve inclusion policy**
 
-   * The merged config is read based on the scan root (common ancestor).
-   * `exclude_tree` and `exclude_print` are applied using gitignore-style pattern matching.
+   * grobl assembles bundled defaults, hierarchical `.grobl.toml` files, an optional explicit config, and CLI rules.
+   * Gitignore-style patterns resolve every path to one state: `full`, `tree_only`, or `omit`.
+   * Later matching layers supersede earlier ones; within canonical shorthand groups, `exclude < tree_only < include`.
 
 3. **Directory traversal**
 
-   * grobl walks the tree depth-first from the scan root, respecting `exclude_tree`.
-   * It records:
-
-     * A textual tree with ASCII connectors and trailing `/` for directories.
-     * File visit order and positions within the tree output.
+   * grobl walks the tree depth-first from the scan root.
+   * `omit` entries are not rendered. Explicit re-inclusion rules are still allowed to restore descendants.
+   * `full` and `tree_only` entries remain visible in the hierarchy.
+   * grobl records a textual tree plus deterministic file visit order.
 
 4. **File analysis**
 
-   For each file:
+   For each visible file:
 
-   * A lightweight text/binary check is applied.
-   * For text files:
+   * `tree_only` files are not text-detected or read. grobl records lightweight metadata and the policy reason only.
+   * `full` files are text/binary detected.
+   * For text files in `full` state:
 
-     * Contents are read (UTF-8, errors ignored).
-     * `lines`, `chars` (character count) are computed.
-     * The file's relative path is checked against `exclude_print`:
+     * Contents are read as UTF-8.
+     * `lines`, `chars`, and token counts are computed.
+     * Metadata + contents are stored.
+   * For non-text files in `full` state:
 
-       * If allowed: metadata + contents are stored.
-       * If excluded: only metadata is stored; contents are omitted.
-   * For binary files:
-
-     * No contents are read.
+     * Contents are not included.
      * `lines = 0`, `chars = size_in_bytes` are recorded.
-     * Contents are never included in the payload.
+     * The policy state remains `full`; binary detection is reported separately.
 
    Special handling:
 
@@ -735,26 +711,24 @@ In these cases, grobl writes a structured JSON payload to the selected destinati
 
 ### In tree but no contents
 
-If a path shows up in the directory tree but its contents are missing, the content scope is still obeying an `exclude_content` / `exclude_print` rule.
+A path in this condition has effective policy state `tree_only`, or is `full` but was rejected by binary detection.
 
-* Use `grobl explain PATH --format human` or `--format json` to see the winning pattern for both tree and content.
-* Apply explicit include patterns (`--include PATH`, `--include-content PATTERN`, or `--include-file PATH`) to re-allow content for that path.
+* Run `grobl explain PATH --format json` to distinguish the cases and see the winning rule.
+* Use `--include PATTERN` or an `include` entry in `.grobl.toml` to restore `full` policy.
 
 ### Docs contents missing
 
-The bundled defaults keep `docs/` visible in the tree but omit document contents because they tend to be large.
+The project configuration can deliberately assign `tree_only` to `docs/` when its structure is useful but its contents are too verbose.
 
-* Add `--include-content 'docs/**'` (or a matching entry in `.grobl.toml`) to pull those files into the payload.
-* Run `grobl explain docs --format json` to inspect the `content_reason` object and confirm content capture is desired.
+* Add `--include 'docs/**'` for an invocation, or put a more specific pattern in the `include` list.
+* Run `grobl explain docs --format json` to inspect the effective state and provenance.
 
 ### Binary detection
 
-Binary blobs are flagged before their text would ever be read:
+Binary detection is separate from inclusion policy. A file may have `full` policy while its contents are still omitted because it is not text.
 
-* Summary JSON entries for skipped binaries include `content_reason.pattern == "<non-text>"` and `text_detection.detail`.
-* `grobl explain --format json` prints the same reason plus `text_detection` metadata so you can verify the detector's rationale.
-* Use the detectors to decide whether you want to keep the binary or explicitly include it via `--include-content`.
-
+* Summary/explain JSON uses `content_reason.pattern == "<non-text>"` and source `text-detection` for this case.
+* Inclusion rules cannot turn binary data into text; `--include` only controls policy eligibility.
 ## Large repositories
 
 For large projects:
@@ -779,13 +753,13 @@ For large projects:
   grobl scan --exclude "examples/**" .
   ```
 
-* Most heavy directories (`node_modules`, `.venv`, build outputs, coverage artifacts, etc.) are excluded from the tree by default via `exclude_tree` in the bundled config. To include them, either:
+* Most heavy directories (`node_modules`, `.venv`, build outputs, coverage artifacts, etc.) are assigned `omit` by the bundled `exclude` list. To include one, either:
 
-  * Override the defaults with a project `.grobl.toml`, or
-  * Use `-I/--ignore-defaults` and supply your own `exclude_tree`, or
-  * Use `--no-ignore` to disable all tree-level ignores.
+  * restore it in a project `.grobl.toml` with `include = ["path/"]`, or
+  * use `--include PATH` for one invocation, or
+  * disable bundled policy with `-I/--ignore-defaults` and provide your own rules.
 
-Use `--no-ignore` cautiously: it disables every ignore rule (tree and content) and can significantly increase scan time and payload size.
+Use `--no-ignore` cautiously: it disables every inclusion-policy rule and can significantly increase scan time and payload size.
 
 ## Testing
 

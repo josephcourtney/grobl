@@ -109,10 +109,11 @@ def _split_on_ddash(args: list[str]) -> tuple[list[str], list[str], bool]:
 
 
 def _route_help_flags(pre: list[str], command_names: set[str]) -> list[str]:
-    if not any(token in _HELP_FLAGS for token in pre):
+    help_index = next((index for index, token in enumerate(pre) if token in _HELP_FLAGS), None)
+    if help_index is None:
         return pre
     command_index = next((index for index, token in enumerate(pre) if token in command_names), None)
-    if command_index is None:
+    if command_index is None or help_index > command_index:
         return pre
     stripped = [token for token in pre if token not in _HELP_FLAGS]
     command_index = next((index for index, token in enumerate(stripped) if token in command_names), None)

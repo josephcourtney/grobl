@@ -1,49 +1,45 @@
 # ============================================
-# Files/folders whose *presence* isn't helpful
-# (exclude from directory tree listings)
+# Paths that should be absent from both the hierarchy and content payload
 # ============================================
-exclude_tree = [
+exclude = [
   ".import_linter_cache",
   ".ropeproject",
   ".ropefolder",
 
-  # ---------------- grobl-specific ----------------
+  # grobl-specific
   ".grobl.toml",
 
-  # ---------------- secrets ----------------
+  # secrets
   ".envrc",
   ".direnv",
-  ".env",    # runtime secrets, not useful to include
+  ".env",
 
-  # ---------------- version control ----------------
-  # git
+  # version control
   ".git",
   ".gitattributes",
   ".gitignore",
   ".gitmodules",
   ".git-rewrite",
-
-  # non-git VCS
   ".hg",
   ".svn",
 
-  # ---------------- CI service metadata ----------------
-  ".github", # workflows rarely helpful for AI context
+  # CI service metadata
+  ".github",
 
-  # ---------------- editor / IDE state ----------------
+  # editor / IDE state
   ".idea",
   ".vscode",
   "*.sublime-workspace",
   "*.sublime-project",
-  ".history",            # VSCode local history
+  ".history",
   "*.iml",
 
-  # ---------------- OS junk ----------------
+  # OS junk
   ".DS_Store",
   "Thumbs.db",
-  "Icon\r",    # macOS resource fork
+  "Icon\r",
 
-  # ---------------- environments / dependency caches ----------------
+  # environments / dependency caches
   "__pycache__",
   ".venv",
   "venv",
@@ -55,55 +51,49 @@ exclude_tree = [
   ".hypothesis",
   ".tox",
   ".nox",
-  ".ruff_cache",        # Ruff linter cache
-  ".cache",             # Generic cache dir
+  ".ruff_cache",
+  ".cache",
   ".pnpm-store",
   ".parcel-cache",
-  ".yarn",              # Yarn 2+ offline cache
+  ".yarn",
   ".yarn/cache",
   ".yarn/unplugged",
   ".eslintcache",
-  ".vscode-test",       # VS Code extension e2e cache
+  ".vscode-test",
   ".ipynb_checkpoints",
 
-  # ---------------- build artifacts ----------------
-  # common JS/Java/VSCode outputs
+  # build artifacts
   "dist",
   "build",
-  "out",              # common JS/Java/VSCode outputs
-  "target",           # Rust, Maven, etc.
-  "wheels",           # Python distribution wheels
-  "mutants",          # mutation testing artifacts
-  "htmlcov",          # coverage HTML reports
-  "site/",            # MkDocs static site
+  "out",
+  "target",
+  "wheels",
+  "mutants",
+  "htmlcov",
+  "site/",
   ".angular",
   ".gradle",
-  "storybook-static", # Storybook build output
-  "public/build",     # Svelte/V
+  "storybook-static",
+  "public/build",
 
-  # ---------------- lock/config files (usually too verbose) ----------------
-  "uv.lock",
-  "ruff.default.toml",
-  "ruff.toml",
-
-  # ---------------- coverage ----------------
-  ".coverage",     # coverage.py raw db
-  ".coverage.*",   # coverage.py shards
+  # coverage
+  ".coverage",
+  ".coverage.*",
   ".coverage.xml",
   "coverage.xml",
 
-  # ---------------- Apple / Xcode ----------------
+  # Apple / Xcode
   "*.xcuserdatad",
   "*.xcworkspace",
   "DerivedData",
   "Pods",
 
-  # ---------------- Frontend frameworks ----------------
-  ".next",       # Next.js build output
-  ".nuxt",       # Nuxt build output
-  ".svelte-kit", # SvelteKit build output
+  # frontend frameworks
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
 
-  # ---------------- Build systems / infra ----------------
+  # build systems / infra
   ".terraform",
   ".terraform*",
   "*.tfstate",
@@ -113,37 +103,28 @@ exclude_tree = [
   "CMakeCache.txt",
   "cmake-build-*",
 
-  # ---------------- test artifacts / recordings ----------------
+  # test artifacts / recordings
   "cypress/videos",
   "cypress/screenshots",
   "test-results",
   "reports",
 
-  # ---------------- misc fixtures ----------------
-  "tests/fixtures/*.yaml", # vcrpy recordings (non-essential for AI)
+  # misc fixtures
+  "tests/fixtures/*.yaml",
 ]
 
-# =================================================
-# Files/folders where presence is useful in the tree
-# but contents usually aren't (exclude from *printing*)
-# =================================================
-exclude_print = [
-  # ---------------- legal / boilerplate ----------------
+# ============================================
+# Paths whose names/structure are useful but whose contents usually are not
+# ============================================
+tree_only = [
+  # legal / boilerplate
   "LICENSE",
   "LICENSE.*",
   "COPYING",
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
 
-  # ---------------- docs (structure useful, content too verbose) ----------------
-  # "docs",
-
-  # ---------------- build artifacts (defensive) ----------------
-  "dist",
-  "build",
-  "out",
-
-  # ---------------- assets / binaries ----------------
+  # assets / binaries
   "*.lproj",
   "*.xcassets",
   "*.pdf",
@@ -173,7 +154,7 @@ exclude_print = [
   "*.wasm",
   "*.bin",
 
-  # ---------------- lock/config files (usually too verbose) ----------------
+  # lock/config files
   "package-lock.json",
   "yarn.lock",
   "pnpm-lock.yaml",
@@ -182,19 +163,22 @@ exclude_print = [
   "Cargo.lock",
   "composer.lock",
   "Gemfile.lock",
+  "uv.lock",
+  "ruff.default.toml",
+  "ruff.toml",
 
-  # ---------------- tooling configs (generally low signal for problem-solving) ----------------
+  # tooling configs
   ".pre-commit-config.yaml",
   ".python-version",
   ".sourcery.yaml",
 
-  # ---------------- notebooks and large JSON blobs ----------------
-  "*.ipynb",   # often huge; show only if asked
+  # notebooks and large JSON blobs
+  "*.ipynb",
   "*.geojson",
   "*.ndjson",
   "*.jsonl",
 
-  # ---------------- logs / tmp / swap ----------------
+  # logs / tmp / swap
   "*.log",
   "logs",
   "log",
@@ -207,6 +191,9 @@ exclude_print = [
   "*~",
   "nohup.out",
 ]
+
+# Optional high-precedence restorations within this layer.
+include = []
 
 # ============================================
 # Tag settings

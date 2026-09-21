@@ -270,135 +270,128 @@ If payload output is written to stdout and no explicit summary destination is sp
 
 ---
 
-## 7. Configuration and Include/Exclude Policy
+## 7. Configuration and Inclusion Policy
 
-### 7.1 Configuration Files
+### 7.1 Configuration files
 
-* Configuration files are named `.grobl.toml`
-* `.grobl.toml` files **MUST** be discovered by traversing from the repository root down to each scanned directory
+* Project policy files are named `.grobl.toml`.
+* Applicable `.grobl.toml` files **MUST** be discovered from the repository root toward each scanned path.
+* Rules from a configuration file **MUST** be interpreted relative to the directory containing that file.
 
-### 7.2 Two Scopes: Tree Visibility vs Content Capture
+### 7.2 Three inclusion states
 
-`grobl` applies include/exclude rules in two distinct scopes:
+Every path **MUST** resolve to exactly one policy state:
 
-* **Tree scope**: determines whether a path is visible as part of traversal and (where applicable) in any emitted file-tree representation.
-* **Content scope**: determines whether a file’s contents are eligible to be included in the payload.
+* `full`: the path is visible in the hierarchy and, for text files, its contents are eligible for capture.
+* `tree_only`: the path is visible in the hierarchy but its file contents are not captured.
+* `omit`: the path is absent from the hierarchy and its contents are not captured.
 
 Normative invariants:
 
-* Content capture for a file **MUST NOT** occur unless that file is included in the tree scope.
-* A path **MAY** be included in the tree scope while excluded from the content scope (e.g. “in tree but no contents”).
+* Content capture **MUST NOT** occur for `tree_only` or `omit` paths.
+* A path whose contents are captured **MUST** be represented in the hierarchy.
+* The policy engine **MUST NOT** represent an independent state equivalent to "content included, hierarchy omitted".
+* Unmatched paths **MUST** default to `full`.
 
-For directory traversal:
+Text/binary detection is downstream of policy. A `full` file may still omit contents because deterministic text detection classifies it as non-text; this does not change its policy state.
 
-* The ignore engine **MUST** be evaluated in a way that allows negated patterns to re-include descendants even when an ancestor directory matched an exclude pattern (§8).
-* If a file is included in the tree scope, all of its ancestor directories **MUST** be considered included for the purpose of representing a coherent path to that file (even if an ancestor directory matched an exclude pattern earlier).
+### 7.3 Canonical configuration keys
 
-### 7.3 Ignore Policy Flag
+Canonical `.grobl.toml` policy uses:
 
-The CLI **MUST** support an ignore policy flag:
+* `exclude`: patterns assigning `omit`.
+* `tree_only`: patterns assigning `tree_only`.
+* `include`: patterns assigning `full`.
 
+Within one canonical configuration source, these shorthand groups **MUST** be normalized in the following order:
+
+```text
+exclude < tree_only < include
 ```
+
+If several normalized rules match a path, the last matching rule wins. Therefore a matching `include` rule in the same source supersedes matching `tree_only` and `exclude` rules.
+
+### 7.4 Rule sources and precedence
+
+Policy layers **MUST** be evaluated from lowest to highest precedence:
+
+1. bundled defaults
+2. discovered `.grobl.toml` files in root-to-leaf order
+3. an explicit `--config` file
+4. CLI runtime rules
+
+A later layer supersedes an earlier layer when both contain matching rules. Within each normalized layer, the last matching rule wins.
+
+Base directories:
+
+* bundled defaults: repository root
+* each discovered config: directory containing that config
+* explicit config: directory containing that config
+* CLI rules: repository root
+
+### 7.5 Rule-source selection
+
+The CLI **MUST** support:
+
+```text
 --ignore-policy auto|all|none|defaults|config|cli
 ```
 
-Semantics (applies independently to both scopes):
+Semantics:
 
-* `auto`: defaults + config + CLI rules
-* `all`: all include/exclude sources enabled
-* `none`: no include/exclude rules from any source
-* `defaults`: bundled default rules only
-* `config`: rules from `.grobl.toml` only
-* `cli`: rules provided via CLI flags only
+* `auto`: defaults + discovered/explicit config + CLI
+* `all`: all rule sources
+* `none`: no policy rules; unmatched `full` therefore applies everywhere
+* `defaults`: bundled defaults only
+* `config`: configuration rules only
+* `cli`: CLI rules only
 
-### 7.3 Tree visibility vs content capture
+The existing `--no-ignore`, `--ignore-defaults`, and `--no-ignore-config` convenience controls **MAY** remain as aliases for selecting sources.
 
-grobl treats ignore rules through two lenses: tree visibility (which entries appear in the rendered directory tree) and content capture (which files contribute textual contents to payloads). `exclude_tree` controls the former, hiding files and directories from traversal output. `exclude_print` (also accepted as `exclude_content` in configuration) controls the latter, leaving the file visible but omitting its text and metadata payload. These scopes are evaluated independently so that a file can be hidden in the tree while its contents are still captured, or vice versa, depending on layered rules.
+### 7.6 CLI state assignment
 
-Default behavior applies the bundled `exclude_tree` and `exclude_print` lists unless flags or configuration override them. CLI include/exclude flags (§7.5) append to these same scopes, and negated patterns (`!pattern`) can re-include entries even after a prior exclusion.
+The canonical runtime flags are:
 
-### 7.4 Rule Sources, Base Directories, and Precedence
+* `--exclude PATTERN`: assign `omit`.
+* `--tree-only PATTERN`: assign `tree_only`.
+* `--include PATTERN`: assign `full`.
+* `--exclude-file PATH`, `--tree-only-file PATH`, and `--include-file PATH`: path-targeted equivalents.
 
-Include/exclude rules originate from the following sources:
+CLI shorthand groups **MUST** normalize in the same state order as canonical TOML:
 
-1. **Defaults** (bundled)
-2. **Config** (`.grobl.toml`)
-3. **CLI** (flags)
+```text
+exclude < tree_only < include
+```
 
-Rules **MUST** be applied sequentially and the **last matching rule wins** within each scope.
+Thus option type, rather than argv interleaving, defines precedence among canonical state groups. Within a group, patterns retain their supplied order and the last matching pattern wins.
 
-Base directory rules:
+Path-target flags **MUST** normalize the path to a repository-root-relative POSIX pattern. A directory target **MUST** cover its subtree.
 
-* Default rules **MUST** be interpreted as relative to the repository root.
-* CLI rules **MUST** be interpreted as relative to the repository root.
-* Rules loaded from a `.grobl.toml` **MUST** be interpreted as relative to that `.grobl.toml` file’s directory.
+### 7.7 Compatibility with the former two-scope model
 
-Config discovery order:
+Implementations **MUST** continue to accept the following legacy configuration keys for compatibility:
 
-* For a given scanned path, applicable `.grobl.toml` files are those encountered from the repository root down to the scanned directory.
-* When multiple config files apply, their rules **MUST** be applied in root-to-leaf order.
+* `exclude_tree` -> `omit`
+* `exclude_print` -> `tree_only`
+* `exclude_content` -> `tree_only`
 
-### 7.5 CLI Include/Exclude Flags
+When a legacy source excludes the same path from both tree and content, `omit` **MUST** win.
 
-The CLI **MUST** support additive include/exclude flags.
+The former scoped CLI flags MAY remain accepted as hidden compatibility aliases and **MUST** compile into the three valid states. Compatibility inputs **MUST NOT** reintroduce independent tree/content decisions internally.
 
-#### 7.5.1 Both-scopes flags
+When any canonical policy key (`exclude`, `tree_only`, or `include`) is present in a configuration source, that source **SHOULD** be interpreted as canonical rather than combining both models.
 
-The following flags apply to **both** scopes:
+### 7.8 Legacy configuration migration
 
-* `--exclude PATTERN` (adds an exclude rule)
-* `--include PATTERN` (adds an include rule)
+The CLI **MUST** provide `grobl config migrate [PATH]` for translating a legacy-only TOML source to canonical inclusion keys.
 
-`--include PATTERN` **MUST** be interpreted as a negated gitignore-style pattern (`!PATTERN`) in the rule engine.
-
-#### 7.5.2 Scoped flags
-
-The following flags apply to one scope only:
-
-* Tree scope: `--exclude-tree PATTERN`, `--include-tree PATTERN`
-* Content scope: `--exclude-content PATTERN`, `--include-content PATTERN`
-
-`--include-<scope> PATTERN` **MUST** be interpreted as a negated gitignore-style pattern (`!PATTERN`) in that scope’s rule engine.
-
-#### 7.5.3 Path convenience flags
-
-The CLI **MAY** support path convenience flags that expand to anchored patterns:
-
-* `--exclude-file PATH`
-* `--include-file PATH`
-
-If supported:
-
-* The CLI **MUST** interpret `PATH` after user expansion (§3.3).
-* The CLI **MUST** normalize `PATH` to a repository-root-relative, POSIX-style path for matching.
-* The generated pattern **MUST** match that exact file path (not “any file with that basename elsewhere”).
-* For directories, the generated pattern **MUST** exclude/include the directory subtree.
-
-#### 7.5.4 Ordering of CLI rules
-
-CLI-provided rules **MUST** be applied in left-to-right order as they appear in the command line (argv), independent of option grouping.
-
-### 7.6 Ignore Flag Surface
-
-The CLI **MUST NOT** require legacy “ignore/unignore” compatibility flags. The supported public surface is the include/exclude model described in §7.2–§7.5.
-
-### 7.7 Config Keys for Two Scopes
-
-`.grobl.toml` **MUST** be able to express rules for each scope.
-
-At minimum, the implementation **MUST** recognize:
-
-* `exclude_tree` (list of patterns)
-* `exclude_content` (list of patterns)
-
-Compatibility requirements:
-
-* If a legacy key `exclude_print` exists, it **MUST** be accepted as an alias for `exclude_content`.
-* If both `exclude_content` and `exclude_print` are present, `exclude_content` **MUST** take precedence and the CLI **SHOULD** warn.
-
-This specification does not require the presence of “include” lists in configuration; implementations **MAY** add them.
-
----
+* The default path **MUST** be `.grobl.toml`.
+* In-place migration **MUST** preserve the original as `PATH.bak` by default and **MUST** support disabling that backup.
+* `--stdout` **MUST** emit the translated TOML without modifying the source.
+* `--check` **MUST** avoid writes and exit nonzero when legacy inclusion keys remain.
+* A source containing both canonical and legacy policy keys **MUST** be rejected rather than implicitly combining the models.
+* Exact legacy content exclusions dominated by an exact tree-omission rule **MUST NOT** be duplicated into `tree_only`.
+* If legacy tree and content scopes are both populated, the migration **MUST** warn that overlapping non-identical glob patterns may require review because grouped canonical precedence cannot prove equivalence for every such overlap.
 
 ## 8. Pattern Semantics
 
@@ -448,67 +441,50 @@ The rule engine **MUST** be deterministic with respect to:
 
 ## 11. Explain Command
 
-The `explain` command reports *why* paths are included or excluded in each scope.
+The `explain` command reports the effective inclusion state and its provenance.
 
 ### 11.1 Invocation
 
 * `grobl explain [PATH ...]` **MUST** accept zero or more paths.
-* If no paths are provided, the CLI **MUST** default to the current working directory.
+* If no paths are provided, the command **MUST** default to the current working directory.
+* Explain output **MUST NOT** emit a scan payload.
 
-The CLI **MAY** provide an alias flag on `scan`:
+### 11.2 Output format and routing
 
-* If `grobl scan --explain [PATH ...]` is supported, it **MUST** behave identically to `grobl explain [PATH ...]` and **MUST NOT** emit a scan payload.
+Explain output **MUST** default to stdout and support `json` and `markdown`; `human` MAY be accepted as an alias for `markdown`.
 
-### 11.2 Output Format and Routing
+JSON output **MUST** be deterministic, sorted by absolute path, serialized with stable key ordering, and terminated by a newline.
 
-By default, `explain` output **MUST** be written to stdout.
+### 11.3 Reported decision
 
-When `--format json` is selected, the CLI **MUST** emit records sorted by path with stable key ordering (e.g., using `json.dumps(..., sort_keys=True)`), produce a deterministic set of fields, and terminate with a newline to keep downstream parsing predictable.
+For each target, explain output **MUST** report:
 
-`explain` output **MUST** support:
+* `state`: `full`, `tree_only`, or `omit`.
+* the winning policy reason when a rule matched.
+* compatibility tree/content projections showing the consequences of that state.
+* text-detection information when a `full` file is omitted from content because it is non-text.
 
-* `--format json` (machine-readable)
-* `--format markdown` (human-readable)
+The compatibility projections **MUST** obey:
 
-If the token `human` is accepted, it **MUST** be treated as an alias for `markdown` for the `explain` command.
+```text
+state       tree included   content eligible
+full        true            true
+tree_only   true            false
+omit        false           false
+```
 
-If `--format none` is specified for `explain`, the CLI **MUST** terminate with a usage error.
+### 11.4 Provenance
 
-### 11.3 Reported Decisions
+A winning policy reason **MUST** include:
 
-For each target path, the explain report **MUST** include at minimum:
+* pattern
+* resulting state
+* rule source
+* base directory
+* config path when applicable
+* whether the source pattern used negation
 
-* Tree scope decision: included/excluded
-* Content scope decision: included/excluded
-
-When multiple include/exclude rules apply, the CLI **MUST** respect the layering described in §7.4 and report the last-matching rule per scope, including CLI runtime edits and negations, so the explain output corresponds to the effective decision.
-
-If content is excluded due to non-text/binary classification (as opposed to pattern matching), the report **SHOULD** indicate that classification outcome. The classification algorithm is implementation-defined but **MUST** be deterministic.
-
-### 11.4 Reason Objects (Provenance)
-
-When a scope decision is “excluded”, the explain output **MUST** be able to report the winning reason.
-
-A reason object (or equivalent human-readable text) **MUST** include:
-
-* The winning pattern text (or a sentinel indicating “non-text/binary”)
-* Whether the pattern was negated
-* The rule source: `defaults | config | cli`
-* The base directory used for interpreting that pattern
-* If the source is `config`, the `.grobl.toml` path that contributed the winning rule **SHOULD** be reported
-
-### 11.5 Explain JSON schema and determinism
-
-When `--format json` is requested, the CLI **MUST** emit a JSON array of explain records sorted by absolute path. Each record **MUST** include:
-
-* `path`: the resolved absolute path being explained.
-* `tree`: an object with `included` (`true`/`false`) and an optional `reason` descriptor.
-* `content`: an object with `included` (`true`/`false`) and an optional `reason` descriptor. The `included` flag **MUST** reflect both the ignore decision and deterministic text detection (non-text files are treated as `false` even without a matching pattern).
-* `text_detection` (optional): present only for files excluded by the detector, containing `is_text: false` and a `detail` string summarizing the detection outcome.
-
-Each `reason` descriptor shares the key set defined above (`pattern`, `negated`, `source`, `base_dir`, `config_path`, `detail`). Binary detections **MUST** use the sentinel `pattern` `<non-text>` with `source` `text-detection`. The JSON array **MUST** be serialized with stable key ordering (e.g., via `json.dumps(..., sort_keys=True)`), include a trailing newline, and avoid nondeterministic metadata (timestamps, environment-dependent values, or unsorted collections).
-
----
+Binary-detection reasons **MUST** remain distinguishable from policy reasons and use the sentinel pattern `<non-text>` with source `text-detection`.
 
 ## 12. Version Reporting
 

@@ -47,12 +47,18 @@ def test_iter_and_scan_legacy_references(tmp_path: Path) -> None:
 
 def test_print_interrupt_diagnostics_prints_state(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    ccommon.print_interrupt_diagnostics(tmp_path, {"exclude_tree": []}, builder)
+    ccommon.print_interrupt_diagnostics(
+        tmp_path,
+        {"exclude": [], "tree_only": [], "include": []},
+        builder,
+    )
 
     out = capsys.readouterr().out
     assert "Interrupted by user. Dumping debug info:" in out
     assert f"cwd: {tmp_path}" in out
-    assert "exclude_tree:" in out
+    assert "exclude:" in out
+    assert "tree_only:" in out
+    assert "include:" in out
     assert "DirectoryTreeBuilder(" in out
 
 
