@@ -13,6 +13,14 @@ class ContentScope(StrEnum):
     FILES = "files"
 
 
+class InclusionLevel(StrEnum):
+    """Effective amount of information exposed for a path."""
+
+    OMIT = "omit"
+    TREE_ONLY = "tree_only"
+    FULL = "full"
+
+
 class PayloadFormat(StrEnum):
     """Payload output formats."""
 
@@ -57,20 +65,12 @@ class IgnorePolicy(StrEnum):
     CLI = "cli"
 
 
-class InclusionLevel(StrEnum):
-    """Amount of information emitted for a path."""
-
-    OMIT = "omit"
-    TREE_ONLY = "tree_only"
-    FULL = "full"
-
-
-# Canonical inclusion-policy configuration keys.
+# Canonical three-state configuration keys.
 CONFIG_EXCLUDE = "exclude"
 CONFIG_TREE_ONLY = "tree_only"
 CONFIG_INCLUDE = "include"
 
-# Legacy two-scope keys accepted as compatibility inputs.
+# Legacy compatibility keys. These are accepted as inputs but are not canonical.
 CONFIG_EXCLUDE_TREE = "exclude_tree"
 CONFIG_EXCLUDE_PRINT = "exclude_print"
 CONFIG_EXCLUDE_CONTENT = "exclude_content"
