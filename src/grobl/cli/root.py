@@ -17,6 +17,7 @@ from grobl.app.root_context import (
 )
 
 from .completions import completions
+from .config_cmd import config_command
 from .explain import explain
 from .help_format import LiteralEpilogGroup
 from .init import init
@@ -48,6 +49,9 @@ Examples:
 
   grobl init
     Create a starter `.grobl.toml` in the current directory.
+
+  grobl config migrate
+    Translate legacy inclusion keys to the canonical three-state config.
 """
 
 
@@ -107,4 +111,5 @@ cli.add_command(scan)
 cli.add_command(explain)
 cli.add_command(version)
 cli.add_command(completions)
+cli.add_command(config_command)
 cli.add_command(init)

@@ -6,6 +6,7 @@
 - [x] preserve layered defaults/config/explicit-config/CLI precedence and provenance
 - [x] add regression coverage for state projection and tree-only no-read behavior
 - [x] update specification, README, configuration, usage, and changelog documentation
+- [x] add `grobl config migrate` with backup, preview, check mode, mixed-schema rejection, and migration warnings
 ## Explain/diagnostics (“why is this excluded?”)
 
 - [x] add `grobl explain [PATHS...]` subcommand (preferred) OR `grobl scan --explain [PATHS...]` (alias)

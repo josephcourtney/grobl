@@ -8,7 +8,7 @@ import click
 class LiteralEpilogCommand(click.Command):
     """Render epilog text literally so multi-line examples stay aligned."""
 
-    def format_epilog(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:  # noqa: ARG002
+    def format_epilog(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:  # ruff: ignore[unused-method-argument]
         if self.epilog:
             formatter.write_paragraph()
             formatter.write(f"{self.epilog}\n")
@@ -17,7 +17,7 @@ class LiteralEpilogCommand(click.Command):
 class LiteralEpilogGroup(click.Group):
     """Group variant that also renders epilog text literally."""
 
-    def format_epilog(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:  # noqa: ARG002
+    def format_epilog(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:  # ruff: ignore[unused-method-argument]
         if self.epilog:
             formatter.write_paragraph()
             formatter.write(f"{self.epilog}\n")

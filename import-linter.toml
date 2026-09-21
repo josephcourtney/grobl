@@ -9,7 +9,7 @@ name = "CLI wraps application layer"
 type = "layers"
 layers = [
   "grobl.cli",
-  "grobl.app : grobl.config : grobl.services",
+  "grobl.app : grobl.config : grobl.config_migration : grobl.services",
   "grobl.core : grobl.renderers : grobl.summary : grobl.formatter : grobl.output : grobl.tty",
   "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.utils : grobl.logging_utils",
   "grobl.constants : grobl.errors : grobl._version : grobl.resources",
@@ -22,6 +22,7 @@ type = "forbidden"
 source_modules = [
   "grobl.app",
   "grobl.config",
+  "grobl.config_migration",
   "grobl.services",
 ]
 forbidden_modules = ["grobl.cli"]
@@ -58,6 +59,7 @@ modules = [
   "grobl.cli.init",
   "grobl.cli.version",
   "grobl.cli.completions",
+  "grobl.cli.config_cmd",
 ]
 ignore_imports = [
   "grobl.cli.root -> grobl.cli.scan",
@@ -65,6 +67,7 @@ ignore_imports = [
   "grobl.cli.root -> grobl.cli.init",
   "grobl.cli.root -> grobl.cli.version",
   "grobl.cli.root -> grobl.cli.completions",
+  "grobl.cli.root -> grobl.cli.config_cmd",
 ]
 
 [[tool.importlinter.contracts]]

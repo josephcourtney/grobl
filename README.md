@@ -423,6 +423,14 @@ Legacy configuration remains readable:
 * `exclude_print` and `exclude_content` map to `tree_only`.
 * if a legacy path is excluded from both tree and content, `omit` wins.
 
+To rewrite a legacy-only file into canonical form:
+
+```bash
+grobl config migrate .grobl.toml
+```
+
+The command writes in place and creates `.grobl.toml.bak` by default. `--stdout` previews without writing, `--check` reports whether migration is still needed, and `--no-backup` disables the backup. Mixed canonical/legacy files are rejected. If both old tree and content scopes contain patterns, the command warns that overlapping globs should be reviewed after migration.
+
 Example runtime override:
 
 ```bash

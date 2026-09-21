@@ -11,7 +11,7 @@ pytestmark = pytest.mark.small
 
 
 def test_scan_interrupted_carries_state() -> None:
-    c = Path("/tmp")  # noqa: S108 - path literal acceptable in test
+    c = Path("/tmp")  # ruff: ignore[hardcoded-temp-file] - path literal acceptable in test
     builder = DirectoryTreeBuilder(base_path=c, exclude_patterns=[])
     err = ScanInterrupted(builder, c)
     assert err.builder is builder

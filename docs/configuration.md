@@ -82,6 +82,18 @@ Existing configurations remain readable:
 
 When any canonical inclusion key (`exclude`, `tree_only`, or `include`) is present in a configuration source, that source is interpreted using the canonical model. New configurations should not mix canonical and legacy keys.
 
+### Migrating legacy files
+
+Use the migration command to convert a legacy-only file to the canonical lists:
+
+```bash
+grobl config migrate .grobl.toml
+```
+
+In-place migration keeps the original as `.grobl.toml.bak` by default. Use `--no-backup` to suppress the backup, `--stdout` to preview the translated TOML without writing it, or `--check` to exit nonzero when legacy keys are still present.
+
+The migration removes exact content-exclusion duplicates that are already dominated by an `exclude_tree` rule. When both legacy tree and content scopes contain patterns, grobl emits a warning because different overlapping glob patterns cannot always be proven equivalent under the canonical grouped precedence. Mixed canonical/legacy files are rejected rather than guessed.
+
 ## Tag settings
 
 The LLM payload wrapper names remain configurable:

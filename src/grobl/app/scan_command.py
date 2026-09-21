@@ -1,4 +1,4 @@
-"""Application workflow behind the grobl scan CLI wrapper."""
+"""Application workflow behind the ``grobl scan`` CLI wrapper."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from .scan_runtime import (
 )
 
 
-def run_scan_command(  # noqa: PLR0914
+def run_scan_command(  # ruff: ignore[too-many-locals]
     *,
     ctx: click.Context,
     exclude: tuple[str, ...],

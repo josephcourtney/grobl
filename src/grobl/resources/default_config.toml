@@ -4,6 +4,7 @@
 exclude = [
   ".import_linter_cache",
   ".ropeproject",
+  ".ropefolder",
 
   # grobl-specific
   ".grobl.toml",

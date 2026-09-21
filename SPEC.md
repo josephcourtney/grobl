@@ -381,6 +381,18 @@ The former scoped CLI flags MAY remain accepted as hidden compatibility aliases 
 
 When any canonical policy key (`exclude`, `tree_only`, or `include`) is present in a configuration source, that source **SHOULD** be interpreted as canonical rather than combining both models.
 
+### 7.8 Legacy configuration migration
+
+The CLI **MUST** provide `grobl config migrate [PATH]` for translating a legacy-only TOML source to canonical inclusion keys.
+
+* The default path **MUST** be `.grobl.toml`.
+* In-place migration **MUST** preserve the original as `PATH.bak` by default and **MUST** support disabling that backup.
+* `--stdout` **MUST** emit the translated TOML without modifying the source.
+* `--check` **MUST** avoid writes and exit nonzero when legacy inclusion keys remain.
+* A source containing both canonical and legacy policy keys **MUST** be rejected rather than implicitly combining the models.
+* Exact legacy content exclusions dominated by an exact tree-omission rule **MUST NOT** be duplicated into `tree_only`.
+* If legacy tree and content scopes are both populated, the migration **MUST** warn that overlapping non-identical glob patterns may require review because grouped canonical precedence cannot prove equivalence for every such overlap.
+
 ## 8. Pattern Semantics
 
 ### 8.1 Gitignore Semantics

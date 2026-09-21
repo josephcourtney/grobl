@@ -6,7 +6,7 @@ from functools import lru_cache
 
 import tiktoken
 
-DEFAULT_TOKEN_MODEL = "gpt-5-"  # noqa: S105 - tokenizer model identifier, not a secret
+DEFAULT_TOKEN_MODEL = "gpt-5-"  # ruff: ignore[hardcoded-password-string] - tokenizer model identifier, not a secret
 
 
 @lru_cache(maxsize=8)
@@ -16,4 +16,4 @@ def _encoding_for_model(model: str) -> tiktoken.Encoding:
 
 def count_tokens(text: str, *, model: str = DEFAULT_TOKEN_MODEL) -> int:
     """Return the token count for ``text`` using the configured default model."""
-    return len(_encoding_for_model(model).encode(text))
+    return len(_encoding_for_model(model).encode(text, disallowed_special=()))

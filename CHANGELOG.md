@@ -4,11 +4,17 @@
 
 ### Added
 - add the `tree_only` inclusion state and matching `--tree-only` / `--tree-only-file` CLI controls for hierarchy-only paths.
+- add `grobl config migrate` with in-place backup, preview, and check modes for translating legacy inclusion keys to the canonical three-state schema.
 
 ### Changed
 - replace independent tree/content ignore decisions with one `full | tree_only | omit` inclusion policy while preserving the existing defaults-to-config-to-CLI precedence.
 - make `exclude`, `tree_only`, and `include` the canonical configuration lists so fully omitted paths no longer need duplicate content exclusions.
 - keep legacy tree/content config keys and scoped CLI flags as compatibility inputs that compile into the three-state policy.
+
+## [2.2.1] - 2026-04-04
+
+### Fixed
+- fix token counting so scanning files containing tokenizer special-token text such as `<|endoftext|>` no longer crashes the CLI.
 
 ## [2.2.0] - 2026-03-12
 
