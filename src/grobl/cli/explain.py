@@ -14,7 +14,7 @@ from grobl.app.scan_runtime import (
     IgnoreCLIArgs,
     assemble_layered_ignores,
     ensure_paths_within_repo,
-    gather_runtime_policy_rules,
+    gather_runtime_ignore_patterns,
     resolve_runtime_paths,
 )
 from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat, SummaryFormat, TableStyle
