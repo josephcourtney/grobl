@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from grobl.constants import InclusionLevel
+from grobl.constants import InclusionLevel
 from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, traverse_dir
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
+from grobl.provenance import format_content_reason
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
