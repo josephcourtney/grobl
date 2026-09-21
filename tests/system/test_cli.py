@@ -510,7 +510,7 @@ def fake_clipboard(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def patch_tty(monkeypatch: pytest.MonkeyPatch) -> Callable[[bool], None]:
     # Patch the application-layer TTY helper used by output routing.
 
-    def _apply(is_tty: bool) -> None:
+    def _apply(is_tty: bool) -> None:  # noqa: FBT001
         monkeypatch.setattr(app_routing, "stdout_is_tty", lambda: is_tty, raising=True)
 
     return _apply

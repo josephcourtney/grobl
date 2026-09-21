@@ -65,7 +65,7 @@ def _patterns(value: object, *, key: str) -> list[str]:
 
 def _pattern_core(pattern: str) -> str:
     stripped = pattern.strip()
-    return stripped[1:] if stripped.startswith("!") else stripped
+    return stripped.removeprefix("!")
 
 
 def _tree_omission_cores(patterns: Sequence[str]) -> set[str]:
@@ -111,17 +111,17 @@ def _legacy_policy(document: TOMLDocument) -> LegacyPolicy:
 
     tree_patterns = tuple(_patterns(document.get(CONFIG_EXCLUDE_TREE), key=CONFIG_EXCLUDE_TREE))
     print_patterns = tuple(_patterns(document.get(CONFIG_EXCLUDE_PRINT), key=CONFIG_EXCLUDE_PRINT))
-    content_patterns = tuple(
-        _patterns(document.get(CONFIG_EXCLUDE_CONTENT), key=CONFIG_EXCLUDE_CONTENT)
-    )
+    content_patterns = tuple(_patterns(document.get(CONFIG_EXCLUDE_CONTENT), key=CONFIG_EXCLUDE_CONTENT))
 
     warnings: tuple[str, ...] = ()
     if content_present:
         selected_content = content_patterns
         if print_present:
             warnings = (
-                "both exclude_print and exclude_content were present; "
-                "exclude_content takes precedence to match the legacy parser",
+                (
+                    "both exclude_print and exclude_content were present; "
+                    "exclude_content takes precedence to match the legacy parser"
+                ),
             )
     else:
         selected_content = print_patterns
@@ -138,9 +138,7 @@ def _legacy_policy(document: TOMLDocument) -> LegacyPolicy:
 def _canonical_tree_only(policy: LegacyPolicy) -> tuple[str, ...]:
     omission_cores = _tree_omission_cores(policy.tree_patterns)
     return tuple(
-        pattern
-        for pattern in policy.content_patterns
-        if _pattern_core(pattern) not in omission_cores
+        pattern for pattern in policy.content_patterns if _pattern_core(pattern) not in omission_cores
     )
 
 

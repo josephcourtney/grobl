@@ -8,6 +8,7 @@ from grobl.constants import InclusionLevel
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
 from grobl.ignore import build_layered_ignores
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -45,12 +46,8 @@ def test_three_states_have_expected_tree_and_content_projection(tmp_path: Path) 
     for expected, matcher in cases:
         decision = matcher.explain_inclusion(target, is_dir=False)
         assert decision.level is expected
-        assert matcher.explain_tree(target, is_dir=False).excluded is (
-            expected is InclusionLevel.OMIT
-        )
-        assert matcher.explain_content(target, is_dir=False).excluded is (
-            expected is not InclusionLevel.FULL
-        )
+        assert matcher.explain_tree(target, is_dir=False).excluded is (expected is InclusionLevel.OMIT)
+        assert matcher.explain_content(target, is_dir=False).excluded is (expected is not InclusionLevel.FULL)
 
 
 @pytest.mark.medium
@@ -100,12 +97,8 @@ def test_deeper_config_can_restore_full_inclusion(tmp_path: Path) -> None:
     subtree.mkdir()
     target = subtree / "keep.txt"
     target.write_text("keep", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text(
-        'exclude = ["generated/**"]\n', encoding="utf-8"
-    )
-    (subtree / ".grobl.toml").write_text(
-        'include = ["keep.txt"]\n', encoding="utf-8"
-    )
+    (tmp_path / ".grobl.toml").write_text('exclude = ["generated/**"]\n', encoding="utf-8")
+    (subtree / ".grobl.toml").write_text('include = ["keep.txt"]\n', encoding="utf-8")
 
     matcher = build_layered_ignores(
         repo_root=tmp_path,

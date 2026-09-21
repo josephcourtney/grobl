@@ -19,7 +19,6 @@ def _fmt_path(value: Path | str) -> str:
 
 def inclusion_reason_to_dict(reason: InclusionReason) -> dict[str, Any]:
     """Return a JSON-friendly dict describing the winning policy rule."""
-
     return {
         "pattern": reason.raw,
         "state": reason.level.value,
@@ -42,7 +41,6 @@ def format_content_reason(
     subject: Path,
 ) -> dict[str, Any] | None:
     """Return a consistent reason dict for content omissions."""
-
     if reason is not None:
         return inclusion_reason_to_dict(reason)
 
