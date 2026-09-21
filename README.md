@@ -97,17 +97,18 @@ Main command: traverse paths and build LLM/MARKDOWN/JSON-friendly output.
 
 ### `grobl explain [OPTIONS] [PATHS...]`
 
-Report why the provided paths are included or excluded in each scope without emitting a payload.
+Report the effective inclusion state for provided paths without emitting a payload.
 
 * `--format {human,markdown,json}` selects the explain renderer (`human` is an alias for `markdown`).
-* The JSON output lists `tree` and `content` decisions for each path and includes a `content_reason` object when the file contents are omitted (patterns or detection); use `text_detection` for binary-detection diagnostics.
-* Pass `--include-content 'docs/**'` to override the default content suppression for `docs/` or use the explain command to inspect why documentation files are filtered.
+* The output reports the effective `full`, `tree_only`, or `omit` state plus the winning rule and source.
+* JSON retains derived `tree` and `content` booleans for compatibility and reports `text_detection` when a `full` file is omitted because it is non-text.
+* Use `--include PATTERN` to override a lower-precedence `exclude` or `tree_only` rule for the current invocation.
 
 Examples:
 
 ```bash
 grobl explain README.md --format json
-grobl explain --include-content 'docs/**' docs
+grobl explain --include 'docs/architecture.md' docs/architecture.md
 grobl explain src/grobl --format human
 ```
 
@@ -465,37 +466,35 @@ instead of `<directory>` / `<file>`.
    * A common ancestor directory is computed. If only a single file is passed, the ancestor is its parent directory.
    * If the only shared ancestor is the filesystem root (e.g., `/` and `/tmp` on POSIX), the scan fails with a path error.
 
-2. **Apply ignore rules**
+2. **Resolve inclusion policy**
 
-   * The merged config is read based on the scan root (common ancestor).
-   * `exclude_tree` and `exclude_print` are applied using gitignore-style pattern matching.
+   * grobl assembles bundled defaults, hierarchical `.grobl.toml` files, an optional explicit config, and CLI rules.
+   * Gitignore-style patterns resolve every path to one state: `full`, `tree_only`, or `omit`.
+   * Later matching layers supersede earlier ones; within canonical shorthand groups, `exclude < tree_only < include`.
 
 3. **Directory traversal**
 
-   * grobl walks the tree depth-first from the scan root, respecting `exclude_tree`.
-   * It records:
-
-     * A textual tree with ASCII connectors and trailing `/` for directories.
-     * File visit order and positions within the tree output.
+   * grobl walks the tree depth-first from the scan root.
+   * `omit` entries are not rendered. Explicit re-inclusion rules are still allowed to restore descendants.
+   * `full` and `tree_only` entries remain visible in the hierarchy.
+   * grobl records a textual tree plus deterministic file visit order.
 
 4. **File analysis**
 
-   For each file:
+   For each visible file:
 
-   * A lightweight text/binary check is applied.
-   * For text files:
+   * `tree_only` files are not text-detected or read. grobl records lightweight metadata and the policy reason only.
+   * `full` files are text/binary detected.
+   * For text files in `full` state:
 
-     * Contents are read (UTF-8, errors ignored).
-     * `lines`, `chars` (character count) are computed.
-     * The file's relative path is checked against `exclude_print`:
+     * Contents are read as UTF-8.
+     * `lines`, `chars`, and token counts are computed.
+     * Metadata + contents are stored.
+   * For non-text files in `full` state:
 
-       * If allowed: metadata + contents are stored.
-       * If excluded: only metadata is stored; contents are omitted.
-   * For binary files:
-
-     * No contents are read.
+     * Contents are not included.
      * `lines = 0`, `chars = size_in_bytes` are recorded.
-     * Contents are never included in the payload.
+     * The policy state remains `full`; binary detection is reported separately.
 
    Special handling:
 
@@ -746,13 +745,13 @@ For large projects:
   grobl scan --exclude "examples/**" .
   ```
 
-* Most heavy directories (`node_modules`, `.venv`, build outputs, coverage artifacts, etc.) are excluded from the tree by default via `exclude_tree` in the bundled config. To include them, either:
+* Most heavy directories (`node_modules`, `.venv`, build outputs, coverage artifacts, etc.) are assigned `omit` by the bundled `exclude` list. To include one, either:
 
-  * Override the defaults with a project `.grobl.toml`, or
-  * Use `-I/--ignore-defaults` and supply your own `exclude_tree`, or
-  * Use `--no-ignore` to disable all tree-level ignores.
+  * restore it in a project `.grobl.toml` with `include = ["path/"]`, or
+  * use `--include PATH` for one invocation, or
+  * disable bundled policy with `-I/--ignore-defaults` and provide your own rules.
 
-Use `--no-ignore` cautiously: it disables every ignore rule (tree and content) and can significantly increase scan time and payload size.
+Use `--no-ignore` cautiously: it disables every inclusion-policy rule and can significantly increase scan time and payload size.
 
 ## Testing
 
