@@ -137,7 +137,7 @@ class JsonPayloadStrategy:
         result: ScanResult,
         sink: Callable[[str], None],
         logger: Logger,
-        config: dict[str, object],  # noqa: ARG002
+        config: dict[str, object],  # ruff: ignore[unused-method-argument]
     ) -> None:
         payload_json = self.build_payload(context)
         sink(_json.dumps(payload_json, sort_keys=True, indent=2) + "\n")
@@ -166,8 +166,8 @@ class MarkdownPayloadStrategy:
         context: SummaryContext,
         result: ScanResult,
         sink: Callable[[str], None],
-        logger: Logger,  # noqa: ARG002
-        config: dict[str, object],  # noqa: ARG002
+        logger: Logger,  # ruff: ignore[unused-method-argument]
+        config: dict[str, object],  # ruff: ignore[unused-method-argument]
     ) -> None:
         payload = self.build_payload(
             builder=builder,
@@ -186,12 +186,12 @@ class NdjsonPayloadStrategy:
     def emit(
         self,
         *,
-        builder: DirectoryTreeBuilder,  # noqa: ARG002
+        builder: DirectoryTreeBuilder,  # ruff: ignore[unused-method-argument]
         context: SummaryContext,
-        result: ScanResult,  # noqa: ARG002
+        result: ScanResult,  # ruff: ignore[unused-method-argument]
         sink: Callable[[str], None],
-        logger: Logger,  # noqa: ARG002
-        config: dict[str, object],  # noqa: ARG002
+        logger: Logger,  # ruff: ignore[unused-method-argument]
+        config: dict[str, object],  # ruff: ignore[unused-method-argument]
     ) -> None:
         payload = self.build_payload(context)
         if payload:
@@ -209,7 +209,7 @@ class LlmPayloadStrategy:
         context: SummaryContext,
         result: ScanResult,
         sink: Callable[[str], None],
-        logger: Logger,  # noqa: ARG002
+        logger: Logger,  # ruff: ignore[unused-method-argument]
         config: dict[str, object],
     ) -> None:
         tree_tag = str(config.get(CONFIG_INCLUDE_TREE_TAGS, "directory"))
@@ -228,15 +228,15 @@ class LlmPayloadStrategy:
 
 @dataclass(slots=True)
 class NoopPayloadStrategy:
-    def emit(  # noqa: PLR6301
+    def emit(  # ruff: ignore[no-self-use]
         self,
         *,
-        builder: DirectoryTreeBuilder,  # noqa: ARG002
-        context: SummaryContext,  # noqa: ARG002
-        result: ScanResult,  # noqa: ARG002
-        sink: Callable[[str], None],  # noqa: ARG002
-        logger: Logger,  # noqa: ARG002
-        config: dict[str, object],  # noqa: ARG002
+        builder: DirectoryTreeBuilder,  # ruff: ignore[unused-method-argument]
+        context: SummaryContext,  # ruff: ignore[unused-method-argument]
+        result: ScanResult,  # ruff: ignore[unused-method-argument]
+        sink: Callable[[str], None],  # ruff: ignore[unused-method-argument]
+        logger: Logger,  # ruff: ignore[unused-method-argument]
+        config: dict[str, object],  # ruff: ignore[unused-method-argument]
     ) -> None:
         return
 

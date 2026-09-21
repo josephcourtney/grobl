@@ -6,7 +6,7 @@ from functools import lru_cache
 
 import tiktoken
 
-DEFAULT_TOKEN_MODEL = "gpt-5-"  # noqa: S105 - tokenizer model identifier, not a secret
+DEFAULT_TOKEN_MODEL = "gpt-5-"  # ruff: ignore[hardcoded-password-string] - tokenizer model identifier, not a secret
 
 
 @lru_cache(maxsize=8)

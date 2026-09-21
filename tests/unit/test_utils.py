@@ -31,7 +31,7 @@ def test_find_common_ancestor_single_path(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX-only path assumptions")
 def test_find_common_ancestor_allows_filesystem_root() -> None:
-    got = find_common_ancestor([Path("/"), Path("/tmp")])  # noqa: S108 - controlled use in test
+    got = find_common_ancestor([Path("/"), Path("/tmp")])  # ruff: ignore[hardcoded-temp-file] - controlled use in test
     assert got == Path("/")
 
 
