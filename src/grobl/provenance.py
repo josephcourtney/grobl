@@ -24,6 +24,7 @@ def inclusion_reason_to_dict(reason: InclusionReason) -> dict[str, Any]:
         "state": reason.level.value,
         "negated": reason.negated,
         "source": reason.source.value,
+        "state": reason.state.value,
         "base_dir": _fmt_path(reason.base_dir),
         "config_path": _fmt_path(reason.config_path) if reason.config_path else None,
         "detail": None,
