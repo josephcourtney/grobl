@@ -10,7 +10,7 @@ from grobl.config import apply_runtime_ignore_edits
 from grobl.errors import PathNotFoundError
 from grobl.utils import detect_text, find_common_ancestor, is_text, resolve_repo_root
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 try:  # import at module level; skip the whole module if unavailable
     from hypothesis import given

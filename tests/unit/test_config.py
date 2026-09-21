@@ -8,7 +8,7 @@ from grobl.config import apply_runtime_ignore_edits, load_config, resolve_config
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from pathlib import Path

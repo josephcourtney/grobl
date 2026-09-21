@@ -19,7 +19,7 @@ from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError
 from tests.support import build_ignore_matcher
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from typing import Any

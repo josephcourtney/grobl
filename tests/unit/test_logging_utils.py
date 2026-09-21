@@ -11,7 +11,7 @@ from grobl.logging_utils import (
     log_event,
 )
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from pathlib import Path

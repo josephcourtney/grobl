@@ -10,7 +10,7 @@ from grobl.metadata_visibility import MetadataVisibility
 from grobl.summary import SummaryContext, build_sink_payload_json, build_summary
 from grobl.token_counting import count_tokens
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from pathlib import Path

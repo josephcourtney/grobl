@@ -9,7 +9,7 @@ import pytest
 
 from grobl.output import build_writer_from_config
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 
 def test_writer_copy_uses_clipboard(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -19,7 +19,7 @@ from grobl.renderers import (
 from grobl.token_counting import count_tokens
 from tests.support import build_ignore_matcher
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from pathlib import Path

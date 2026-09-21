@@ -10,7 +10,7 @@ from grobl.token_counting import count_tokens
 from grobl.utils import TextDetectionResult
 from tests.support import build_ignore_matcher
 
-pytestmark = pytest.mark.small
+pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
     from collections.abc import Callable
