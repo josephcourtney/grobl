@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 import click
 
-from grobl.constants import IgnorePolicy, InclusionLevel
-from grobl.ignore import LayeredIgnoreMatcher, PolicyRule, build_layered_ignores
+from grobl.constants import IgnorePolicy
+from grobl.ignore import LayeredIgnoreMatcher, build_layered_ignores
 from grobl.utils import resolve_repo_root
 
 from .config_defaults import load_default_config
@@ -74,16 +74,12 @@ def resolve_runtime_paths(paths: tuple[Path, ...]) -> tuple[tuple[Path, ...], Pa
     return requested_paths, resolve_repo_root(cwd=Path(), paths=requested_paths)
 
 
-def _rules(patterns: tuple[str, ...], state: InclusionLevel) -> tuple[PolicyRule, ...]:
-    return tuple(PolicyRule(pattern=pattern, level=state) for pattern in patterns)
-
-
-def gather_runtime_policy_rules(
+def gather_runtime_ignore_patterns(
     *,
     repo_root: Path,
     ignore_args: IgnoreCLIArgs,
-) -> tuple[PolicyRule, ...]:
-    """Compile canonical and compatibility CLI flags into one state-rule stream."""
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Return CLI rules projected onto omit, tree_only, and full states."""
 
     file_excludes = tuple(
         _path_to_runtime_pattern(path, repo_root=repo_root) for path in ignore_args.exclude_file
@@ -95,17 +91,23 @@ def gather_runtime_policy_rules(
         _path_to_runtime_pattern(path, repo_root=repo_root) for path in ignore_args.include_file
     )
 
-    # Compatibility scoped rules are compiled first. Canonical rules then
-    # supersede them by state, and explicit includes are last.
-    return (
-        *_rules(ignore_args.exclude_content, InclusionLevel.TREE_ONLY),
-        *_rules(ignore_args.exclude_tree, InclusionLevel.OMIT),
-        *_rules((*ignore_args.exclude, *file_excludes), InclusionLevel.OMIT),
-        *_rules((*ignore_args.tree_only, *file_tree_only), InclusionLevel.TREE_ONLY),
-        *_rules((*ignore_args.include, *file_includes), InclusionLevel.FULL),
-        *_rules(ignore_args.include_tree, InclusionLevel.FULL),
-        *_rules(ignore_args.include_content, InclusionLevel.FULL),
+    runtime_exclude = (
+        *ignore_args.exclude_tree,
+        *ignore_args.exclude,
+        *file_excludes,
     )
+    runtime_tree_only = (
+        *ignore_args.exclude_content,
+        *ignore_args.tree_only,
+        *file_tree_only,
+    )
+    runtime_include = (
+        *ignore_args.include,
+        *file_includes,
+        *ignore_args.include_tree,
+        *ignore_args.include_content,
+    )
+    return runtime_exclude, runtime_tree_only, runtime_include
 
 
 def ensure_paths_within_repo(
@@ -134,10 +136,12 @@ def assemble_layered_ignores(
     ignore_defaults_flag: bool,
     no_ignore_config_flag: bool,
     no_ignore_flag: bool,
-    runtime_rules: tuple[PolicyRule, ...] = (),
+    runtime_exclude: tuple[str, ...] = (),
+    runtime_tree_only: tuple[str, ...] = (),
+    runtime_include: tuple[str, ...] = (),
 ) -> LayeredIgnoreMatcher:
     default_cfg = load_default_config()
-    cli_policy_used = bool(runtime_rules)
+    cli_policy_used = bool(runtime_exclude or runtime_tree_only or runtime_include)
     ignore_policy_value = IgnorePolicy(ignore_policy)
     if ignore_policy_value is IgnorePolicy.NONE and cli_policy_used:
         msg = (
@@ -158,7 +162,9 @@ def assemble_layered_ignores(
         scan_paths=scan_paths,
         include_defaults=include_defaults,
         include_config=include_config,
-        runtime_rules=runtime_rules,
+        runtime_exclude=runtime_exclude,
+        runtime_tree_only=runtime_tree_only,
+        runtime_include=runtime_include,
         default_cfg=default_cfg,
         explicit_config=params.config_path,
     )
