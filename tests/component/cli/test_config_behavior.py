@@ -13,14 +13,14 @@ pytestmark = pytest.mark.medium
 
 
 @pytest.fixture(autouse=True)
-def _isolate_external_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_external_config(repo_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(repo_root / "xdg-empty"))
 
 
-def test_scan_reads_persistent_behavior_from_project_config(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text(
+def test_scan_reads_persistent_behavior_from_project_config(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    (repo_root / ".grobl.toml").write_text(
         'format = "json"\n'
         'summary = "none"\n'
         'scope = "files"\n'
@@ -30,7 +30,7 @@ def test_scan_reads_persistent_behavior_from_project_config(tmp_path: Path) -> N
         encoding="utf-8",
     )
 
-    result = CliRunner().invoke(cli, ["scan", str(tmp_path), "--output", "-"])
+    result = CliRunner().invoke(cli, ["scan", str(repo_root), "--output", "-"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -41,9 +41,9 @@ def test_scan_reads_persistent_behavior_from_project_config(tmp_path: Path) -> N
     assert "included" not in entry
 
 
-def test_explicit_cli_behavior_overrides_project_config(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text(
+def test_explicit_cli_behavior_overrides_project_config(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    (repo_root / ".grobl.toml").write_text(
         'format = "json"\nsummary = "none"\n',
         encoding="utf-8",
     )
@@ -52,7 +52,7 @@ def test_explicit_cli_behavior_overrides_project_config(tmp_path: Path) -> None:
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--format",
             "markdown",
             "--summary",
@@ -66,28 +66,28 @@ def test_explicit_cli_behavior_overrides_project_config(tmp_path: Path) -> None:
     assert "```tree" in result.stdout
 
 
-def test_json_alias_overrides_persistent_format_and_summary(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text(
+def test_json_alias_overrides_persistent_format_and_summary(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    (repo_root / ".grobl.toml").write_text(
         'format = "markdown"\nsummary = "table"\n',
         encoding="utf-8",
     )
 
-    result = CliRunner().invoke(cli, ["scan", str(tmp_path), "--json"])
+    result = CliRunner().invoke(cli, ["scan", str(repo_root), "--json"])
 
     assert result.exit_code == 0
     json.loads(result.stdout)
 
 
-def test_inherit_defaults_false_disables_only_bundled_policy(tmp_path: Path) -> None:
-    (tmp_path / "LICENSE").write_text("license body\n", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text(
+def test_inherit_defaults_false_disables_only_bundled_policy(repo_root: Path) -> None:
+    (repo_root / "LICENSE").write_text("license body\n", encoding="utf-8")
+    (repo_root / ".grobl.toml").write_text(
         'inherit_defaults = false\nsummary = "none"\n',
         encoding="utf-8",
     )
     runner = CliRunner()
 
-    without_defaults = runner.invoke(cli, ["scan", str(tmp_path), "--output", "-"])
+    without_defaults = runner.invoke(cli, ["scan", str(repo_root), "--output", "-"])
     assert without_defaults.exit_code == 0
     assert "license body" in without_defaults.stdout
 
@@ -95,7 +95,7 @@ def test_inherit_defaults_false_disables_only_bundled_policy(tmp_path: Path) -> 
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--ignore-policy",
             "defaults",
             "--summary",
@@ -109,9 +109,9 @@ def test_inherit_defaults_false_disables_only_bundled_policy(tmp_path: Path) -> 
     assert "license body" not in explicit_defaults.stdout
 
 
-def test_noninteractive_legacy_config_warns_without_modifying(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    path = tmp_path / ".grobl.toml"
+def test_noninteractive_legacy_config_warns_without_modifying(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    path = repo_root / ".grobl.toml"
     source = 'exclude_tree = ["dist"]\n'
     path.write_text(source, encoding="utf-8")
 
@@ -119,7 +119,7 @@ def test_noninteractive_legacy_config_warns_without_modifying(tmp_path: Path) ->
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--no-interactive",
             "--format",
             "none",
@@ -134,9 +134,9 @@ def test_noninteractive_legacy_config_warns_without_modifying(tmp_path: Path) ->
     assert not Path(f"{path}.bak").exists()
 
 
-def test_interactive_legacy_config_offers_migration_then_pruning(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    path = tmp_path / ".grobl.toml"
+def test_interactive_legacy_config_offers_migration_then_pruning(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    path = repo_root / ".grobl.toml"
     source = 'exclude_tree = ["dist", "dist"]\n'
     path.write_text(source, encoding="utf-8")
 
@@ -144,7 +144,7 @@ def test_interactive_legacy_config_offers_migration_then_pruning(tmp_path: Path)
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--interactive",
             "--format",
             "none",
@@ -161,35 +161,35 @@ def test_interactive_legacy_config_offers_migration_then_pruning(tmp_path: Path)
     assert Path(f"{path}.bak").read_text(encoding="utf-8") == source
 
 
-def test_cli_ignore_defaults_overrides_configured_all_policy(tmp_path: Path) -> None:
-    (tmp_path / "LICENSE").write_text("license body\n", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text(
+def test_cli_ignore_defaults_overrides_configured_all_policy(repo_root: Path) -> None:
+    (repo_root / "LICENSE").write_text("license body\n", encoding="utf-8")
+    (repo_root / ".grobl.toml").write_text(
         'ignore_policy = "all"\nsummary = "none"\n',
         encoding="utf-8",
     )
 
     result = CliRunner().invoke(
         cli,
-        ["scan", str(tmp_path), "--ignore-defaults", "--output", "-"],
+        ["scan", str(repo_root), "--ignore-defaults", "--output", "-"],
     )
 
     assert result.exit_code == 0
     assert "license body" in result.stdout
 
 
-def test_invalid_persistent_behavior_is_config_error(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    (tmp_path / ".grobl.toml").write_text('scope = "bogus"\n', encoding="utf-8")
+def test_invalid_persistent_behavior_is_config_error(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    (repo_root / ".grobl.toml").write_text('scope = "bogus"\n', encoding="utf-8")
 
-    result = CliRunner().invoke(cli, ["scan", str(tmp_path), "--output", "-"])
+    result = CliRunner().invoke(cli, ["scan", str(repo_root), "--output", "-"])
 
     assert result.exit_code == 3
     assert "invalid config value for 'scope'" in result.stderr
 
 
-def test_interactive_legacy_migration_can_be_declined(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    path = tmp_path / ".grobl.toml"
+def test_interactive_legacy_migration_can_be_declined(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    path = repo_root / ".grobl.toml"
     source = 'exclude_tree = ["dist"]\n'
     path.write_text(source, encoding="utf-8")
 
@@ -197,7 +197,7 @@ def test_interactive_legacy_migration_can_be_declined(tmp_path: Path) -> None:
         cli,
         [
             "scan",
-            str(tmp_path),
+            str(repo_root),
             "--interactive",
             "--format",
             "none",
@@ -212,13 +212,13 @@ def test_interactive_legacy_migration_can_be_declined(tmp_path: Path) -> None:
     assert not Path(f"{path}.bak").exists()
 
 
-def test_bundled_policy_omits_migration_backup(tmp_path: Path) -> None:
-    (tmp_path / "a.txt").write_text("hello\n", encoding="utf-8")
-    (tmp_path / ".grobl.toml.bak").write_text("legacy-secret\n", encoding="utf-8")
+def test_bundled_policy_omits_migration_backup(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+    (repo_root / ".grobl.toml.bak").write_text("legacy-secret\n", encoding="utf-8")
 
     result = CliRunner().invoke(
         cli,
-        ["scan", str(tmp_path), "--summary", "none", "--output", "-"],
+        ["scan", str(repo_root), "--summary", "none", "--output", "-"],
     )
 
     assert result.exit_code == 0
