@@ -17,6 +17,41 @@ LEGACY_TOML_CONFIG = ".grobl.config.toml"
 PYPROJECT_TOML = "pyproject.toml"
 
 
+def _coerce_to_dir(path: Path) -> Path:
+    return path.parent if path.is_file() else path
+
+
+def discover_grobl_toml_files(
+    *,
+    repo_root: Path,
+    scan_paths: tuple[Path, ...],
+) -> list[Path]:
+    """Return applicable .grobl.toml files ordered from repository root to leaf."""
+    root = repo_root.resolve()
+    targets = [_coerce_to_dir(path.resolve(strict=False)) for path in scan_paths]
+
+    found: set[Path] = set()
+    for target in targets:
+        if not target.is_relative_to(root):
+            continue
+        current = target
+        while True:
+            candidate = current / TOML_CONFIG
+            if candidate.exists():
+                found.add(candidate.resolve())
+            if current == root:
+                break
+            current = current.parent
+
+    return sorted(
+        found,
+        key=lambda path: (
+            len(path.parent.relative_to(root).parts),
+            path.as_posix().casefold(),
+        ),
+    )
+
+
 def resolve_config_base(*, base_path: Path, explicit_config: Path | None = None) -> Path:
     """Return the project config root for local matching/loading."""
     if explicit_config is not None:
