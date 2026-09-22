@@ -10,89 +10,8 @@ exclude = [
   "./best practices - automated testing.md",
   "./best practices - command line interfaces.md",
 
-  # grobl-specific
-  ".grobl.toml",
-
-  # secrets
-  ".envrc",
-  ".direnv",
-  ".env",
-
-  # version control
-  ".git",
-  ".gitattributes",
-  ".gitignore",
-  ".gitmodules",
-  ".git-rewrite",
-  ".hg",
-  ".svn",
-
-  # CI/repo service config
-  ".github",
-
-  # editor / IDE state
-  ".idea",
-  ".vscode",
-  "*.sublime-workspace",
-  "*.sublime-project",
-  ".history",
-
-  # OS junk
-  ".DS_Store",
-  "Thumbs.db",
-
   # environments / dependency caches
-  "__pycache__",
-  ".venv",
-  "venv",
-  "env",
-  "node_modules",
-  "bower_components",
-  ".mypy_cache",
-  ".pytest_cache",
-  ".hypothesis",
-  ".tox",
-  ".nox",
-  ".ruff_cache",
-  ".cache",
-  ".pnpm-store",
-  ".parcel-cache",
   "__pypackages__",
-
-  # build artifacts
-  "dist",
-  "build",
-  "target",
-  "wheels",
-  "mutants",
-  "htmlcov",
-  "site/",
-
-  # coverage
-  ".coverage",
-  ".coverage.*",
-  ".coverage.xml",
-  "coverage.xml",
-
-  # Apple / Xcode
-  "*.xcuserdatad",
-  "*.xcworkspace",
-  "DerivedData",
-  "Pods",
-
-  # frontend frameworks
-  ".next",
-  ".nuxt",
-  ".svelte-kit",
-
-  # build systems / infra
-  ".gradle",
-  ".terraform",
-  ".terraform*",
-  ".ipynb_checkpoints",
-
-  # misc fixtures
-  "tests/fixtures/*.yaml",
 
   # tooling configs
   ".sourcery.yaml",
@@ -102,47 +21,11 @@ exclude = [
 # Paths whose hierarchy is useful but whose contents usually are not
 # ============================================
 tree_only = [
-  # legal / boilerplate
-  "LICENSE",
-  "LICENSE.*",
-  "COPYING",
-  "CODE_OF_CONDUCT.md",
-  "CONTRIBUTING.md",
-
   # docs
   "docs",
-
-  # assets / binaries
-  "*.lproj",
-  "*.xcassets",
-  "*.pdf",
-  "*.png",
-  "*.jpg",
-  "*.jpeg",
-  "*.gif",
-  "*.svg",
-
-  # lock/config files
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml",
-  "poetry.lock",
-  "Pipfile.lock",
-  "Cargo.lock",
-  "composer.lock",
-  "Gemfile.lock",
-  "ruff.default.toml",
-  "ruff.toml",
-
-  # tooling configs
-  ".pre-commit-config.yaml",
-  ".python-version",
 ]
-
-include = []
 
 # ============================================
 # Tag settings
 # ============================================
-include_tree_tags = "directory"
 include_file_tags = "file"

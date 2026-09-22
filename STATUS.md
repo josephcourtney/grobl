@@ -6,15 +6,15 @@ Last updated: 2026-09-21
 
 ## Current focus
 
-Review the refined project-config pruning output and finish 2.3.1 release validation.
+2.3.1 is release-ready; no immediate implementation work remains.
 
 ## Recently completed
 
-- Refined pruning to remove semantically empty canonical policy keys and non-policy settings that repeat their effective inherited value.
-- Added cleanup of orphaned comment-only groups inside pruned policy arrays while preserving pre-existing explanatory comment groups.
-- Kept XDG/general-config resets and `extends` suppression semantics from being pruned incorrectly.
-- Fixed strict lint findings in `config_pruning.py` without changing behavior.
-- `just check` passes after the pruning refinement, covering the full test suite and repository validation gate.
+- Refined `grobl config prune` to remove structural config redundancy while preserving meaningful overrides, XDG resets, `extends` suppression, and explanatory comments.
+- Reviewed the project config with `grobl config prune --current-tree --stdout` and applied the accepted minimal result.
+- `just check` passes after the pruning refinement.
+- `just release-check` passes, including distribution builds.
+- `grobl -V` and `grobl --version` both report `2.3.1` exactly.
 
 ## Known gaps and limitations
 
@@ -24,8 +24,8 @@ Review the refined project-config pruning output and finish 2.3.1 release valida
 
 ## Risks / blockers
 
-No known implementation blocker. Release artifact validation with `just release-check` remains pending.
+No known blocker for the 2.3.1 release.
 
 ## Resume notes
 
-Preview `grobl config prune --current-tree --stdout` against the project config, then run the remaining release items in [TODO.md](TODO.md).
+The repository has passed the release validation gates. Publishing remains a separate explicit release operation.
