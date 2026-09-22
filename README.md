@@ -71,7 +71,7 @@ Common workflows:
 * Emit only a JSON summary (no LLM payload):
 
   ```bash
-grobl scan --format none --summary json
+  grobl scan --format none --summary json
   ```
 
 * Emit a JSON payload and no summary (machine-only):
@@ -92,7 +92,7 @@ The `grobl` entry point treats the first positional token as a subcommand only w
 
 ### `grobl scan [OPTIONS] [PATHS...]`
 
-Main command: traverse paths and build LLM/MARKDOWN/JSON-friendly output.
+Main command: traverse paths and build LLM, Markdown, JSON, or NDJSON output.
 
 * If `PATHS` is omitted, the current directory is used.
 * If you pass only a single file, grobl treats its **parent directory** as the tree root (the file is still included).
@@ -205,7 +205,7 @@ grobl --log-level=DEBUG scan .
 The `scan` command controls four orthogonal concerns:
 
 1. **Scope** – what to collect (tree, files, or both)
-2. **Payload** – heavy output format (LLM XML-like, JSON, or none)
+2. **Payload** – heavy output format (LLM XML-like, Markdown, JSON, NDJSON, or none)
 3. **Summary** – light metadata output (human, JSON, or none)
 4. **Sink** – where the payload is sent (clipboard, stdout, file)
 
@@ -255,12 +255,12 @@ The payload is always written to a clipboard or file destination (see below), no
 --inclusion-status/--no-inclusion-status
 ```
 
-* `--summary auto` (default): behave like `table` when stdout is a TTY and like `none` otherwise.
+* `--summary auto` (default): behave like `table` when the invocation is interactive for the selected summary routing (stderr by default) and like `none` otherwise.
 * `--summary table`: print a human-readable summary to the selected destination.
   * `--summary-style auto` (default) chooses `full` on TTYs and `compact` otherwise.
   * `--summary-style full` renders the directory tree plus totals.
   * `--summary-style compact` prints just the totals (`Total lines: ...`).
-* `--summary json`: print a JSON summary; the emitted object still records the requested table style in the `"style"` field.
+* `--summary json`: print a JSON summary; the `"style"` field remains `"auto"` because table styling applies only to `--summary table`.
   * When a file’s contents are omitted, the corresponding entry includes a `content_reason` object describing the winning pattern (or the `<non-text>` detector) so scripts can trace the exclusion.
 * `--summary none`: omit any summary output.
 
@@ -528,17 +528,20 @@ instead of `<directory>` / `<file>`.
    For each visible file:
 
    * `tree_only` files are not text-detected or read. grobl records lightweight metadata and the policy reason only.
-   * `full` files are text/binary detected.
+   * `full` files are preflighted against the active per-file and aggregate byte budgets before content is read.
+   * Budget-eligible `full` files are text/binary detected.
    * For text files in `full` state:
 
      * Contents are read as UTF-8.
      * `lines`, `chars`, and token counts are computed.
-     * Metadata + contents are stored.
+     * The aggregate token budget is checked before content is admitted to the payload.
+     * Metadata + contents are stored only when the remaining content budgets permit the complete file.
    * For non-text files in `full` state:
 
      * Contents are not included.
      * `lines = 0`, `chars = size_in_bytes` are recorded.
      * The policy state remains `full`; binary detection is reported separately.
+   * Files rejected by a content budget remain visible and receive a `resource-limit` content reason; grobl never truncates a file to fit a budget.
 
    Special handling:
 
@@ -555,9 +558,9 @@ instead of `<directory>` / `<file>`.
 
 ## Output destinations and clipboard behavior
 
-grobl copies payloads to the clipboard by default. Use `--copy` to force clipboard delivery, `--output PATH` (use `-` for stdout) to write directly to a file or the terminal, or `--stdout` as a convenience shorthand. `--copy`, `--output`, and `--stdout` are mutually exclusive payload destinations.
+When no payload destination is specified, grobl selects the clipboard if stdout is a TTY and stdout otherwise. Use `--copy` to force clipboard delivery, `--output PATH` (use `-` for stdout) to write directly to a file or stdout, or `--stdout` as a convenience shorthand. `--copy`, `--output`, and `--stdout` are mutually exclusive payload destinations.
 
-When writing to the clipboard fails (e.g., missing backend), grobl logs a structured warning and re-raises the exception so the failure is visible to the caller.
+A successful clipboard copy prints a concise receipt to stderr containing the included-file count, token count when enabled, and payload size. If the clipboard or an output stream/file is unavailable, grobl emits a concise error without a Python traceback and exits with the I/O error code.
 
 The summary is routed independently and defaults to stderr unless suppressed by `--summary none`.
 
@@ -646,26 +649,24 @@ Structure:
 {
   "root": "/absolute/path/to/PROJECT",
   "scope": "all",
-  "style": "compact",
+  "style": "auto",
   "totals": {
+    "included_files": 1,
+    "all_files": 1,
     "total_lines": 10,
     "total_characters": 120,
+    "total_tokens": 31,
     "all_total_lines": 10,
-    "all_total_characters": 1234
+    "all_total_characters": 120,
+    "all_total_tokens": 31
   },
   "files": [
     {
       "path": "src/app.py",
       "lines": 10,
       "chars": 120,
+      "tokens": 31,
       "included": true
-    },
-    {
-      "path": "assets/logo.png",
-      "lines": 0,
-      "chars": 1110,
-      "included": false,
-      "binary": true
     }
   ]
 }
@@ -674,18 +675,10 @@ Structure:
 Notes:
 
 * `scope` reflects `--scope`.
-* `style` reflects `--summary-style`.
-* `totals` report both:
-
-  * totals for files whose contents were included (`total_*`), and
-  * totals for all files seen (`all_total_*`).
-* Each file entry has:
-
-  * `path`: path relative to the root
-  * `lines`: line count (0 for binaries)
-  * `chars`: character count (for binaries, the byte size)
-  * `included`: `true` if the file's content is included in the payload
-  * `binary`: `true` for files heuristically treated as binary (`lines == 0`, `chars > 0`, `included == false`)
+* `style` records the resolved table style; for JSON-only summary output it is normally `"auto"`.
+* `totals` always includes `included_files` and `all_files`. Enabled metadata dimensions additionally contribute paired `total_*` and `all_total_*` values for included-content totals and all-seen totals.
+* File entries always include `path`; line, character, token, and inclusion fields follow the active metadata-visibility settings.
+* An entry whose contents are omitted includes a machine-readable `content_reason`. The optional `binary: true` marker is emitted specifically when that reason comes from text detection; it is not inferred merely from zero lines or an omitted payload.
 
 ### JSON payload schema (format = json)
 
@@ -702,31 +695,40 @@ In these cases, grobl writes a structured JSON payload to the selected destinati
   "root": "/absolute/path/to/PROJECT",
   "scope": "all",
   "tree": [
-    {"type": "dir",  "path": "."},
-    {"type": "dir",  "path": "src"},
+    {"type": "dir", "path": "src"},
     {"type": "file", "path": "src/app.py"}
   ],
   "files": [
     {
       "name": "src/app.py",
+      "path": "src/app.py",
       "lines": 10,
       "chars": 120,
+      "tokens": 31,
+      "included": true,
       "content": "def main():\n    ..."
     }
   ],
   "summary": {
-    "style": "none",
+    "root": "/absolute/path/to/PROJECT",
+    "scope": "all",
+    "style": "auto",
     "totals": {
+      "included_files": 1,
+      "all_files": 1,
       "total_lines": 10,
       "total_characters": 120,
+      "total_tokens": 31,
       "all_total_lines": 10,
-      "all_total_characters": 120
+      "all_total_characters": 120,
+      "all_total_tokens": 31
     },
     "files": [
       {
         "path": "src/app.py",
         "lines": 10,
         "chars": 120,
+        "tokens": 31,
         "included": true
       }
     ]
@@ -747,10 +749,10 @@ In these cases, grobl writes a structured JSON payload to the selected destinati
 
 ### In tree but no contents
 
-A path in this condition has effective policy state `tree_only`, or is `full` but was rejected by binary detection.
+A path in this condition has effective policy state `tree_only`, or is `full` but its contents were rejected by binary detection or an active resource budget.
 
-* Run `grobl explain PATH --format json` to distinguish the cases and see the winning rule.
-* Use `--include PATTERN` or an `include` entry in `.grobl.toml` to restore `full` policy.
+* Run `grobl explain PATH --format json` to distinguish policy, text-detection, and `resource-limit` reasons.
+* Use `--include PATTERN` or an `include` entry in `.grobl.toml` to restore `full` policy when policy is the cause. Inclusion rules do not override binary detection or content budgets.
 
 ### Docs contents missing
 
@@ -799,25 +801,19 @@ Use `--no-ignore` cautiously: it disables every inclusion-policy rule and can si
 
 ## Testing
 
-grobl uses `pytest` with coverage:
+The canonical repository validation gate is:
 
-* Run tests (from the project root):
+```bash
+just check
+```
 
-  ```bash
-  uv run pytest
-  ```
+It runs syntax and formatting validation, Ruff linting, static typing, import-architecture contracts, the full pytest suite, and coverage reporting. Before a release, run:
 
-* Coverage is configured via `pyproject.toml` and `coverage`:
+```bash
+just release-check
+```
 
-  * Branch coverage enabled (`--cov-branch`)
-  * Source limited to `src/grobl`
-  * XML report written to `.coverage.xml`
-
-The test suite includes:
-
-* Unit tests for core logic, config, traversal, formatting, logging, and utilities.
-* Component tests for CLI behavior (including JSON output and payloads).
-* System tests that exercise flows described in this README (quick-start scan, `--output`, `version`, `completions`, `init`).
+That repeats repository validation and builds the source and wheel distributions without local `uv` source overrides. Use narrower test or lint recipes during development, but the two commands above are the authoritative pre-commit/release gates.
 
 ## Exit codes
 
