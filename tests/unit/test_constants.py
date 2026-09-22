@@ -9,6 +9,7 @@ from grobl.constants import (
     CONFIG_EXCLUDE_TREE,
     CONFIG_INCLUDE,
     CONFIG_INCLUDE_FILE_TAGS,
+    CONFIG_INHERIT_DEFAULTS,
     CONFIG_INCLUDE_TREE_TAGS,
     CONFIG_TREE_ONLY,
     ContentScope,
@@ -36,6 +37,7 @@ def test_enum_values_and_config_keys() -> None:
     assert CONFIG_EXCLUDE_PRINT == "exclude_print"
     assert CONFIG_INCLUDE_TREE_TAGS == "include_tree_tags"
     assert CONFIG_INCLUDE_FILE_TAGS == "include_file_tags"
+    assert CONFIG_INHERIT_DEFAULTS == "inherit_defaults"
 
 
 def test_output_mode_not_exposed() -> None:

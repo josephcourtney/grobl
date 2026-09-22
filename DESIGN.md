@@ -81,11 +81,23 @@ Sources are evaluated from lowest to highest precedence:
 
 Each source retains its own matching base. Compatibility inputs are normalized at the boundary into these same states before the core sees them.
 
+## Configuration ownership and persistent behavior
+
+Bundled policy is implementation-owned data, not project-owned boilerplate. `grobl init` therefore creates a small commented project-delta file instead of copying the bundled policy. A project config records only choices that differ from or intentionally document package behavior.
+
+`inherit_defaults` controls only installation of the bundled inclusion-policy layer. Under automatic source selection, `false` starts policy composition with project/config layers; it does not erase payload, summary, metadata, tag, or other program defaults. Explicit CLI source-selection remains the final authority.
+
+Stable scan-wide behavior can be persisted using config keys corresponding to `scope`, payload `format`, summary mode/style, metadata visibility, and `ignore_policy`. Explicit CLI values override those settings. Routing/actions remain invocation-owned so a repository cannot unexpectedly force clipboard writes, output paths, JSON convenience mode, logging, explicit config selection, or interactivity.
+
+Inclusion policy remains hierarchical because each policy source has a path-relative matching base. Scan-wide scalar behavior is resolved through the general config merge rather than varying by nested path; one scan invocation has one payload format, scope, summary mode, and metadata-visibility policy even when it spans multiple subtrees.
+
 ## Compatibility and migration policy
 
 Legacy `exclude_tree`, `exclude_print`, and `exclude_content` inputs remain supported because existing repositories may depend on them. They are compatibility syntax only; they do not define separate internal axes.
 
-`grobl config migrate` is the supported path from legacy-only configuration to canonical `exclude`/`tree_only`/`include` configuration. Mixed legacy/canonical policy sources are rejected rather than interpreted ambiguously. Migration preserves the original by default and warns when overlapping legacy globs cannot be proven equivalent.
+`grobl config migrate` is the deterministic explicit path from legacy-only configuration to canonical `exclude`/`tree_only`/`include` configuration. Mixed legacy/canonical policy sources are rejected rather than interpreted ambiguously. Migration preserves the original by default and warns when overlapping legacy globs cannot be proven equivalent.
+
+Scan/explain add an interactive convenience layer around that same migration primitive: applicable legacy-schema files are offered for migration only when the run is interactive (or explicitly forced interactive), the original backup is retained, structural pruning is offered afterward, and repository-state pruning requires its own opt-in confirmation. Noninteractive runs only warn and continue using compatibility parsing; configuration maintenance must never make automation block on a prompt.
 
 Canonical configuration maintenance distinguishes tree-independent structural pruning from repository-state pruning. Structural pruning removes same-source rules shadowed by identical later matchers, semantically empty canonical policy keys, and non-policy settings that simply repeat their effective inherited value; formatting cleanup removes comment-only policy subsections left empty by those edits. Repository-state pruning is explicit: it considers only exact inherited same-base policy duplicates and removes a candidate after counterfactual matching proves that the currently traversable tree keeps the same effective states. Unique dormant rules are never removed merely for having no current matches.
 

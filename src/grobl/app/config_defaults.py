@@ -5,6 +5,7 @@ from grobl.config_defaults import (
     load_default_config,
     load_default_config_text,
     write_default_config,
+    write_starter_config,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "load_default_config",
     "load_default_config_text",
     "write_default_config",
+    "write_starter_config",
 ]

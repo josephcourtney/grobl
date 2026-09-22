@@ -16,6 +16,8 @@ from grobl.output import build_writer_from_config
 
 from . import output_routing
 from .command_support import ScanParams, execute_scan_with_handling, exit_on_broken_pipe
+from .config_behavior import resolve_scan_behavior
+from .config_maintenance import maintain_legacy_project_configs
 from .config_loading import load_config, resolve_config_base
 from .output_routing import (
     emit_scan_outputs,
@@ -65,6 +67,7 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
+    interactive: bool | None,
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
@@ -87,23 +90,54 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
     config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
+    maintain_legacy_project_configs(
+        repo_root=repo_root,
+        scan_paths=requested_paths,
+        explicit_config=config_path,
+        interactive=interactive,
+    )
+
+    try:
+        cfg = load_config(
+            base_path=config_base,
+            explicit_config=config_path,
+            ignore_defaults=False,
+        )
+        behavior = resolve_scan_behavior(
+            ctx,
+            cfg,
+            scope=scope,
+            payload_format=payload_format,
+            summary=summary,
+            summary_style=summary_style,
+            show_lines=show_lines,
+            show_chars=show_chars,
+            show_tokens=show_tokens,
+            show_inclusion_status=show_inclusion_status,
+            ignore_policy=ignore_policy,
+            json_mode=json_mode,
+        )
+    except ConfigLoadError as err:
+        print(err, file=sys.stderr)
+        raise SystemExit(EXIT_CONFIG) from err
+
     params = build_scan_params(
         ctx=ctx,
         config_path=config_path,
-        scope=scope,
-        payload_format=payload_format,
-        summary=summary,
-        summary_style=summary_style,
+        scope=behavior.scope,
+        payload_format=behavior.payload_format,
+        summary=behavior.summary,
+        summary_style=behavior.summary_style,
         summary_to=summary_to,
         copy=copy,
         output=output,
         write_to_stdout=write_to_stdout,
         json_mode=json_mode,
         visibility=MetadataVisibility(
-            lines=show_lines,
-            chars=show_chars,
-            tokens=show_tokens,
-            inclusion_status=show_inclusion_status,
+            lines=behavior.show_lines,
+            chars=behavior.show_chars,
+            tokens=behavior.show_tokens,
+            inclusion_status=behavior.show_inclusion_status,
         ),
         requested_paths=requested_paths,
         repo_root=repo_root,
@@ -115,21 +149,12 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
         ignore_args=ignore_args,
     )
 
-    try:
-        cfg = load_config(
-            base_path=config_base,
-            explicit_config=params.config_path,
-            ignore_defaults=False,
-        )
-    except ConfigLoadError as err:
-        print(err, file=sys.stderr)
-        raise SystemExit(EXIT_CONFIG) from err
-
     ignores = assemble_layered_ignores(
         repo_root=repo_root,
         scan_paths=requested_paths,
         params=params,
-        ignore_policy=ignore_policy,
+        ignore_policy=behavior.ignore_policy,
+        inherit_defaults=behavior.inherit_defaults,
         ignore_defaults_flag=ignore_defaults,
         no_ignore_config_flag=no_ignore_config,
         no_ignore_flag=no_ignore,

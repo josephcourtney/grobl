@@ -54,7 +54,7 @@ Traverse one or more paths, resolve the layered inclusion policy, and emit paylo
 
 ### `grobl init [--path DIR] [--force]`
 
-Bootstrap a `.grobl.toml` configuration file using the bundled defaults. Without `--force`, grobl refuses to overwrite an existing configuration file.
+Bootstrap a minimal commented `.grobl.toml` project-delta configuration. Bundled policy remains package-owned and is inherited implicitly unless `inherit_defaults = false` is set. Without `--force`, grobl refuses to overwrite an existing configuration file.
 
 ### `grobl config migrate [PATH]`
 
@@ -95,7 +95,11 @@ Unmatched paths are fully included by default. `--exclude` therefore does not ne
 
 CLI rules have higher precedence than bundled defaults and discovered configuration. The legacy scoped flags (`--exclude-tree`, `--include-tree`, `--exclude-content`, and `--include-content`) remain accepted for compatibility but are hidden from normal help and compile into the three-state model.
 
-Use `--ignore-policy auto|all|none|defaults|config|cli` to choose which rule sources participate. `--no-ignore` disables all inclusion-policy rules.
+Use `--ignore-policy auto|all|none|defaults|config|cli` to choose which rule sources participate. `--no-ignore` disables all inclusion-policy rules. In config, `inherit_defaults = false` disables only the bundled policy layer when source selection is automatic.
+
+Persistent config equivalents exist for `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, and `ignore_policy`; explicit CLI values override them. Output destinations, explicit config selection, logging, and interaction forcing remain invocation-only.
+
+When scan or explain encounters an applicable legacy inclusion schema, an interactive invocation offers migration followed by pruning. Noninteractive runs only warn and continue; `--interactive/--no-interactive` overrides automatic TTY detection.
 
 ## Global CLI options
 

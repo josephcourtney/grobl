@@ -5,6 +5,7 @@ from grobl.config_defaults import (
     load_default_config,
     load_default_config_text,
     write_default_config,
+    write_starter_config,
 )
 from grobl.config_loading import (
     LEGACY_TOML_CONFIG,
@@ -34,4 +35,5 @@ __all__ = [
     "load_toml_config",
     "resolve_config_base",
     "write_default_config",
+    "write_starter_config",
 ]

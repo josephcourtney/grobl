@@ -116,21 +116,14 @@ grobl explain src/grobl --format human
 
 ### `grobl init [--path DIR] [--force]`
 
-Bootstrap a default `.grobl.toml` in the target directory:
+Bootstrap a minimal commented `.grobl.toml` in the target directory:
 
 ```bash
 grobl init --path .           # write ./.grobl.toml (if not present)
 grobl init --path . --force   # overwrite if it exists
 ```
 
-Behavior:
-
-* Writes the bundled `default_config.toml` to `.grobl.toml` **verbatim**, preserving:
-
-  * One-item-per-line arrays
-  * Comments
-  * Spacing
-* If the target `.grobl.toml` already exists and `--force` is **not** given, the command exits with an error.
+The starter file is a project delta: bundled inclusion defaults are not copied into the repository. It writes `inherit_defaults = true` explicitly and contains commented examples for `exclude`, `tree_only`, `include`, persistent scan settings, and tag names. Set `inherit_defaults = false` to start project policy without the bundled layer. If the target already exists and `--force` is not given, init exits without overwriting it.
 
 ### `grobl config migrate [PATH]`
 
@@ -411,6 +404,8 @@ include = [
 
 General non-policy configuration is still loaded through grobl's normal config merge (`XDG`, project config, `pyproject.toml`, environment override, explicit `--config`). Inclusion rules specifically use the hierarchical policy layering above so their pattern bases remain well-defined.
 
+`inherit_defaults = false` disables the bundled inclusion-policy layer under automatic source selection without changing unrelated program defaults. Stable scan settings can also be persisted as `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, and `ignore_policy`. Explicit CLI values have higher precedence. Destination/action controls such as `--copy`, `--output`, `--stdout`, `--json`, `--summary-to`, `--summary-output`, `--config`, logging, and interaction forcing remain invocation-specific.
+
 ### `extends` in TOML
 
 Config files loaded by grobl can use an `extends` key to reference base configs:
@@ -444,6 +439,8 @@ grobl config migrate .grobl.toml
 ```
 
 The command writes in place and creates `.grobl.toml.bak` by default. `--stdout` previews without writing, `--check` reports whether migration is still needed, and `--no-backup` disables the backup. Mixed canonical/legacy files are rejected. If both old tree and content scopes contain patterns, the command warns that overlapping globs should be reviewed after migration.
+
+Normal scan/explain runs detect applicable legacy-schema configs too. Interactive runs offer migration, then structural pruning, then optional current-tree pruning. Noninteractive runs never prompt or modify files; they warn and continue using compatibility parsing. `--interactive` and `--no-interactive` override automatic TTY detection.
 
 Canonical configs can then be minimized conservatively:
 

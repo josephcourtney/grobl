@@ -186,3 +186,28 @@ exclude = [
     assert "# version control" not in result.text
     assert "# project-specific" in result.text
     assert list(tomlkit.parse(result.text)["exclude"]) == ["custom", "keep"]
+
+
+def test_current_tree_respects_disabled_default_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GROBL_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-empty"))
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "dist").mkdir()
+    path = root / ".grobl.toml"
+    source = 'inherit_defaults = false\nexclude = ["dist"]\n'
+    path.write_text(source, encoding="utf-8")
+
+    result = inspect_config_pruning(
+        path,
+        current_tree=True,
+        repo_root=root,
+        default_cfg={"inherit_defaults": True, "exclude": ["dist"]},
+    )
+
+    assert not result.changed
+    assert result.text == source

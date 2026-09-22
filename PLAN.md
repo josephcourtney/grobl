@@ -40,3 +40,14 @@ Resource isolation is part of test design: pure policy tests should remain SMALL
 Version changes use semantic versioning in `pyproject.toml`. The matching release heading must exist in `CHANGELOG.md`, whose entries remain curated for users rather than mirroring commits or TODO history.
 
 Publishing remains a separate explicit operation; validation recipes must not publish as a side effect.
+
+
+## Configuration evolution
+
+Configuration changes should preserve one simple model:
+
+- bundled inclusion defaults remain package-owned rather than copied into projects;
+- project `.grobl.toml` files are deltas expressed with `exclude`, `tree_only`, `include`, and optional `inherit_defaults`;
+- stable scan-wide behavior may be persisted when it has an unambiguous config meaning, while destinations/actions remain invocation-specific;
+- explicit CLI values remain the highest-precedence user intent;
+- interactive migration is a convenience wrapper around deterministic migrate/prune primitives and must have a noninteractive no-write path.

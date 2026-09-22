@@ -20,6 +20,7 @@ from grobl.constants import (
     CONFIG_EXCLUDE_PRINT,
     CONFIG_EXCLUDE_TREE,
     CONFIG_INCLUDE,
+    CONFIG_INHERIT_DEFAULTS,
     CONFIG_TREE_ONLY,
     InclusionLevel,
 )
@@ -328,14 +329,17 @@ def _lower_layers(
     *,
     repo_root: Path,
     default_cfg: dict[str, object],
+    include_defaults: bool = True,
 ) -> tuple[InclusionLayer, ...]:
-    layers = [
-        InclusionLayer(
-            base_dir=repo_root,
-            rules=rules_from_config(default_cfg),
-            source=LayerSource.DEFAULTS,
+    layers: list[InclusionLayer] = []
+    if include_defaults:
+        layers.append(
+            InclusionLayer(
+                base_dir=repo_root,
+                rules=rules_from_config(default_cfg),
+                source=LayerSource.DEFAULTS,
+            )
         )
-    ]
     target = path.resolve()
     for config_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=[path.parent]):
         real = config_path.resolve()
@@ -586,10 +590,22 @@ def _apply_contextual_pruning(
             if repo_root is not None
             else resolve_repo_root(cwd=path.parent, paths=(path.parent,))
         )
+        inherited_general = _lower_general_config(path, default_cfg=defaults)
+        effective_target = dict(inherited_general)
+        effective_target |= _target_data(document, path)
+        inherit_defaults = effective_target.get(CONFIG_INHERIT_DEFAULTS, True)
+        if not isinstance(inherit_defaults, bool):
+            msg = f"{CONFIG_INHERIT_DEFAULTS} must be true or false"
+            raise ConfigPruneError(msg)
         context = _PruneContext(
             path=path.resolve(),
             repo_root=resolved_root,
-            lower_layers=_lower_layers(path, repo_root=resolved_root, default_cfg=defaults),
+            lower_layers=_lower_layers(
+                path,
+                repo_root=resolved_root,
+                default_cfg=defaults,
+                include_defaults=inherit_defaults,
+            ),
         )
         current_removed = _prune_current_tree(document, context=context)
         if current_removed:
