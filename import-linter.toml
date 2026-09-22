@@ -9,7 +9,7 @@ name = "CLI wraps application layer"
 type = "layers"
 layers = [
   "grobl.cli",
-  "grobl.app : grobl.config_defaults : grobl.config_loading : grobl.config_runtime : grobl.config_migration : grobl.config_pruning",
+  "grobl.app : grobl.config_defaults : grobl.config_loading : grobl.config_migration : grobl.config_pruning",
   "grobl.core : grobl.renderers : grobl.summary : grobl.formatter : grobl.output : grobl.tty",
   "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.resource_limits : grobl.utils : grobl.logging_utils",
   "grobl.constants : grobl.errors : grobl._version : grobl.resources",
@@ -23,7 +23,6 @@ source_modules = [
   "grobl.app",
   "grobl.config_defaults",
   "grobl.config_loading",
-  "grobl.config_runtime",
   "grobl.config_migration",
   "grobl.config_pruning",
 ]
