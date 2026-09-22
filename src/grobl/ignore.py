@@ -365,7 +365,10 @@ class LayeredIgnoreMatcher:
                 continue
 
             for rule in layer.rules:
-                if rule.level is InclusionLevel.FULL and _rule_may_match_descendant(rule, rel_dir):
+                if (
+                    rule.level is InclusionLevel.FULL
+                    and _rule_may_match_descendant(rule, rel_dir)
+                ):
                     return True
         return False
 
