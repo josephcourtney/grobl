@@ -115,7 +115,7 @@ def run_scan(
             if decision.level is not InclusionLevel.OMIT:
                 builder.add_directory(path, prefix, is_last=is_last)
                 return True
-            return ignores.has_reinclusions
+            return ignores.may_reinclude_descendant(path)
 
         if decision.level is InclusionLevel.OMIT:
             return False
