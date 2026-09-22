@@ -11,7 +11,6 @@ from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, 
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
-from grobl.timing import measure_timing
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
@@ -114,8 +113,11 @@ def run_scan(
 
     def collect(path: Path, prefix: str, *, is_last: bool) -> bool:
         is_dir = path.is_dir()
-        with measure_timing(timing, "policy matching", depth=1):
+        if timing is None:
             decision = ignores.explain_inclusion(path, is_dir=is_dir)
+        else:
+            with timing.measure("policy matching", depth=1):
+                decision = ignores.explain_inclusion(path, is_dir=is_dir)
         if is_dir:
             if decision.level is not InclusionLevel.OMIT:
                 builder.add_directory(path, prefix, is_last=is_last)
