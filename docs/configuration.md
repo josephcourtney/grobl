@@ -60,6 +60,12 @@ exclude < tree_only < include
 
 Thus a more permissive list can intentionally override a less permissive one for a more specific pattern.
 
+Grobl prunes omitted directories when no restoration rule can possibly match below
+them. Narrow restoration patterns therefore preserve fast traversal. Because patterns
+use gitignore semantics, a basename-only rule such as `.gitmodules` can match at any
+depth and must remain conservative; use a root anchor such as `/.gitmodules` when
+only the repository-root file should be restored.
+
 ## Hierarchical precedence
 
 Rules are applied from broadest to most specific source:
