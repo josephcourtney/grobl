@@ -72,7 +72,7 @@ class ConfigPruneResult:
 
     @property
     def removal_count(self) -> int:
-        """Return the total number of removed config entries."""
+        """Total number of removed config entries."""
         return len(self.removed) + len(self.removed_settings) + len(self.removed_empty_keys)
 
 
@@ -568,6 +568,45 @@ def _prune_current_tree(document: TOMLDocument, *, context: _PruneContext) -> li
         )
 
 
+def _apply_contextual_pruning(
+    document: TOMLDocument,
+    *,
+    path: Path,
+    current_tree: bool,
+    repo_root: Path | None,
+    default_cfg: dict[str, object] | None,
+) -> tuple[list[PrunedRule], list[str], list[str], tuple[str, ...]]:
+    defaults = load_default_config() if default_cfg is None else default_cfg
+    current_removed: list[PrunedRule] = []
+    warnings: tuple[str, ...] = ()
+
+    if current_tree:
+        resolved_root = (
+            repo_root.resolve()
+            if repo_root is not None
+            else resolve_repo_root(cwd=path.parent, paths=(path.parent,))
+        )
+        context = _PruneContext(
+            path=path.resolve(),
+            repo_root=resolved_root,
+            lower_layers=_lower_layers(path, repo_root=resolved_root, default_cfg=defaults),
+        )
+        current_removed = _prune_current_tree(document, context=context)
+        if current_removed:
+            warnings = (
+                (
+                    "current-tree pruning depends on the repository paths that exist now; "
+                    "future paths may make an inherited duplicate relevant again"
+                ),
+            )
+
+    removed_empty_keys = _prune_empty_policy_keys(document, path=path)
+    inherited = _lower_general_config(path, default_cfg=defaults)
+    inherited |= _extends_base(document, path)
+    removed_settings = _prune_redundant_settings(document, inherited=inherited)
+    return current_removed, removed_empty_keys, removed_settings, warnings
+
+
 def inspect_config_pruning(
     path: Path,
     *,
@@ -585,39 +624,19 @@ def inspect_config_pruning(
     document = _parse_document(original)
     _validate_canonical(document)
     removed = _prune_shadowed_rules(document)
-    warnings: tuple[str, ...] = ()
-
     try:
-        defaults = load_default_config() if default_cfg is None else default_cfg
-        if current_tree:
-            resolved_root = (
-                repo_root.resolve()
-                if repo_root is not None
-                else resolve_repo_root(cwd=path.parent, paths=(path.parent,))
-            )
-            context = _PruneContext(
-                path=path.resolve(),
-                repo_root=resolved_root,
-                lower_layers=_lower_layers(path, repo_root=resolved_root, default_cfg=defaults),
-            )
-            current_removed = _prune_current_tree(document, context=context)
-            removed.extend(current_removed)
-            if current_removed:
-                warnings = (
-                    (
-                        "current-tree pruning depends on the repository paths that exist now; "
-                        "future paths may make an inherited duplicate relevant again"
-                    ),
-                )
-
-        removed_empty_keys = _prune_empty_policy_keys(document, path=path)
-        inherited = _lower_general_config(path, default_cfg=defaults)
-        inherited |= _extends_base(document, path)
-        removed_settings = _prune_redundant_settings(document, inherited=inherited)
+        current_removed, removed_empty_keys, removed_settings, warnings = _apply_contextual_pruning(
+            document,
+            path=path,
+            current_tree=current_tree,
+            repo_root=repo_root,
+            default_cfg=default_cfg,
+        )
     except (OSError, ConfigLoadError) as err:
         msg = f"could not resolve inherited configuration for {path}: {err}"
         raise ConfigPruneError(msg) from err
 
+    removed.extend(current_removed)
     if not removed and not removed_settings and not removed_empty_keys:
         return ConfigPruneResult(text=original, changed=False)
 
