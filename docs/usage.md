@@ -113,6 +113,7 @@ All subcommands share the following options:
 
 * `-v, --verbose` – increase log verbosity (`-v` → INFO, `-vv` or higher → DEBUG)
 * `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` – set an explicit log level
+* `--debug` – print scan phase timings to stderr without changing payload routing
 * `-V, --version` – print the installed version
 * `-h, --help` – display help for the command or subcommand
 
@@ -121,4 +122,23 @@ Examples:
 ```bash
 grobl -vv scan --summary table .
 grobl --log-level=DEBUG scan .
+grobl --debug scan .
 ```
+
+
+## Profiling scan performance
+
+Use `--debug` when diagnosing a slow scan:
+
+```bash
+grobl --debug
+grobl scan --debug .
+```
+
+The timing report is written to stderr, independently of payload and summary
+destinations. It reports command setup phases plus scan internals such as policy
+matching, text detection, file reading, token counting, payload build/write, and
+summary generation. Repeated per-file work is accumulated by phase. The
+`scan/traversal` line contains its indented file-analysis subphases, so those
+child durations should not be added to the parent duration when interpreting the
+report.
