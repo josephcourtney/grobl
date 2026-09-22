@@ -105,6 +105,68 @@ def _render_json(entries: list[dict[str, Any]]) -> str:
     return json.dumps(entries, sort_keys=True, indent=2) + "\n"
 
 
+def _apply_full_file_limits(
+    abs_path: Path,
+    *,
+    file_bytes: int | None,
+    budget: ResourceBudget,
+) -> tuple[bool, dict[str, Any] | None]:
+    limits = budget.limits
+    tokens = 0
+    actual_bytes = file_bytes
+    if limits.max_tokens is not None or actual_bytes is None:
+        try:
+            content = read_text(abs_path)
+        except OSError as err:
+            return False, format_content_reason(
+                detection_detail=f"read error: {err}",
+                subject=abs_path,
+            )
+        tokens = count_tokens(content) if limits.max_tokens is not None else 0
+        actual_bytes = file_bytes if file_bytes is not None else len(content.encode("utf-8"))
+
+    if actual_bytes is None:
+        return True, None
+
+    budget_reason = budget.accept(
+        abs_path,
+        file_bytes=actual_bytes,
+        tokens=tokens,
+    )
+    return budget_reason is None, budget_reason
+
+
+def _evaluate_full_file(
+    abs_path: Path,
+    budget: ResourceBudget,
+) -> tuple[bool, dict[str, Any] | None, dict[str, Any] | None]:
+    try:
+        file_bytes = abs_path.stat().st_size
+    except OSError:
+        file_bytes = None
+
+    if file_bytes is not None:
+        budget_reason = budget.preflight(abs_path, file_bytes=file_bytes)
+        if budget_reason is not None:
+            return False, budget_reason, None
+
+    detection = detect_text(abs_path)
+    if not detection.is_text:
+        detail = detection.detail or "binary file"
+        return (
+            False,
+            format_content_reason(detection_detail=detection.detail, subject=abs_path),
+            {"is_text": False, "detail": detail},
+        )
+
+    content_included, content_reason = _apply_full_file_limits(
+        abs_path,
+        file_bytes=file_bytes,
+        budget=budget,
+    )
+    return content_included, content_reason, None
+
+
 def _explain_entry(
     abs_path: Path,
     ignores: LayeredIgnoreMatcher,
@@ -127,52 +189,13 @@ def _explain_entry(
     }
 
     content_included = decision.level is InclusionLevel.FULL
-    content_reason: dict[str, Any] | None = reason if decision.level is InclusionLevel.TREE_ONLY else None
+    content_reason: dict[str, Any] | None = (
+        reason if decision.level is InclusionLevel.TREE_ONLY else None
+    )
     text_detection: dict[str, Any] | None = None
 
     if abs_path.is_file() and decision.level is InclusionLevel.FULL:
-        try:
-            file_bytes = abs_path.stat().st_size
-        except OSError:
-            file_bytes = None
-        budget_reason = budget.preflight(abs_path, file_bytes=file_bytes) if file_bytes is not None else None
-        if budget_reason is not None:
-            content_included = False
-            content_reason = budget_reason
-        else:
-            detection = detect_text(abs_path)
-            if not detection.is_text:
-                content_included = False
-                content_reason = format_content_reason(
-                    detection_detail=detection.detail,
-                    subject=abs_path,
-                )
-                detail = detection.detail or "binary file"
-                text_detection = {"is_text": False, "detail": detail}
-            else:
-                tokens = 0
-                actual_bytes = file_bytes
-                if limits.max_tokens is not None or actual_bytes is None:
-                    try:
-                        content = read_text(abs_path)
-                    except OSError as err:
-                        content_included = False
-                        content_reason = format_content_reason(
-                            detection_detail=f"read error: {err}",
-                            subject=abs_path,
-                        )
-                    else:
-                        tokens = count_tokens(content) if limits.max_tokens is not None else 0
-                        actual_bytes = file_bytes if file_bytes is not None else len(content.encode("utf-8"))
-                if content_included and actual_bytes is not None:
-                    budget_reason = budget.accept(
-                        abs_path,
-                        file_bytes=actual_bytes,
-                        tokens=tokens,
-                    )
-                    if budget_reason is not None:
-                        content_included = False
-                        content_reason = budget_reason
+        content_included, content_reason, text_detection = _evaluate_full_file(abs_path, budget)
 
     entry["content"] = {"included": content_included, "reason": content_reason}
     if text_detection is not None:

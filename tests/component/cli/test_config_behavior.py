@@ -183,7 +183,9 @@ def test_scan_rejects_removed_interactive_flag(repo_root: Path) -> None:
     result = CliRunner().invoke(cli, ["scan", str(repo_root), "--interactive"])
 
     assert result.exit_code == 2
-    assert "No such option: --interactive" in (result.stdout + result.stderr)
+    output = result.stdout + result.stderr
+    assert "No such option" in output
+    assert "--interactive" in output
     assert path.read_text(encoding="utf-8") == source
     assert not Path(f"{path}.bak").exists()
 

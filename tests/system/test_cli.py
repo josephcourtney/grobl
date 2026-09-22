@@ -419,7 +419,7 @@ def test_cli_binary_file_summary_marks_binary_flag(
 
     base = repo_root / "proj"
     base.mkdir()
-    (base / "blob.bin").write_bytes(b"\x00\x01\x02\x03")
+    (base / "blob.dat").write_bytes(b"\x00\x01\x02\x03")
     (base / "text.txt").write_text("hi\n", encoding="utf-8")
 
     runner = CliRunner()
@@ -438,7 +438,7 @@ def test_cli_binary_file_summary_marks_binary_flag(
     data = json.loads(result.output)
     files = {entry["path"]: entry for entry in data["files"]}
 
-    blob = files["blob.bin"]
+    blob = files["blob.dat"]
     assert blob["lines"] == 0
     assert blob["chars"] == 4
     assert blob["included"] is False

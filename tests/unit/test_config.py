@@ -138,11 +138,15 @@ def test_unreadable_config_is_normalized_as_config_error(
     config.write_text("scope = 'all'\n", encoding="utf-8")
     original_read_text = Path.read_text
 
-    def read_text(path: Path, *args: object, **kwargs: object) -> str:
+    def read_text(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
         if path == config:
             msg = "permission denied"
             raise OSError(msg)
-        return original_read_text(path, *args, **kwargs)
+        return original_read_text(path, encoding=encoding, errors=errors)
 
     monkeypatch.setattr(Path, "read_text", read_text)
 

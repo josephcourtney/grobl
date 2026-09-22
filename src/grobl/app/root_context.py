@@ -153,13 +153,13 @@ def _extract_root_options(
 def _first_non_global_index(args: list[str]) -> int | None:
     index = 0
     while index < len(args):
-        token = args[index]
-        if token == "--":
+        arg = args[index]
+        if arg == "--":
             return index
-        if token in _HELP_FLAGS or token in _VERSION_FLAGS or _is_vflag(token):
+        if arg in _HELP_FLAGS or arg in _VERSION_FLAGS or _is_vflag(arg):
             index += 1
             continue
-        skip = _log_level_skip(token) or _root_opt_skip(token)
+        skip = _log_level_skip(arg) or _root_opt_skip(arg)
         if skip:
             index += skip
             continue
