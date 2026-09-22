@@ -11,12 +11,14 @@ from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, 
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
+from grobl.timing import measure_timing
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from grobl.ignore import LayeredIgnoreMatcher
+    from grobl.timing import TimingRecorder
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +70,7 @@ def run_scan(
     handlers: FileHandlerRegistry | None = None,
     dependencies: ScanDependencies | None = None,
     limits: ResourceLimits = UNLIMITED_RESOURCE_LIMITS,
+    timing: TimingRecorder | None = None,
 ) -> ScanResult:
     """Run a filesystem scan under the effective three-state inclusion policy."""
     resolved_paths = [p.resolve() for p in paths]
@@ -104,13 +107,15 @@ def run_scan(
         ignores=ignores,
         dependencies=ScanDependencies.default() if dependencies is None else dependencies,
         budget=ResourceBudget(limits),
+        timing=timing,
     )
 
     registry = FileHandlerRegistry.default() if handlers is None else handlers
 
     def collect(path: Path, prefix: str, *, is_last: bool) -> bool:
         is_dir = path.is_dir()
-        decision = ignores.explain_inclusion(path, is_dir=is_dir)
+        with measure_timing(timing, "policy matching", depth=1):
+            decision = ignores.explain_inclusion(path, is_dir=is_dir)
         if is_dir:
             if decision.level is not InclusionLevel.OMIT:
                 builder.add_directory(path, prefix, is_last=is_last)
