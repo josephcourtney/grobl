@@ -377,6 +377,10 @@ class LayeredIgnoreMatcher:
 
         for layer in self.layers:
             try:
+                if layer.base_dir.is_relative_to(directory):
+                    if any(rule.level is InclusionLevel.FULL for rule in layer.rules):
+                        return True
+                    continue
                 if not directory.is_relative_to(layer.base_dir):
                     continue
                 rel_dir = directory.relative_to(layer.base_dir)
