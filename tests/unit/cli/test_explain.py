@@ -78,3 +78,31 @@ def test_explain_preserves_local_format_when_root_options_follow_command(repo_ro
 
     entries = json.loads(result.stdout)
     assert entries[0]["path"] == str(target)
+
+
+def test_explain_applies_aggregate_budget_across_explicit_files(repo_root: Path) -> None:
+    first = repo_root / "a.txt"
+    second = repo_root / "b.txt"
+    first.write_text("aaaa", encoding="utf-8")
+    second.write_text("bbbb", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "explain",
+            "--format",
+            "json",
+            "--max-total-bytes",
+            "4",
+            str(second),
+            str(first),
+        ],
+    )
+
+    assert result.exit_code == 0
+    entries = {entry["path"]: entry for entry in json.loads(result.stdout)}
+    assert entries[str(first)]["content"]["included"] is True
+    assert entries[str(second)]["content"]["included"] is False
+    reason = entries[str(second)]["content"]["reason"]
+    assert reason["source"] == "resource-limit"
+    assert "max_total_bytes exceeded" in reason["detail"]
