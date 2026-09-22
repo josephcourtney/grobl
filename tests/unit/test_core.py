@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from grobl.config_runtime import apply_runtime_ignore_edits
 from grobl.core import run_scan
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import (
@@ -127,25 +126,19 @@ def test_run_scan_rejects_missing_paths(tmp_path: Path) -> None:
         )
 
 
-def test_unignore_allows_specific_paths(tmp_path: Path) -> None:
+def test_include_restores_specific_paths(tmp_path: Path) -> None:
     (tmp_path / ".gitignore").write_text("*\n", encoding="utf-8")
     (tmp_path / "tests" / "fixtures").mkdir(parents=True)
     nested = tmp_path / "tests" / "fixtures" / ".gitignore"
     nested.write_text("nested\n", encoding="utf-8")
 
-    base_cfg: dict[str, object] = {"exclude_tree": [".gitignore"], "exclude_print": []}
-    edits = apply_runtime_ignore_edits(
-        base_tree=list(base_cfg["exclude_tree"]),
-        base_print=list(base_cfg["exclude_print"]),
-        add_ignore=(),
-        remove_ignore=(),
-        add_ignore_files=(),
-        unignore=("tests/fixtures/**/.gitignore",),
-        no_ignore=False,
+    ignores = build_ignore_matcher(
+        repo_root=tmp_path,
+        scan_paths=[tmp_path],
+        exclude_patterns=(".gitignore",),
+        include_patterns=("tests/fixtures/**/.gitignore",),
     )
-    cfg: dict[str, object] = {"exclude_tree": edits.tree_patterns, "exclude_print": edits.print_patterns}
-    ignores = _make_ignores([tmp_path], repo_root=tmp_path, cfg=cfg)
-    res = run_scan(paths=[tmp_path], cfg=cfg, match_base=tmp_path, ignores=ignores)
+    res = run_scan(paths=[tmp_path], cfg={}, match_base=tmp_path, ignores=ignores)
     tree = "\n".join(res.builder.tree_output())
     assert tree.count(".gitignore") == 1
 
