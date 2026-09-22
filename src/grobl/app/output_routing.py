@@ -15,11 +15,30 @@ from grobl.errors import OutputWriteError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import TextIO
 
     from .command_support import ScanParams
 
 resolve_table_style = tty.resolve_table_style
 stdout_is_tty = tty.stdout_is_tty
+
+
+def _build_stream_summary_writer(
+    stream: TextIO,
+    *,
+    label: str,
+) -> Callable[[str], None]:
+    def _write(text: str) -> None:
+        try:
+            stream.write(text)
+            stream.flush()
+        except BrokenPipeError:
+            raise
+        except OSError as err:
+            msg = f"cannot write summary output {label}: {err}"
+            raise OutputWriteError(msg) from err
+
+    return _write
 
 
 def build_summary_writer(
@@ -29,33 +48,9 @@ def build_summary_writer(
 ) -> Callable[[str], None]:
     """Return a writer that routes summary text to the requested destination."""
     if destination is SummaryDestination.STDERR:
-
-        def _write(text: str) -> None:
-            try:
-                sys.stderr.write(text)
-                sys.stderr.flush()
-            except BrokenPipeError:
-                raise
-            except OSError as err:
-                msg_0 = f"cannot write summary output stderr: {err}"
-                raise OutputWriteError(msg_0) from err
-
-        return _write
-
+        return _build_stream_summary_writer(sys.stderr, label="stderr")
     if destination is SummaryDestination.STDOUT:
-
-        def _write(text: str) -> None:
-            try:
-                sys.stdout.write(text)
-                sys.stdout.flush()
-            except BrokenPipeError:
-                raise
-            except OSError as err:
-                msg_0 = f"cannot write summary output stdout: {err}"
-                raise OutputWriteError(msg_0) from err
-
-        return _write
-
+        return _build_stream_summary_writer(sys.stdout, label="stdout")
     if output is None:
         msg = "summary file path must be provided when writing to file"
         raise ValueError(msg)
@@ -64,8 +59,8 @@ def build_summary_writer(
         try:
             output.write_text(text, encoding="utf-8")
         except OSError as err:
-            msg_0 = f"cannot write summary output {output}: {err}"
-            raise OutputWriteError(msg_0) from err
+            msg = f"cannot write summary output {output}: {err}"
+            raise OutputWriteError(msg) from err
 
     return _write
 
