@@ -207,6 +207,79 @@ def _to_git_path(rel: Path, *, is_dir: bool) -> str:
     return value
 
 
+def _match_candidates(rel: Path, *, is_dir: bool) -> tuple[str, ...]:
+    """Return the path plus ancestor directories for gitignore-style matching."""
+    candidates = [
+        _to_git_path(Path(*rel.parts[:index]), is_dir=True)
+        for index in range(1, len(rel.parts))
+    ]
+    candidates.append(_to_git_path(rel, is_dir=is_dir))
+    return tuple(candidates)
+
+
+def _literal_prefix(core: str) -> tuple[tuple[str, ...], bool, bool]:
+    """Return literal components, dynamic-suffix state, and basename scope.
+
+    The result is intentionally conservative. It is used only to prove that an
+    omitted directory cannot possibly contain a path restored by a FULL rule.
+    """
+    anchored = core.startswith("/")
+    pattern = core[1:] if anchored else core
+    pattern = pattern.rstrip("/")
+
+    if not pattern:
+        return (), True, True
+
+    # Gitignore patterns without a slash (after removing a trailing slash) can
+    # match a basename at any depth. They therefore have no useful subtree
+    # prefix unless explicitly root-anchored.
+    if not anchored and "/" not in pattern:
+        return (), True, True
+
+    literal: list[str] = []
+    dynamic = False
+    for component in pattern.split("/"):
+        escaped = False
+        component_is_dynamic = False
+        decoded: list[str] = []
+        for char in component:
+            if escaped:
+                decoded.append(char)
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char in "*?[":
+                component_is_dynamic = True
+                break
+            decoded.append(char)
+        if escaped:
+            decoded.append("\\")
+
+        if component_is_dynamic:
+            dynamic = True
+            break
+        literal.append("".join(decoded))
+
+    return tuple(part for part in literal if part), dynamic, False
+
+
+def _rule_may_match_descendant(rule: CompiledRule, rel_dir: Path) -> bool:
+    """Return whether a FULL rule could match at or below rel_dir."""
+    literal, dynamic, unanchored_basename = _literal_prefix(rule.core)
+    if unanchored_basename or not literal:
+        return True
+
+    prefix = Path(*literal)
+    if dynamic:
+        return prefix.is_relative_to(rel_dir) or rel_dir.is_relative_to(prefix)
+
+    # An exact path can matter only when it is below the omitted directory.
+    # Equality is handled by the ordinary inclusion decision for that directory.
+    return prefix != rel_dir and prefix.is_relative_to(rel_dir)
+
+
 @dataclass(frozen=True, slots=True)
 class LayeredIgnoreMatcher:
     """Sequential inclusion matcher with per-layer bases."""
@@ -232,9 +305,9 @@ class LayeredIgnoreMatcher:
             except OSError:
                 continue
 
-            rel_git = _to_git_path(rel, is_dir=is_dir)
+            candidates = _match_candidates(rel, is_dir=is_dir)
             for rule in layer.rules:
-                if rule.spec.match_file(rel_git):
+                if any(rule.spec.match_file(candidate) for candidate in candidates):
                     level = rule.level
                     reason = InclusionReason(
                         raw=rule.raw,
@@ -272,6 +345,29 @@ class LayeredIgnoreMatcher:
 
     def excluded_from_print(self, abs_path: Path, *, is_dir: bool) -> bool:
         return self.explain_inclusion(abs_path, is_dir=is_dir).level is not InclusionLevel.FULL
+
+    def may_reinclude_descendant(self, directory: Path) -> bool:
+        """Return whether any FULL rule could restore a path below directory.
+
+        False is returned only when the rule set proves that no restoration can
+        occur in this subtree. Unanchored basename patterns remain deliberately
+        conservative because they can match at arbitrary depth.
+        """
+        if not self.has_reinclusions:
+            return False
+
+        for layer in self.layers:
+            try:
+                if not directory.is_relative_to(layer.base_dir):
+                    continue
+                rel_dir = directory.relative_to(layer.base_dir)
+            except OSError:
+                continue
+
+            for rule in layer.rules:
+                if rule.level is InclusionLevel.FULL and _rule_may_match_descendant(rule, rel_dir):
+                    return True
+        return False
 
     @property
     def has_restore_rules(self) -> bool:
