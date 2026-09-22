@@ -21,7 +21,7 @@ Validate the CLI-safety and simplification pass on the `critique-cleanup` branch
 ## Known gaps and limitations
 
 - Sensitive-file protection is path-based and does not attempt content-level secret scanning.
-- Aggregate byte/token omissions depend on deterministic scan order; standalone `explain` reports the active budgets and direct per-file violations rather than reconstructing a previous scan.
+- Aggregate byte/token omissions depend on deterministic scan order. `explain` shares the budget across its explicit file targets, but cannot reconstruct budget consumed by files omitted from the current explain invocation.
 - Legacy inclusion keys remain supported as ingress compatibility syntax until a future explicit removal.
 
 ## Risks / blockers

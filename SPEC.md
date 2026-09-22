@@ -432,7 +432,7 @@ When a file would exceed an active content budget:
 * the omission **MUST** carry a machine-readable reason distinguishable from policy and text-detection omissions;
 * per-file and aggregate-byte limits **SHOULD** be checked before reading file contents when filesystem size metadata is available.
 
-Budget admission **MUST** be deterministic with respect to scan order. Standalone `explain` **MUST** report active limits and direct per-file violations; it is not required to reconstruct aggregate admission decisions from a prior scan.
+Budget admission **MUST** be deterministic with respect to scan order. When `explain` receives multiple explicit file targets, aggregate budgets **SHOULD** be evaluated across those targets in deterministic scan order. Standalone `explain` **MUST** report active limits and direct per-file violations; it is not required to reconstruct budget consumption by files that were part of a prior wider scan but are not supplied to the current invocation.
 
 ### 7.11 Sensitive-name defaults
 
