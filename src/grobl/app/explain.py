@@ -189,9 +189,7 @@ def _explain_entry(
     }
 
     content_included = decision.level is InclusionLevel.FULL
-    content_reason: dict[str, Any] | None = (
-        reason if decision.level is InclusionLevel.TREE_ONLY else None
-    )
+    content_reason: dict[str, Any] | None = reason if decision.level is InclusionLevel.TREE_ONLY else None
     text_detection: dict[str, Any] | None = None
 
     if abs_path.is_file() and decision.level is InclusionLevel.FULL:

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import tomlkit
 from tomlkit.exceptions import TOMLKitError
@@ -13,6 +12,9 @@ from tomlkit.exceptions import TOMLKitError
 from grobl.errors import ConfigLoadError
 
 from .config_defaults import TOML_CONFIG, load_default_config
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 LEGACY_TOML_CONFIG = ".grobl.config.toml"
 PYPROJECT_TOML = "pyproject.toml"

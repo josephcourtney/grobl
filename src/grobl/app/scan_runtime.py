@@ -15,8 +15,8 @@ from grobl.config_loading import discover_grobl_toml_files, load_toml_config
 from grobl.constants import IgnorePolicy
 from grobl.ignore import (
     InclusionLayer,
-    LayerSource,
     LayeredIgnoreMatcher,
+    LayerSource,
     build_layered_ignores,
     rules_from_config,
 )
