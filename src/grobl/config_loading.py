@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ def _coerce_to_dir(path: Path) -> Path:
 def discover_grobl_toml_files(
     *,
     repo_root: Path,
-    scan_paths: tuple[Path, ...],
+    scan_paths: Sequence[Path],
 ) -> list[Path]:
     """Return applicable .grobl.toml files ordered from repository root to leaf."""
     root = repo_root.resolve()
