@@ -157,10 +157,13 @@ def test_unrelated_reinclude_does_not_open_omitted_vendor_subtree(
     )
 
     assert matcher.may_reinclude_descendant(source_dir) is False
-    assert matcher.explain_inclusion(
-        source_dir / "vendor.c",
-        is_dir=False,
-    ).level is InclusionLevel.OMIT
+    assert (
+        matcher.explain_inclusion(
+            source_dir / "vendor.c",
+            is_dir=False,
+        ).level
+        is InclusionLevel.OMIT
+    )
 
     path_type = type(source_dir)
     original_iterdir = path_type.iterdir

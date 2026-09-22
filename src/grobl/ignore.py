@@ -209,10 +209,7 @@ def _to_git_path(rel: Path, *, is_dir: bool) -> str:
 
 def _match_candidates(rel: Path, *, is_dir: bool) -> tuple[str, ...]:
     """Return the path plus ancestor directories for gitignore-style matching."""
-    candidates = [
-        _to_git_path(Path(*rel.parts[:index]), is_dir=True)
-        for index in range(1, len(rel.parts))
-    ]
+    candidates = [_to_git_path(Path(*rel.parts[:index]), is_dir=True) for index in range(1, len(rel.parts))]
     candidates.append(_to_git_path(rel, is_dir=is_dir))
     return tuple(candidates)
 
@@ -357,7 +354,7 @@ class LayeredIgnoreMatcher:
             return False
 
         for layer in self.layers:
-            try:
+            try:  # ruff: ignore[too-many-statements-in-try-clause]
                 if layer.base_dir.is_relative_to(directory):
                     if any(rule.level is InclusionLevel.FULL for rule in layer.rules):
                         return True
@@ -369,10 +366,7 @@ class LayeredIgnoreMatcher:
                 continue
 
             for rule in layer.rules:
-                if (
-                    rule.level is InclusionLevel.FULL
-                    and _rule_may_match_descendant(rule, rel_dir)
-                ):
+                if rule.level is InclusionLevel.FULL and _rule_may_match_descendant(rule, rel_dir):
                     return True
         return False
 
