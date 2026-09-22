@@ -86,7 +86,11 @@ def execute_scan_with_handling(
 ) -> tuple[str, dict[str, Any]]:
     """Run the application scan executor and translate failures into exit codes."""
     try:
-        executor = ScanExecutor(sink=write_fn, timing=timing)
+        executor = (
+            ScanExecutor(sink=write_fn)
+            if timing is None
+            else ScanExecutor(sink=write_fn, timing=timing)
+        )
         ignores = cfg.get("_ignores")
         if not isinstance(ignores, LayeredIgnoreMatcher):
             msg = "internal error: layered ignores missing"
