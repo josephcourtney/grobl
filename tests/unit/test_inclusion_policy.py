@@ -236,13 +236,27 @@ def test_reinclude_layer_below_omitted_directory_keeps_ancestor_traversable(
     omitted = tmp_path / "generated"
     deeper = omitted / "special"
     deeper.mkdir(parents=True)
+    keep = deeper / "keep.txt"
+    drop = deeper / "drop.txt"
+    keep.write_text("keep\n", encoding="utf-8")
+    drop.write_text("drop\n", encoding="utf-8")
 
     matcher = build_layered_ignores(
         repo_root=tmp_path,
         include_defaults=False,
         default_cfg={},
-        runtime_exclude=("generated",),
         config_layers=(
+            InclusionLayer(
+                base_dir=tmp_path,
+                rules=(
+                    InclusionRule(
+                        pattern="generated",
+                        level=InclusionLevel.OMIT,
+                    ),
+                ),
+                source=LayerSource.CONFIG,
+                config_path=tmp_path / ".grobl.toml",
+            ),
             InclusionLayer(
                 base_dir=deeper,
                 rules=(
@@ -258,3 +272,9 @@ def test_reinclude_layer_below_omitted_directory_keeps_ancestor_traversable(
     )
 
     assert matcher.may_reinclude_descendant(omitted) is True
+
+    result = run_scan(paths=[tmp_path], cfg={}, ignores=matcher)
+    tree = "\n".join(result.builder.tree_output())
+
+    assert "keep.txt" in tree
+    assert "drop.txt" not in tree
