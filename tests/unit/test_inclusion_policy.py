@@ -6,7 +6,13 @@ import pytest
 
 from grobl.app.command_support import ScanParams
 from grobl.app.scan_runtime import assemble_layered_ignores
-from grobl.constants import ContentScope, InclusionLevel, PayloadFormat, SummaryFormat, TableStyle
+from grobl.constants import (
+    ContentScope,
+    InclusionLevel,
+    PayloadFormat,
+    SummaryFormat,
+    TableStyle,
+)
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
 from grobl.ignore import build_layered_ignores
