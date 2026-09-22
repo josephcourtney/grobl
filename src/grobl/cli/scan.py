@@ -133,6 +133,7 @@ def scan(
         max_file_bytes=max_file_bytes,
         max_total_bytes=max_total_bytes,
         max_tokens=max_tokens,
+        debug=bool(ctx.find_root().params.get("debug", False)),
         scope=scope,
         paths=paths,
     )
