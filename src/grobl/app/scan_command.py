@@ -45,6 +45,8 @@ from .scan_runtime import (
 if TYPE_CHECKING:
     from grobl.resource_limits import ResourceLimits
 
+_BYTES_PER_KIB = 1024
+
 
 def run_scan_command(  # ruff: ignore[too-many-locals]
     *,
@@ -211,37 +213,13 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     )
 
     try:
-        direct_writer = build_writer_from_config(
-            copy=params.payload_copy,
-            output=params.payload_output,
-        )
-        payload_buffer: list[str] | None = [] if merged_destination else None
-        payload_bytes = 0
-
-        def _payload_writer(text: str) -> None:
-            nonlocal payload_bytes
-            payload_bytes += len(text.encode("utf-8"))
-            if payload_buffer is not None:
-                payload_buffer.append(text)
-            else:
-                direct_writer(text)
-
-        summary_text, summary_json = execute_scan_with_handling(
+        summary_json, payload_bytes = _execute_scan_outputs(
             params=params,
             cfg={**cfg, "_ignores": ignores},
             cwd=cwd,
-            write_fn=_payload_writer,
-            summary_style=params.summary_style,
-        )
-
-        emit_scan_outputs(
-            params=params,
             summary_output=summary_output,
             destination=destination,
-            direct_writer=direct_writer,
-            payload_buffer=payload_buffer,
-            summary_text=summary_text,
-            summary_json=summary_json,
+            merged_destination=merged_destination,
         )
         if params.payload_copy and params.payload is not PayloadFormat.NONE:
             _emit_clipboard_status(summary_json, payload_bytes=payload_bytes)
@@ -252,13 +230,56 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
         raise SystemExit(EXIT_IO) from err
 
 
+def _execute_scan_outputs(
+    *,
+    params: ScanParams,
+    cfg: dict[str, object],
+    cwd: Path,
+    summary_output: Path | None,
+    destination: SummaryDestination,
+    merged_destination: bool,
+) -> tuple[dict[str, object], int]:
+    direct_writer = build_writer_from_config(
+        copy=params.payload_copy,
+        output=params.payload_output,
+    )
+    payload_buffer: list[str] | None = [] if merged_destination else None
+    payload_bytes = 0
+
+    def _payload_writer(text: str) -> None:
+        nonlocal payload_bytes
+        payload_bytes += len(text.encode("utf-8"))
+        if payload_buffer is not None:
+            payload_buffer.append(text)
+        else:
+            direct_writer(text)
+
+    summary_text, summary_json = execute_scan_with_handling(
+        params=params,
+        cfg=cfg,
+        cwd=cwd,
+        write_fn=_payload_writer,
+        summary_style=params.summary_style,
+    )
+    emit_scan_outputs(
+        params=params,
+        summary_output=summary_output,
+        destination=destination,
+        direct_writer=direct_writer,
+        payload_buffer=payload_buffer,
+        summary_text=summary_text,
+        summary_json=summary_json,
+    )
+    return summary_json, payload_bytes
+
+
 def _format_payload_size(size: int) -> str:
-    if size < 1024:
+    if size < _BYTES_PER_KIB:
         return f"{size} B"
-    kib = size / 1024
-    if kib < 1024:
+    kib = size / _BYTES_PER_KIB
+    if kib < _BYTES_PER_KIB:
         return f"{kib:.1f} KiB"
-    return f"{kib / 1024:.1f} MiB"
+    return f"{kib / _BYTES_PER_KIB:.1f} MiB"
 
 
 def _emit_clipboard_status(summary: dict[str, object], *, payload_bytes: int) -> None:
