@@ -260,7 +260,7 @@ The payload is always written to a clipboard or file destination (see below), no
   * `--summary-style auto` (default) chooses `full` on TTYs and `compact` otherwise.
   * `--summary-style full` renders the directory tree plus totals.
   * `--summary-style compact` prints just the totals (`Total lines: ...`).
-* `--summary json`: print a JSON summary; the emitted object still records the requested table style in the `"style"` field.
+* `--summary json`: print a JSON summary; the `"style"` field remains `"auto"` because table styling applies only to `--summary table`.
   * When a file’s contents are omitted, the corresponding entry includes a `content_reason` object describing the winning pattern (or the `<non-text>` detector) so scripts can trace the exclusion.
 * `--summary none`: omit any summary output.
 
