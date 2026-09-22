@@ -205,7 +205,6 @@ def test_markdown_tree_includes_inclusion_annotations(tmp_path: Path) -> None:  
 
     ignores = build_ignore_matcher(
         repo_root=root,
-        scan_paths=[root],
         tree_patterns=cfg.get("exclude_tree", []),
         print_patterns=cfg.get("exclude_print", []),
     )
@@ -309,7 +308,6 @@ def test_markdown_metadata_omits_obvious_fields(tmp_path: Path) -> None:
     cfg = load_default_config()
     ignores = build_ignore_matcher(
         repo_root=root,
-        scan_paths=[root],
         tree_patterns=cfg.get("exclude_tree", []),
         print_patterns=cfg.get("exclude_print", []),
     )
@@ -348,7 +346,6 @@ def test_markdown_trims_trailing_newlines_in_code_blocks(tmp_path: Path) -> None
     cfg = load_default_config()
     ignores = build_ignore_matcher(
         repo_root=root,
-        scan_paths=[root],
         tree_patterns=cfg.get("exclude_tree", []),
         print_patterns=cfg.get("exclude_print", []),
     )

@@ -1,4 +1,4 @@
-"""Layered three-state inclusion policy discovery and matching.
+"""Layered three-state inclusion policy matching.
 
 Every path resolves to exactly one level: full, tree_only, or omit.
 Rules are evaluated sequentially across layers and the last matching rule wins.
@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING
 
 from pathspec import PathSpec
 
-from .config_defaults import TOML_CONFIG
-from .config_loading import load_toml_config
 from .constants import (
     CONFIG_EXCLUDE,
     CONFIG_EXCLUDE_CONTENT,
@@ -117,10 +115,6 @@ class MatchDecision:
     reason: InclusionReason | None
 
 
-def _coerce_to_dir(path: Path) -> Path:
-    return path.parent if path.is_file() else path
-
-
 def _extract_patterns(source: dict[str, object], key: str) -> tuple[str, ...]:
     value = source.get(key)
     if value is None:
@@ -170,33 +164,6 @@ def rules_from_config(source: dict[str, object]) -> tuple[InclusionRule, ...]:
         InclusionLevel.OMIT,
     )
     return tuple(rules)
-
-
-def discover_grobl_toml_files(*, repo_root: Path, scan_paths: Sequence[Path]) -> list[Path]:
-    """Return applicable .grobl.toml files ordered from repository root to leaf."""
-    root = repo_root.resolve()
-    targets = [_coerce_to_dir(path.resolve(strict=False)) for path in scan_paths]
-
-    found: set[Path] = set()
-    for target in targets:
-        if not target.is_relative_to(root):
-            continue
-        current = target
-        while True:
-            candidate = current / TOML_CONFIG
-            if candidate.exists():
-                found.add(candidate.resolve())
-            if current == root:
-                break
-            current = current.parent
-
-    return sorted(
-        found,
-        key=lambda path: (
-            len(path.parent.relative_to(root).parts),
-            path.as_posix().casefold(),
-        ),
-    )
 
 
 def _compile_rules(rules: Iterable[InclusionRule]) -> tuple[CompiledRule, ...]:
@@ -356,11 +323,9 @@ def _runtime_rules(
 def build_layered_ignores(
     *,
     repo_root: Path,
-    scan_paths: Sequence[Path],
     include_defaults: bool,
-    include_config: bool,
     default_cfg: dict[str, object],
-    explicit_config: Path | None = None,
+    config_layers: Sequence[InclusionLayer] = (),
     runtime_exclude: Sequence[str] = (),
     runtime_tree_only: Sequence[str] = (),
     runtime_include: Sequence[str] = (),
@@ -380,31 +345,7 @@ def build_layered_ignores(
             )
         )
 
-    discovered: set[Path] = set()
-    if include_config:
-        for cfg_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths):
-            real = cfg_path.resolve()
-            discovered.add(real)
-            layers.append(
-                _config_layer(
-                    base_dir=real.parent,
-                    source=LayerSource.CONFIG,
-                    data=load_toml_config(real),
-                    config_path=real,
-                )
-            )
-
-        if explicit_config is not None:
-            real = explicit_config.resolve(strict=False)
-            if real.exists() and real not in discovered:
-                layers.append(
-                    _config_layer(
-                        base_dir=real.parent,
-                        source=LayerSource.EXPLICIT_CONFIG,
-                        data=load_toml_config(real),
-                        config_path=real,
-                    )
-                )
+    layers.extend(config_layers)
 
     layers.append(
         InclusionLayer(

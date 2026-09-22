@@ -27,7 +27,7 @@ def _write_noop(_: str) -> None:  # pragma: no cover - trivial
 
 
 def _base_cfg(tmp_path: Path) -> dict[str, object]:
-    ignores = build_ignore_matcher(repo_root=tmp_path, scan_paths=[tmp_path])
+    ignores = build_ignore_matcher(repo_root=tmp_path)
     return {"exclude_tree": [], "exclude_print": [], "_ignores": ignores}
 
 

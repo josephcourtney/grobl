@@ -4,10 +4,20 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.constants import InclusionLevel
+from grobl.app.command_support import ScanParams
+from grobl.app.scan_runtime import assemble_layered_ignores
+from grobl.constants import (
+    ContentScope,
+    InclusionLevel,
+    PayloadFormat,
+    SummaryFormat,
+    TableStyle,
+)
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
 from grobl.ignore import build_layered_ignores
+from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY
+from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -24,9 +34,7 @@ def _matcher(
 ):
     return build_layered_ignores(
         repo_root=root,
-        scan_paths=[root],
         include_defaults=False,
-        include_config=False,
         runtime_exclude=exclude,
         runtime_tree_only=tree_only,
         runtime_include=include,
@@ -100,12 +108,29 @@ def test_deeper_config_can_restore_full_inclusion(tmp_path: Path) -> None:
     (tmp_path / ".grobl.toml").write_text('exclude = ["generated/**"]\n', encoding="utf-8")
     (subtree / ".grobl.toml").write_text('include = ["keep.txt"]\n', encoding="utf-8")
 
-    matcher = build_layered_ignores(
+    params = ScanParams(
+        paths=(subtree,),
         repo_root=tmp_path,
-        scan_paths=[subtree],
-        include_defaults=False,
-        include_config=True,
-        default_cfg={},
+        config_path=None,
+        scope=ContentScope.ALL,
+        payload=PayloadFormat.NONE,
+        summary=SummaryFormat.NONE,
+        summary_style=TableStyle.AUTO,
+        payload_copy=False,
+        payload_output=None,
+        visibility=DEFAULT_METADATA_VISIBILITY,
+        limits=UNLIMITED_RESOURCE_LIMITS,
+        pattern_base=tmp_path,
+    )
+    matcher = assemble_layered_ignores(
+        repo_root=tmp_path,
+        scan_paths=(subtree,),
+        params=params,
+        ignore_policy="config",
+        inherit_defaults=False,
+        ignore_defaults_flag=False,
+        no_ignore_config_flag=False,
+        no_ignore_flag=False,
     )
 
     decision = matcher.explain_inclusion(target, is_dir=False)
