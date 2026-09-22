@@ -23,6 +23,7 @@ from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisib
 from grobl.renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceLimits
 from grobl.summary import SummaryContext, build_ndjson_payload, build_sink_payload_json, build_summary
+from grobl.timing import TimingRecorder, measure_timing
 
 if TYPE_CHECKING:
     from logging import Logger
@@ -290,9 +291,11 @@ class ScanExecutor:
         *,
         sink: Callable[[str], None],
         dependencies: ScanExecutorDependencies | None = None,
+        timing: TimingRecorder | None = None,
     ) -> None:
         self._sink = sink
         self._deps = ScanExecutorDependencies.default() if dependencies is None else dependencies
+        self._timing = timing
         self._payload_strategies = _build_default_payload_strategies(self._deps)
 
     def execute(
@@ -322,14 +325,26 @@ class ScanExecutor:
             msg = "internal error: layered ignores missing"
             raise TypeError(msg)
 
-        result = self._deps.scan(
-            paths=paths,
-            cfg=cfg,
-            ignores=ignores,
-            match_base=options.pattern_base,
-            repo_root=options.repo_root,
-            limits=options.limits,
-        )
+        with measure_timing(self._timing, "scan/traversal"):
+            if self._timing is None:
+                result = self._deps.scan(
+                    paths=paths,
+                    cfg=cfg,
+                    ignores=ignores,
+                    match_base=options.pattern_base,
+                    repo_root=options.repo_root,
+                    limits=options.limits,
+                )
+            else:
+                result = self._deps.scan(
+                    paths=paths,
+                    cfg=cfg,
+                    ignores=ignores,
+                    match_base=options.pattern_base,
+                    repo_root=options.repo_root,
+                    limits=options.limits,
+                    timing=self._timing,
+                )
 
         builder = result.builder
         context = SummaryContext(
@@ -342,25 +357,27 @@ class ScanExecutor:
 
         renderer = self._deps.renderer_factory(builder)
         strategy = self._payload_strategies[options.payload_format]
-        strategy.emit(
-            builder=builder,
-            context=context,
-            result=result,
-            sink=self._sink,
-            logger=self._logger,
-            config=cfg,
-        )
+        with measure_timing(self._timing, "payload build/write"):
+            strategy.emit(
+                builder=builder,
+                context=context,
+                result=result,
+                sink=self._sink,
+                logger=self._logger,
+                config=cfg,
+            )
 
-        base_summary = self._deps.summary_builder(context)
-        snapshot = builder.summary_totals()
-        human_summary_text, summary_dict = build_summary_for_format(
-            base_summary=base_summary,
-            fmt=options.summary_format,
-            renderer=renderer,
-            builder=builder,
-            options=options,
-            human_formatter=self._deps.human_formatter,
-        )
+        with measure_timing(self._timing, "summary build"):
+            base_summary = self._deps.summary_builder(context)
+            snapshot = builder.summary_totals()
+            human_summary_text, summary_dict = build_summary_for_format(
+                base_summary=base_summary,
+                fmt=options.summary_format,
+                renderer=renderer,
+                builder=builder,
+                options=options,
+                human_formatter=self._deps.human_formatter,
+            )
 
         log_event(
             self._logger,

@@ -21,6 +21,7 @@ from grobl.constants import (
 from grobl.errors import ConfigLoadError, OutputError
 from grobl.metadata_visibility import MetadataVisibility
 from grobl.output import build_writer_from_config
+from grobl.timing import TimingRecorder, measure_timing
 
 from . import output_routing
 from .command_support import ScanParams, execute_scan_with_handling, exit_on_broken_pipe
@@ -78,6 +79,7 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     max_file_bytes: int | None,
     max_total_bytes: int | None,
     max_tokens: int | None,
+    debug: bool,
     ignore_defaults: bool,
     no_ignore_config: bool,
     no_ignore: bool,
@@ -86,6 +88,10 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     paths: tuple[Path, ...],
 ) -> None:
     """Execute the scan workflow from validated CLI inputs."""
+    timing = TimingRecorder() if debug else None
+    if timing is not None:
+        ctx.call_on_close(lambda: click.echo(timing.report(), err=True))
+
     ignore_args = IgnoreCLIArgs.from_values(
         exclude=exclude,
         tree_only=tree_only,
@@ -100,39 +106,42 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     )
 
     cwd = Path()
-    requested_paths, repo_root = resolve_runtime_paths(paths)
-    ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
-    config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
+    with measure_timing(timing, "path/repository resolution"):
+        requested_paths, repo_root = resolve_runtime_paths(paths)
+        ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
+        config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
-    warn_legacy_project_configs(
-        repo_root=repo_root,
-        scan_paths=requested_paths,
-        explicit_config=config_path,
-    )
+    with measure_timing(timing, "legacy config check"):
+        warn_legacy_project_configs(
+            repo_root=repo_root,
+            scan_paths=requested_paths,
+            explicit_config=config_path,
+        )
 
     try:
-        cfg = load_config(
-            base_path=config_base,
-            explicit_config=config_path,
-            ignore_defaults=False,
-        )
-        behavior = resolve_scan_behavior(
-            ctx,
-            cfg,
-            scope=scope,
-            payload_format=payload_format,
-            summary=summary,
-            summary_style=summary_style,
-            show_lines=show_lines,
-            show_chars=show_chars,
-            show_tokens=show_tokens,
-            show_inclusion_status=show_inclusion_status,
-            ignore_policy=ignore_policy,
-            max_file_bytes=max_file_bytes,
-            max_total_bytes=max_total_bytes,
-            max_tokens=max_tokens,
-            json_mode=json_mode,
-        )
+        with measure_timing(timing, "configuration"):
+            cfg = load_config(
+                base_path=config_base,
+                explicit_config=config_path,
+                ignore_defaults=False,
+            )
+            behavior = resolve_scan_behavior(
+                ctx,
+                cfg,
+                scope=scope,
+                payload_format=payload_format,
+                summary=summary,
+                summary_style=summary_style,
+                show_lines=show_lines,
+                show_chars=show_chars,
+                show_tokens=show_tokens,
+                show_inclusion_status=show_inclusion_status,
+                ignore_policy=ignore_policy,
+                max_file_bytes=max_file_bytes,
+                max_total_bytes=max_total_bytes,
+                max_tokens=max_tokens,
+                json_mode=json_mode,
+            )
     except ConfigLoadError as err:
         print(f"error: {err}", file=sys.stderr)
         raise SystemExit(EXIT_CONFIG) from err
@@ -161,56 +170,58 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
         pattern_base=config_base,
     )
 
-    runtime_exclude, runtime_tree_only, runtime_include = gather_runtime_ignore_patterns(
-        repo_root=repo_root,
-        ignore_args=ignore_args,
-    )
+    with measure_timing(timing, "ignore policy assembly"):
+        runtime_exclude, runtime_tree_only, runtime_include = gather_runtime_ignore_patterns(
+            repo_root=repo_root,
+            ignore_args=ignore_args,
+        )
 
-    ignores = assemble_layered_ignores(
-        repo_root=repo_root,
-        scan_paths=requested_paths,
-        params=params,
-        ignore_policy=behavior.ignore_policy,
-        inherit_defaults=behavior.inherit_defaults,
-        ignore_defaults_flag=ignore_defaults,
-        no_ignore_config_flag=no_ignore_config,
-        no_ignore_flag=no_ignore,
-        runtime_exclude=runtime_exclude,
-        runtime_tree_only=runtime_tree_only,
-        runtime_include=runtime_include,
-    )
+        ignores = assemble_layered_ignores(
+            repo_root=repo_root,
+            scan_paths=requested_paths,
+            params=params,
+            ignore_policy=behavior.ignore_policy,
+            inherit_defaults=behavior.inherit_defaults,
+            ignore_defaults_flag=ignore_defaults,
+            no_ignore_config_flag=no_ignore_config,
+            no_ignore_flag=no_ignore,
+            runtime_exclude=runtime_exclude,
+            runtime_tree_only=runtime_tree_only,
+            runtime_include=runtime_include,
+        )
 
-    destination = normalize_summary_destination(
-        summary_to=summary_to,
-        summary_output=summary_output,
-        ctx=ctx,
-    )
-    payload_dest = payload_destination_label(
-        payload_format=params.payload,
-        payload_copy=params.payload_copy,
-        payload_output=params.payload_output,
-    )
-    summary_dest = summary_destination_label(
-        summary_format=params.summary,
-        summary_destination=destination,
-        summary_output=summary_output,
-        ctx=ctx,
-    )
-    merged_destination = (
-        payload_dest is not None and summary_dest is not None and payload_dest == summary_dest
-    )
+    with measure_timing(timing, "output setup"):
+        destination = normalize_summary_destination(
+            summary_to=summary_to,
+            summary_output=summary_output,
+            ctx=ctx,
+        )
+        payload_dest = payload_destination_label(
+            payload_format=params.payload,
+            payload_copy=params.payload_copy,
+            payload_output=params.payload_output,
+        )
+        summary_dest = summary_destination_label(
+            summary_format=params.summary,
+            summary_destination=destination,
+            summary_output=summary_output,
+            ctx=ctx,
+        )
+        merged_destination = (
+            payload_dest is not None and summary_dest is not None and payload_dest == summary_dest
+        )
 
-    validate_stream_compatibility(
-        ctx=ctx,
-        payload_format=params.payload,
-        payload_copy=params.payload_copy,
-        payload_output=params.payload_output,
-        summary_format=params.summary,
-        summary_destination=destination,
-        summary_output=summary_output,
-        payload_dest=payload_dest,
-        summary_dest=summary_dest,
-    )
+        validate_stream_compatibility(
+            ctx=ctx,
+            payload_format=params.payload,
+            payload_copy=params.payload_copy,
+            payload_output=params.payload_output,
+            summary_format=params.summary,
+            summary_destination=destination,
+            summary_output=summary_output,
+            payload_dest=payload_dest,
+            summary_dest=summary_dest,
+        )
 
     try:
         summary_json, payload_bytes = _execute_scan_outputs(
@@ -220,6 +231,7 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
             summary_output=summary_output,
             destination=destination,
             merged_destination=merged_destination,
+            timing=timing,
         )
         if params.payload_copy and params.payload is not PayloadFormat.NONE:
             _emit_clipboard_status(summary_json, payload_bytes=payload_bytes)
@@ -238,6 +250,7 @@ def _execute_scan_outputs(
     summary_output: Path | None,
     destination: SummaryDestination,
     merged_destination: bool,
+    timing: TimingRecorder | None,
 ) -> tuple[dict[str, object], int]:
     direct_writer = build_writer_from_config(
         copy=params.payload_copy,
@@ -260,16 +273,18 @@ def _execute_scan_outputs(
         cwd=cwd,
         write_fn=_payload_writer,
         summary_style=params.summary_style,
+        timing=timing,
     )
-    emit_scan_outputs(
-        params=params,
-        summary_output=summary_output,
-        destination=destination,
-        direct_writer=direct_writer,
-        payload_buffer=payload_buffer,
-        summary_text=summary_text,
-        summary_json=summary_json,
-    )
+    with measure_timing(timing, "final output routing"):
+        emit_scan_outputs(
+            params=params,
+            summary_output=summary_output,
+            destination=destination,
+            direct_writer=direct_writer,
+            payload_buffer=payload_buffer,
+            summary_text=summary_text,
+            summary_json=summary_json,
+        )
     return summary_json, payload_bytes
 
 

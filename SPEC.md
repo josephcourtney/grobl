@@ -23,12 +23,16 @@ A first positional token that does not exactly match a registered root command i
 
 ### 1.2 Root and command options
 
-Root logging options are:
+Root diagnostic options are:
 
 * `-v`, `--verbose`
 * `--log-level`
+* `--debug`
 
-They **MAY** be accepted before or after the resolved root command token. Root help and version retain the positional semantics in §2.2.
+They **MAY** be accepted before or after the resolved root command token. `-v` /
+`--verbose` and `--log-level` control logging. `--debug` **MUST** instead
+emit scan phase timings to stderr and **MUST NOT** change payload or summary
+routing. Root help and version retain the positional semantics in §2.2.
 
 Options such as `--config`, inclusion controls, resource limits, payload formats, and output routing belong to the commands that declare them. Implicit scan dispatch **MUST** allow scan options to be used without writing the literal `scan` command.
 

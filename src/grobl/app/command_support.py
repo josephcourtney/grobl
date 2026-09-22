@@ -32,6 +32,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from grobl.timing import TimingRecorder
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,10 +82,15 @@ def execute_scan_with_handling(
     cwd: Path,
     write_fn: Callable[[str], None],
     summary_style: TableStyle,
+    timing: TimingRecorder | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Run the application scan executor and translate failures into exit codes."""
     try:
-        executor = ScanExecutor(sink=write_fn)
+        executor = (
+            ScanExecutor(sink=write_fn)
+            if timing is None
+            else ScanExecutor(sink=write_fn, timing=timing)
+        )
         ignores = cfg.get("_ignores")
         if not isinstance(ignores, LayeredIgnoreMatcher):
             msg = "internal error: layered ignores missing"

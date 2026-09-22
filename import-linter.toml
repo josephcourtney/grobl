@@ -12,7 +12,7 @@ layers = [
   "grobl.app : grobl.config_defaults : grobl.config_loading : grobl.config_migration : grobl.config_pruning",
   "grobl.core : grobl.renderers : grobl.summary : grobl.formatter : grobl.output : grobl.tty",
   "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.resource_limits : grobl.utils : grobl.logging_utils",
-  "grobl.constants : grobl.errors : grobl._version : grobl.resources",
+  "grobl.constants : grobl.errors : grobl.timing : grobl._version : grobl.resources",
 ]
 
 [[tool.importlinter.contracts]]
@@ -48,6 +48,7 @@ source_modules = [
   "grobl.tty",
   "grobl.constants",
   "grobl.errors",
+  "grobl.timing",
 ]
 forbidden_modules = ["grobl.app", "grobl.cli"]
 

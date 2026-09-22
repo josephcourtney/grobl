@@ -119,3 +119,29 @@ def test_scan_metadata_visibility_flags_filter_json_output(repo_root: Path) -> N
     assert "total_characters" in totals
     assert "total_lines" not in totals
     assert "total_tokens" not in totals
+
+
+def test_debug_reports_phase_timings_to_stderr(repo_root: Path) -> None:
+    (repo_root / "timed.txt").write_text("hello world\n", encoding="utf-8")
+    result = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            "--debug",
+            str(repo_root),
+            "--stdout",
+            "--summary",
+            "none",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Grobl timings:" in result.stderr
+    assert "configuration" in result.stderr
+    assert "scan/traversal" in result.stderr
+    assert "text detection" in result.stderr
+    assert "file reading" in result.stderr
+    assert "token counting" in result.stderr
+    assert "payload build/write" in result.stderr
+    assert "total" in result.stderr
+    assert "Grobl timings:" not in result.stdout

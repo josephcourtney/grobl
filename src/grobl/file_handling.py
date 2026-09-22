@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
     from .directory import DirectoryTreeBuilder
     from .ignore import LayeredIgnoreMatcher
+    from .timing import TimingRecorder
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +41,7 @@ class FileProcessingContext:
     ignores: LayeredIgnoreMatcher
     dependencies: ScanDependencies
     budget: ResourceBudget = field(default_factory=lambda: ResourceBudget(UNLIMITED_RESOURCE_LIMITS))
+    timing: TimingRecorder | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,7 +126,14 @@ class TextFileHandler(BaseFileHandler):
         del is_text_file
         deps = context.dependencies
         try:
-            content = deps.text_reader(path) if detection.content is None else detection.content
+            if detection.content is None:
+                if context.timing is None:
+                    content = deps.text_reader(path)
+                else:
+                    with context.timing.measure("file reading", depth=1):
+                        content = deps.text_reader(path)
+            else:
+                content = detection.content
         except OSError as err:
             try:
                 size = path.stat().st_size
@@ -142,8 +151,14 @@ class TextFileHandler(BaseFileHandler):
             )
         line_count = len(content.splitlines())
         char_count = len(content)
-        token_count = count_tokens(content)
-        decision = context.ignores.explain_inclusion(path, is_dir=False)
+        if context.timing is None:
+            token_count = count_tokens(content)
+            decision = context.ignores.explain_inclusion(path, is_dir=False)
+        else:
+            with context.timing.measure("token counting", depth=1):
+                token_count = count_tokens(content)
+            with context.timing.measure("policy matching", depth=1):
+                decision = context.ignores.explain_inclusion(path, is_dir=False)
         include_content = decision.level is InclusionLevel.FULL
         reason = (
             inclusion_reason_to_dict(decision.reason)
@@ -220,7 +235,11 @@ class FileHandlerRegistry:
         return cls(handlers=(TextFileHandler(), BinaryFileHandler()))
 
     def handle(self, *, path: Path, context: FileProcessingContext) -> None:
-        decision = context.ignores.explain_inclusion(path, is_dir=False)
+        if context.timing is None:
+            decision = context.ignores.explain_inclusion(path, is_dir=False)
+        else:
+            with context.timing.measure("policy matching", depth=1):
+                decision = context.ignores.explain_inclusion(path, is_dir=False)
         if decision.level is InclusionLevel.TREE_ONLY:
             # TREE_ONLY is intentionally cheap: do not read or text-detect the
             # file merely to report metadata for content that will not be sent.
@@ -255,7 +274,11 @@ class FileHandlerRegistry:
                 return
 
         deps = context.dependencies
-        detection = deps.text_detector(path)
+        if context.timing is None:
+            detection = deps.text_detector(path)
+        else:
+            with context.timing.measure("text detection", depth=1):
+                detection = deps.text_detector(path)
         is_text_file = detection.is_text
         for handler in self.handlers:
             if handler.supports(path=path, is_text_file=is_text_file):
