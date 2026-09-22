@@ -12,7 +12,6 @@ from grobl.utils import detect_text, find_common_ancestor, is_text, resolve_repo
 pytestmark = pytest.mark.medium
 
 
-
 def test_find_common_ancestor_empty_raises() -> None:
     with pytest.raises(ValueError, match="empty"):
         find_common_ancestor([])
