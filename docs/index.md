@@ -26,7 +26,7 @@ Once installed you can copy a full project summary to your clipboard with a sing
 grobl
 ```
 
-Running without subcommands defaults to `grobl scan .`. When stdout is a TTY the payload is copied to the clipboard and a human-friendly summary prints to the terminal.
+Running without subcommands defaults to `grobl scan .`. With no explicit payload destination, an interactive run (stdout is a TTY) copies the payload to the clipboard and reports the successful copy on stderr; when stdout is not a TTY, the payload is written to stdout instead.
 
 Need an explicit output file instead?
 
