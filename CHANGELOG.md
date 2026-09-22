@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- scope traversal through omitted directories to subtrees that can actually contain a restored path, while preserving ancestor omission for non-restored descendants.
+
 ## [2.4.0] - 2026-09-22
 
 ### Added
