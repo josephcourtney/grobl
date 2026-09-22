@@ -6,7 +6,7 @@ Last updated: 2026-09-21
 
 ## Current focus
 
-Validate the new project-delta configuration model and interactive legacy-maintenance flow.
+Finish smoke testing and release validation for the new project-delta configuration model and interactive legacy-maintenance flow.
 
 ## Recently completed
 
@@ -15,7 +15,9 @@ Validate the new project-delta configuration model and interactive legacy-mainte
 - Added persistent config equivalents for stable scan behavior while keeping routing/actions invocation-specific.
 - Added automatic legacy-schema detection for scan/explain with interactive migration/pruning offers and noninteractive warn-only behavior.
 - Extended current-tree pruning so disabling inherited defaults is respected during counterfactual analysis.
-- Added regression coverage for config-vs-CLI precedence, disabled defaults, invalid configured behavior, and migration acceptance/decline.
+- Added regression coverage for config-vs-CLI precedence, disabled defaults, invalid configured behavior, migration acceptance/decline, and config-backup omission.
+- Fixed the new component-test repository-root setup and kept the SMALL broken-pipe test hermetic by mocking config maintenance.
+- `just check` passes after the config revision and fixture fixes, covering syntax, formatting, lint, typing, import contracts, the full test suite, and coverage.
 
 ## Known gaps and limitations
 
@@ -25,8 +27,8 @@ Validate the new project-delta configuration model and interactive legacy-mainte
 
 ## Risks / blockers
 
-Repository validation has not yet been rerun after this config revision.
+No known implementation blocker. Manual smoke checks and `just release-check` remain pending.
 
 ## Resume notes
 
-Run the validation items in [TODO.md](TODO.md). The previously validated 2.3.1 state is the baseline; these changes are currently Unreleased.
+Run the remaining smoke tests and release validation in [TODO.md](TODO.md). These changes remain Unreleased.
