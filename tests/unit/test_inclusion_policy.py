@@ -20,6 +20,7 @@ from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
     from grobl.utils import TextDetectionResult
@@ -140,7 +141,10 @@ def test_deeper_config_can_restore_full_inclusion(tmp_path: Path) -> None:
 
 
 @pytest.mark.medium
-def test_unrelated_reinclude_does_not_open_omitted_vendor_subtree(tmp_path: Path) -> None:
+def test_unrelated_reinclude_does_not_open_omitted_vendor_subtree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     (tmp_path / ".gitmodules").write_text("root module\n", encoding="utf-8")
     source_dir = tmp_path / "third_party" / "vendor" / "src"
     source_dir.mkdir(parents=True)
@@ -153,6 +157,17 @@ def test_unrelated_reinclude_does_not_open_omitted_vendor_subtree(tmp_path: Path
     )
 
     assert matcher.may_reinclude_descendant(source_dir) is False
+
+    path_type = type(source_dir)
+    original_iterdir = path_type.iterdir
+
+    def guarded_iterdir(path: Path) -> Iterator[Path]:
+        if path == source_dir:
+            msg = "unrelated omitted subtree should have been pruned"
+            raise AssertionError(msg)
+        return original_iterdir(path)
+
+    monkeypatch.setattr(path_type, "iterdir", guarded_iterdir)
 
     result = run_scan(paths=[tmp_path], cfg={}, ignores=matcher)
     tree = "\n".join(result.builder.tree_output())
