@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING
 
 import click
 
-from grobl.config_loading import LEGACY_TOML_CONFIG
+from grobl.config_loading import LEGACY_TOML_CONFIG, discover_grobl_toml_files
 from grobl.config_migration import ConfigMigrationError, migrate_config_text
-from grobl.ignore import discover_grobl_toml_files
 
 if TYPE_CHECKING:
     from pathlib import Path
