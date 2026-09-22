@@ -17,7 +17,7 @@
 - omit current/legacy Grobl config backup files from bundled policy so migration backups are not captured in later payloads.
 - make `grobl init` return immediately after writing the starter config instead of recursively scanning the repository for textual references to the legacy config filename.
 - normalize expected config-read, clipboard, and output-write failures into concise diagnostics with stable nonzero exit codes.
-- clean package metadata by removing the unused Rich runtime dependency, duplicate pytest-asyncio declaration, and mutable showcov Git override.
+- clean package metadata by removing unused Rich and Hypothesis dependencies, the duplicate pytest-asyncio declaration, and the mutable showcov Git override.
 
 ## [2.3.1] - 2026-09-21
 
