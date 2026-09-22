@@ -24,9 +24,7 @@ def _matcher(
 ) -> LayeredIgnoreMatcher:
     return build_layered_ignores(
         repo_root=repo_root,
-        scan_paths=[repo_root],
         include_defaults=False,
-        include_config=False,
         runtime_exclude=exclude,
         runtime_tree_only=tree_only,
         runtime_include=include,
