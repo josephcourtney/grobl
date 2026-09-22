@@ -6,28 +6,27 @@ Last updated: 2026-09-22
 
 ## Current focus
 
-Validate the CLI-safety and simplification pass on the `critique-cleanup` branch.
+Prepare the 2.4.0 release from `critique-cleanup` and complete the final post-metadata validation and manual smoke checks.
 
 ## Recently completed
 
-- Made scan/explain warning-only for legacy configuration; migration and pruning are explicit config commands.
-- Simplified implicit scan parsing so unknown first positionals are paths rather than unknown commands.
-- Added finite configurable per-file, aggregate-byte, and token budgets with explainable omissions.
-- Changed text detection to bounded-memory streaming and strengthened sensitive-filename defaults.
-- Normalized config-read, clipboard, and output-write failures and added explicit clipboard-success feedback.
-- Removed CLI/config/service compatibility facades, the obsolete runtime-ignore compatibility API, and tests that existed only to preserve those legacy seams.
-- Cleaned duplicate, unused, and mutable package metadata.
+- Made scan/explain read-only with respect to configuration; migration and pruning are explicit maintenance commands.
+- Added canonical config pruning, `inherit_defaults`, persistent scan settings, finite content budgets, and stronger sensitive-path defaults.
+- Simplified implicit scan dispatch, output/error handling, and internal module boundaries while preserving the enforced CLI → application/configuration → core dependency direction.
+- Added explicit clipboard-success feedback and bounded-memory text detection.
+- `just check` and `just release-check` passed before the 2.4.0 version/documentation update.
+- Prepared the 2.4.0 changelog and release metadata.
 
 ## Known gaps and limitations
 
 - Sensitive-file protection is path-based and does not attempt content-level secret scanning.
-- Aggregate byte/token omissions depend on deterministic scan order. `explain` shares the budget across its explicit file targets, but cannot reconstruct budget consumed by files omitted from the current explain invocation.
+- Aggregate byte/token omissions depend on deterministic scan order. `explain` shares the budget across its explicit file targets but cannot reconstruct budget consumed by files outside that invocation.
 - Legacy inclusion keys remain supported as ingress compatibility syntax until a future explicit removal.
 
 ## Risks / blockers
 
-Repository validation still needs to confirm formatting, typing, import contracts, tests, and coverage after this pass.
+No known implementation blocker. The release metadata/documentation edits still require the post-edit validation and manual smoke checks listed in `TODO.md`.
 
 ## Resume notes
 
-Run the validation items in `TODO.md` from a local checkout. This environment could review and update the repository through GitHub but could not execute the repository because outbound GitHub/DNS access from the code container was unavailable.
+Run the remaining `TODO.md` checks from a local checkout before tagging or publishing 2.4.0.
