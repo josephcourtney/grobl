@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- add a global `--debug` scan profiler that reports setup, traversal, policy matching, text detection, file reading, token counting, payload, summary, and output timings to stderr.
+
 ### Fixed
 - scope traversal through omitted directories to subtrees that can actually contain a restored path, while preserving ancestor omission for non-restored descendants.
 
