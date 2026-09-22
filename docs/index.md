@@ -20,7 +20,7 @@ After installation, the `grobl` executable is available in your `uv` tool enviro
 
 ## Getting started
 
-Once installed you can copy a full project summary to your clipboard with a single command:
+Once installed you can copy a prompt-ready project context payload to your clipboard with a single command:
 
 ```bash
 grobl
