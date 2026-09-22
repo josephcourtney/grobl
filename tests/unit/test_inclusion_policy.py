@@ -204,12 +204,26 @@ def test_targeted_reinclude_descends_only_far_enough_to_restore_target(tmp_path:
 
 
 @pytest.mark.medium
-def test_unanchored_basename_reinclude_remains_conservative(tmp_path: Path) -> None:
-    vendor = tmp_path / "third_party" / "vendor"
-    vendor.mkdir(parents=True)
+def test_unanchored_basename_reinclude_remains_conservative_without_leaking(
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "third_party" / "vendor" / "src"
+    source_dir.mkdir(parents=True)
+    (source_dir / ".gitmodules").write_text("nested module\n", encoding="utf-8")
+    (source_dir / "vendor.c").write_text("vendor implementation\n", encoding="utf-8")
 
-    matcher = _matcher(tmp_path, include=(".gitmodules",))
+    matcher = _matcher(
+        tmp_path,
+        exclude=("third_party/*/*",),
+        include=(".gitmodules",),
+    )
 
     # Gitignore-style basename patterns can match at any depth, so Grobl cannot
     # prove that an arbitrary subtree is irrelevant to this restoration.
-    assert matcher.may_reinclude_descendant(vendor) is True
+    assert matcher.may_reinclude_descendant(source_dir) is True
+
+    result = run_scan(paths=[tmp_path], cfg={}, ignores=matcher)
+    tree = "\n".join(result.builder.tree_output())
+
+    assert ".gitmodules" in tree
+    assert "vendor.c" not in tree
