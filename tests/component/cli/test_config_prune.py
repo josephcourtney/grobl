@@ -16,7 +16,7 @@ def test_config_prune_help_documents_modes() -> None:
     result = CliRunner().invoke(cli, ["config", "prune", "--help"])
 
     assert result.exit_code == 0
-    assert "Remove redundant canonical inclusion rules" in result.stdout
+    assert "Remove redundant canonical config entries" in result.stdout
     assert "--current-tree" in result.stdout
     assert "--stdout" in result.stdout
     assert "--check" in result.stdout
@@ -34,6 +34,7 @@ def test_config_prune_writes_backup_and_removes_shadowed_rule(tmp_path: Path) ->
     assert Path(f"{path}.bak").read_text(encoding="utf-8") == original
     assert list(tomlkit.parse(path.read_text(encoding="utf-8"))["exclude"]) == ["build"]
     assert "Pruned" in result.stdout
+    assert "entry" in result.stdout
 
 
 def test_config_prune_stdout_does_not_modify_file(tmp_path: Path) -> None:

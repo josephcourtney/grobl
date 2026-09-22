@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +13,7 @@ from tomlkit.exceptions import TOMLKitError
 from tomlkit.items import Array
 
 from grobl.config_defaults import TOML_CONFIG, load_default_config
-from grobl.config_loading import load_toml_config
+from grobl.config_loading import LEGACY_TOML_CONFIG, PYPROJECT_TOML, load_toml_config
 from grobl.constants import (
     CONFIG_EXCLUDE,
     CONFIG_EXCLUDE_CONTENT,
@@ -66,7 +67,14 @@ class ConfigPruneResult:
     text: str
     changed: bool
     removed: tuple[PrunedRule, ...] = ()
+    removed_settings: tuple[str, ...] = ()
+    removed_empty_keys: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+
+    @property
+    def removal_count(self) -> int:
+        """Return the total number of removed config entries."""
+        return len(self.removed) + len(self.removed_settings) + len(self.removed_empty_keys)
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +192,115 @@ def _prune_shadowed_rules(document: TOMLDocument) -> list[PrunedRule]:
     ]
 
 
+def _policy_array_key(line: str) -> str | None:
+    stripped = line.strip()
+    return next(
+        (
+            candidate
+            for candidate in CANONICAL_POLICY_KEYS
+            if stripped.startswith(f"{candidate} = [") and "]" not in stripped
+        ),
+        None,
+    )
+
+
+def _split_nonblank_segments(lines: Sequence[str]) -> list[list[str]]:
+    segments: list[list[str]] = []
+    segment: list[str] = []
+    for line in lines:
+        if line.strip():
+            segment.append(line)
+        elif segment:
+            segments.append(segment)
+            segment = []
+    if segment:
+        segments.append(segment)
+    return segments
+
+
+def _comment_signature(group: Sequence[str]) -> tuple[str, ...]:
+    return tuple(line.strip() for line in group if line.lstrip().startswith("#"))
+
+
+def _has_value(group: Sequence[str]) -> bool:
+    return any(not line.lstrip().startswith("#") for line in group)
+
+
+def _comment_groups_with_values(text: str) -> set[tuple[str, tuple[str, ...]]]:
+    """Return policy-array comment groups that originally described values."""
+    lines = text.splitlines()
+    associated: set[tuple[str, tuple[str, ...]]] = set()
+    index = 0
+
+    while index < len(lines):
+        key = _policy_array_key(lines[index])
+        if key is None:
+            index += 1
+            continue
+
+        index += 1
+        inner: list[str] = []
+        while index < len(lines) and lines[index].strip() != "]":
+            inner.append(lines[index])
+            index += 1
+
+        for group in _split_nonblank_segments(inner):
+            comments = _comment_signature(group)
+            if comments and _has_value(group):
+                associated.add((key, comments))
+        index += 1
+
+    return associated
+
+
+def _keep_comment_group(
+    key: str,
+    group: Sequence[str],
+    *,
+    associated: set[tuple[str, tuple[str, ...]]],
+) -> bool:
+    comments = _comment_signature(group)
+    return _has_value(group) or not comments or (key, comments) not in associated
+
+
+def _clean_orphan_array_comments(text: str, *, original_text: str) -> str:
+    """Drop comment groups made empty by policy-array pruning."""
+    associated = _comment_groups_with_values(original_text)
+    lines = text.splitlines(keepends=True)
+    output: list[str] = []
+    index = 0
+
+    while index < len(lines):
+        key = _policy_array_key(lines[index])
+        if key is None:
+            output.append(lines[index])
+            index += 1
+            continue
+
+        output.append(lines[index])
+        index += 1
+        inner: list[str] = []
+        while index < len(lines) and lines[index].strip() != "]":
+            inner.append(lines[index])
+            index += 1
+
+        kept = [
+            group
+            for group in _split_nonblank_segments(inner)
+            if _keep_comment_group(key, group, associated=associated)
+        ]
+        for group_index, group in enumerate(kept):
+            if group_index:
+                output.append("\n")
+            output.extend(group)
+
+        if index < len(lines):
+            output.append(lines[index])
+            index += 1
+
+    return "".join(output)
+
+
 def prune_config_text(text: str) -> ConfigPruneResult:
     """Remove rules that are provably shadowed within one canonical source."""
     document = _parse_document(text)
@@ -192,7 +309,7 @@ def prune_config_text(text: str) -> ConfigPruneResult:
     if not removed:
         return ConfigPruneResult(text=text, changed=False)
     return ConfigPruneResult(
-        text=tomlkit.dumps(document),
+        text=_clean_orphan_array_comments(tomlkit.dumps(document), original_text=text),
         changed=True,
         removed=removed,
     )
@@ -244,7 +361,7 @@ def _extends_entries(document: TOMLDocument) -> tuple[str, ...]:
     return ()
 
 
-def _target_data(document: TOMLDocument, path: Path) -> dict[str, object]:
+def _extends_base(document: TOMLDocument, path: Path) -> dict[str, object]:
     data: dict[str, object] = {}
     for entry in _extends_entries(document):
         ext_path = Path(entry)
@@ -252,8 +369,111 @@ def _target_data(document: TOMLDocument, path: Path) -> dict[str, object]:
             ext_path = (path.parent / ext_path).resolve()
         if ext_path.exists() and ext_path != path.resolve():
             data |= load_toml_config(ext_path)
+    return data
+
+
+def _target_data(document: TOMLDocument, path: Path) -> dict[str, object]:
+    data = _extends_base(document, path)
     data |= {str(key): value for key, value in document.items() if key != "extends"}
     return data
+
+
+def _xdg_config_path() -> Path:
+    xdg_home = os.environ.get("XDG_CONFIG_HOME")
+    xdg_dir = Path(xdg_home) if xdg_home else Path.home() / ".config"
+    return xdg_dir / "grobl" / "config.toml"
+
+
+def _merge_config_file(config: dict[str, object], path: Path) -> None:
+    if path.exists():
+        config |= load_toml_config(path)
+
+
+def _merge_pyproject_config(config: dict[str, object], path: Path) -> None:
+    if not path.exists():
+        return
+    try:
+        document = tomlkit.loads(path.read_text(encoding="utf-8"))
+    except TOMLKitError as err:
+        msg = f"invalid TOML in {path}: {err}"
+        raise ConfigPruneError(msg) from err
+    tool = document.get("tool")
+    if not isinstance(tool, dict):
+        return
+    grobl_config = tool.get("grobl")
+    if isinstance(grobl_config, dict):
+        config |= {str(key): value for key, value in grobl_config.items()}
+
+
+def _lower_general_config(
+    path: Path,
+    *,
+    default_cfg: dict[str, object],
+) -> dict[str, object]:
+    """Resolve general config values that precede the target in merge precedence."""
+    target = path.resolve()
+    base = target.parent
+    config = dict(default_cfg)
+
+    for source in (
+        _xdg_config_path(),
+        base / LEGACY_TOML_CONFIG,
+        base / TOML_CONFIG,
+    ):
+        if source.resolve(strict=False) == target:
+            return config
+        _merge_config_file(config, source)
+
+    _merge_pyproject_config(config, base / PYPROJECT_TOML)
+
+    env_path = os.environ.get("GROBL_CONFIG_PATH")
+    if env_path:
+        source = Path(env_path)
+        if source.resolve(strict=False) == target:
+            return config
+        _merge_config_file(config, source)
+
+    return config
+
+
+def _plain_value(value: object) -> object:
+    unwrap = getattr(value, "unwrap", None)
+    return unwrap() if callable(unwrap) else value
+
+
+def _prune_redundant_settings(
+    document: TOMLDocument,
+    *,
+    inherited: dict[str, object],
+) -> list[str]:
+    removed: list[str] = []
+    excluded = {*CANONICAL_POLICY_KEYS, *LEGACY_POLICY_KEYS, "extends"}
+    for key in tuple(document):
+        name = str(key)
+        if name in excluded or name not in inherited:
+            continue
+        if _plain_value(document[key]) != _plain_value(inherited[name]):
+            continue
+        del document[key]
+        removed.append(name)
+    return removed
+
+
+def _prune_empty_policy_keys(document: TOMLDocument, *, path: Path) -> list[str]:
+    """Remove empty canonical keys only when their absence preserves source rules."""
+    removed: list[str] = []
+    for key in CANONICAL_POLICY_KEYS:
+        if key not in document or _patterns(document.get(key), key=key):
+            continue
+        before = rules_from_config(_target_data(document, path))
+        variant = _parse_document(tomlkit.dumps(document))
+        del variant[key]
+        after = rules_from_config(_target_data(variant, path))
+        if before != after:
+            continue
+        del document[key]
+        removed.append(key)
+    return removed
 
 
 def _matcher(layers: Sequence[InclusionLayer]) -> LayeredIgnoreMatcher:
@@ -358,7 +578,7 @@ def inspect_config_pruning(
     repo_root: Path | None = None,
     default_cfg: dict[str, object] | None = None,
 ) -> ConfigPruneResult:
-    """Return the pruned representation of ``path`` without writing it."""
+    """Return the pruned representation of a config file without writing it."""
     try:
         original = path.read_text(encoding="utf-8")
     except OSError as err:
@@ -370,36 +590,44 @@ def inspect_config_pruning(
     removed = _prune_shadowed_rules(document)
     warnings: tuple[str, ...] = ()
 
-    if current_tree:
-        resolved_root = (
-            repo_root.resolve()
-            if repo_root is not None
-            else resolve_repo_root(cwd=path.parent, paths=(path.parent,))
-        )
-        try:
-            defaults = load_default_config() if default_cfg is None else default_cfg
+    try:
+        defaults = load_default_config() if default_cfg is None else default_cfg
+        if current_tree:
+            resolved_root = (
+                repo_root.resolve()
+                if repo_root is not None
+                else resolve_repo_root(cwd=path.parent, paths=(path.parent,))
+            )
             context = _PruneContext(
                 path=path.resolve(),
                 repo_root=resolved_root,
                 lower_layers=_lower_layers(path, repo_root=resolved_root, default_cfg=defaults),
             )
             current_removed = _prune_current_tree(document, context=context)
-        except (OSError, ConfigLoadError) as err:
-            msg = f"could not resolve inherited configuration for {path}: {err}"
-            raise ConfigPruneError(msg) from err
-        removed.extend(current_removed)
-        if current_removed:
-            warnings = (
-                "current-tree pruning depends on the repository paths that exist now; "
-                "future paths may make an inherited duplicate relevant again",
-            )
+            removed.extend(current_removed)
+            if current_removed:
+                warnings = (
+                    "current-tree pruning depends on the repository paths that exist now; "
+                    "future paths may make an inherited duplicate relevant again",
+                )
 
-    if not removed:
+        removed_empty_keys = _prune_empty_policy_keys(document, path=path)
+        inherited = _lower_general_config(path, default_cfg=defaults)
+        inherited |= _extends_base(document, path)
+        removed_settings = _prune_redundant_settings(document, inherited=inherited)
+    except (OSError, ConfigLoadError) as err:
+        msg = f"could not resolve inherited configuration for {path}: {err}"
+        raise ConfigPruneError(msg) from err
+
+    if not removed and not removed_settings and not removed_empty_keys:
         return ConfigPruneResult(text=original, changed=False)
+
     return ConfigPruneResult(
-        text=tomlkit.dumps(document),
+        text=_clean_orphan_array_comments(tomlkit.dumps(document), original_text=original),
         changed=True,
         removed=tuple(removed),
+        removed_settings=tuple(removed_settings),
+        removed_empty_keys=tuple(removed_empty_keys),
         warnings=warnings,
     )
 

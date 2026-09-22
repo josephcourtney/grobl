@@ -87,7 +87,7 @@ Legacy `exclude_tree`, `exclude_print`, and `exclude_content` inputs remain supp
 
 `grobl config migrate` is the supported path from legacy-only configuration to canonical `exclude`/`tree_only`/`include` configuration. Mixed legacy/canonical policy sources are rejected rather than interpreted ambiguously. Migration preserves the original by default and warns when overlapping legacy globs cannot be proven equivalent.
 
-Canonical configuration maintenance distinguishes two pruning guarantees. Default pruning is structural and future-safe: it removes only same-source rules that are provably shadowed by an identical later matcher. Repository-state pruning is explicit: it considers only exact inherited same-base duplicates and removes a candidate after counterfactual matching proves that the currently traversable tree keeps the same effective states. Unique dormant rules are never removed merely for having no current matches.
+Canonical configuration maintenance distinguishes tree-independent structural pruning from repository-state pruning. Structural pruning removes same-source rules shadowed by identical later matchers, semantically empty canonical policy keys, and non-policy settings that simply repeat their effective inherited value; formatting cleanup removes comment-only policy subsections left empty by those edits. Repository-state pruning is explicit: it considers only exact inherited same-base policy duplicates and removes a candidate after counterfactual matching proves that the currently traversable tree keeps the same effective states. Unique dormant rules are never removed merely for having no current matches.
 
 ## Scan pipeline
 

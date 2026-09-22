@@ -138,7 +138,9 @@ Translate a legacy-only inclusion config to canonical `exclude`, `tree_only`, an
 
 ### `grobl config prune [PATH]`
 
-Remove redundant canonical inclusion rules. Default pruning is future-safe and only removes rules shadowed by a later identical matcher in the same file. Add `--current-tree` to consider exact inherited same-base duplicates and remove them only when counterfactual matching leaves the currently traversable scan tree unchanged.
+Remove redundant canonical config entries. Default pruning is structural and does not inspect repository contents: it removes same-source rules shadowed by later identical matchers, empty canonical policy keys that have no semantic effect, and non-policy settings that exactly repeat the value inherited from lower-precedence configuration.
+
+Add `--current-tree` to consider exact inherited same-base policy duplicates and remove them only when counterfactual matching leaves the currently traversable scan tree unchanged. Pruned policy arrays are normalized so category comments whose entries were all removed do not remain as empty headings.
 
 Like migration, pruning supports `--stdout`, `--check`, and `--backup/--no-backup`. Legacy policy files must be migrated first.
 
@@ -450,7 +452,7 @@ grobl config prune .grobl.toml --stdout
 grobl config prune .grobl.toml --current-tree --stdout
 ```
 
-The first form removes only same-source rules that are provably shadowed by a later identical matcher. `--current-tree` additionally tests exact inherited duplicates against the current traversable repository tree; because that result depends on paths that exist now, grobl warns when it removes any such rule.
+The first form performs tree-independent structural cleanup: shadowed same-source rules, semantically empty canonical keys, and non-policy settings equal to their inherited value. `--current-tree` additionally tests exact inherited policy duplicates against the current traversable repository tree; because those removals depend on paths that exist now, grobl warns when it removes any such rule.
 
 Example runtime override:
 
@@ -464,7 +466,7 @@ Use `--no-ignore` cautiously: it disables every inclusion-policy rule and can ma
 Two config keys control the XML-like tag names for the payload:
 
 * `include_tree_tags` (default: `"directory"`)
-* `include_file_tags` (default: `"file"`)
+* `include_file_tags` (default: `"files"`)
 
 Example in TOML:
 

@@ -34,10 +34,10 @@ Examples:
     Print the canonical form without changing the file.
 
   grobl config prune
-    Remove rules that are provably shadowed within .grobl.toml.
+    Remove structurally redundant entries from .grobl.toml.
 
   grobl config prune --current-tree
-    Also remove exact inherited duplicates that do not affect the current scan tree.
+    Also remove exact inherited policy duplicates that do not affect the current scan tree.
 """
 
 
@@ -106,10 +106,11 @@ def _emit_prune_warnings(result: ConfigPruneResult) -> None:
 
 def _run_prune_check(path: Path, result: ConfigPruneResult) -> None:
     if result.changed:
-        count = len(result.removed)
-        msg = f"{path} contains {count} redundant inclusion rule(s)"
+        count = result.removal_count
+        noun = "entry" if count == 1 else "entries"
+        msg = f"{path} contains {count} redundant config {noun}"
         raise click.ClickException(msg)
-    click.echo(f"{path} has no redundant inclusion rules")
+    click.echo(f"{path} has no redundant config entries")
 
 
 def _run_prune_preview(path: Path, *, current_tree: bool, check: bool) -> None:
@@ -132,14 +133,15 @@ def _run_prune_in_place(path: Path, *, current_tree: bool, backup: bool) -> None
         raise click.ClickException(str(err)) from err
 
     if not result.changed:
-        click.echo(f"{path} has no redundant inclusion rules")
+        click.echo(f"{path} has no redundant config entries")
         return
 
-    count = len(result.removed)
+    count = result.removal_count
+    noun = "entry" if count == 1 else "entries"
     if backup_path is None:
-        click.echo(f"Pruned {path} ({count} rules)")
+        click.echo(f"Pruned {path} ({count} {noun})")
     else:
-        click.echo(f"Pruned {path} ({count} rules; backup: {backup_path})")
+        click.echo(f"Pruned {path} ({count} {noun}; backup: {backup_path})")
     _emit_prune_warnings(result)
 
 
@@ -206,7 +208,7 @@ def migrate(path: Path, *, to_stdout: bool, check: bool, backup: bool) -> None:
 @click.option(
     "--check",
     is_flag=True,
-    help="Do not write; exit 1 when redundant rules are found.",
+    help="Do not write; exit 1 when redundant entries are found.",
 )
 @click.option(
     "--backup/--no-backup",
@@ -222,7 +224,7 @@ def prune(
     check: bool,
     backup: bool,
 ) -> None:
-    """Remove redundant canonical inclusion rules conservatively."""
+    """Remove redundant canonical config entries conservatively."""
     _validate_output_modes(to_stdout=to_stdout, check=check)
     if check or to_stdout:
         _run_prune_preview(path, current_tree=current_tree, check=check)

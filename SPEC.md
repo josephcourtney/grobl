@@ -403,13 +403,17 @@ The CLI **MUST** provide `grobl config prune [PATH]` for removing redundant rule
 * `--check` **MUST** avoid writes and exit nonzero when removable rules are found.
 * `--stdout` and `--check` **MUST NOT** be combined.
 * A source containing legacy policy keys **MUST** be rejected with guidance to run `grobl config migrate` first.
-* Default pruning **MUST** remove only rules whose redundancy is independent of repository contents. At minimum, an earlier rule whose exact matcher is shadowed by a later identical matcher in the same normalized source is removable.
-* `--current-tree` **MAY** additionally consider exact inherited rules from a lower-precedence layer only when the inherited layer has the same matching base as the target source.
+* Default pruning **MUST NOT** depend on which repository paths currently exist.
+* Default pruning **MUST** remove an earlier rule whose exact matcher is shadowed by a later identical matcher in the same normalized source.
+* Default pruning **MAY** remove an empty canonical policy key only when deleting the key leaves the normalized rules for that config source unchanged, including any `extends` inputs.
+* Default pruning **MAY** remove a non-policy setting when its value exactly equals the effective value inherited from lower-precedence general-config sources and any `extends` inputs. A project value that resets an earlier override **MUST NOT** be removed merely because it equals the bundled default.
+* When pruning removes every value associated with a comment-only subsection inside a canonical policy array, the serialized result **SHOULD** remove that orphaned comment group rather than leave an empty heading.
+* `--current-tree` **MAY** additionally consider exact inherited rules from a lower-precedence policy layer only when the inherited layer has the same matching base as the target source.
 * Under `--current-tree`, a candidate **MUST NOT** be removed unless counterfactual evaluation with that rule deleted leaves the effective inclusion state unchanged for every path reached by traversal rooted at the target config directory under both policies.
 * `--current-tree` **MUST NOT** remove a unique rule solely because no current path matches it.
 * When `--current-tree` removes any inherited duplicate, the CLI **MUST** warn that the result depends on repository paths that exist at pruning time.
 
-Pruning compares effective inclusion states, not winning provenance. A change in the winning source with the same effective state does not by itself make a rule necessary.
+Current-tree pruning compares effective inclusion states, not winning provenance. A change in the winning source with the same effective state does not by itself make a rule necessary. Structural setting pruning compares the actual inherited value, not only the bundled default.
 
 ## 8. Pattern Semantics
 
