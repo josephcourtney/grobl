@@ -8,7 +8,9 @@ from typing import TYPE_CHECKING
 import click
 
 from grobl.app.command_support import ScanParams
+from grobl.app.config_behavior import config_inherit_defaults, resolve_ignore_policy
 from grobl.app.config_loading import load_config, resolve_config_base
+from grobl.app.config_maintenance import maintain_legacy_project_configs
 from grobl.app.explain import build_explain_entries, render_explain
 from grobl.app.scan_runtime import (
     IgnoreCLIArgs,
@@ -21,7 +23,13 @@ from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat, SummaryFor
 from grobl.errors import ConfigLoadError
 
 from .help_format import LiteralEpilogCommand
-from .options import add_config_option, add_ignore_options, add_ignore_policy_options, add_paths_argument
+from .options import (
+    add_config_option,
+    add_ignore_options,
+    add_ignore_policy_options,
+    add_interaction_option,
+    add_paths_argument,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -46,6 +54,7 @@ Examples:
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
+@add_interaction_option
 @click.option(
     "--format",
     "explain_format",
@@ -73,6 +82,7 @@ def explain(
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
+    interactive: bool | None,
     explain_format: str,
     paths: tuple[Path, ...],
 ) -> None:
@@ -94,17 +104,26 @@ def explain(
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
     config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
+    maintain_legacy_project_configs(
+        repo_root=repo_root,
+        scan_paths=requested_paths,
+        explicit_config=config_path,
+        interactive=interactive,
+    )
+
     runtime_exclude, runtime_tree_only, runtime_include = gather_runtime_ignore_patterns(
         repo_root=repo_root,
         ignore_args=ignore_args,
     )
 
     try:
-        load_config(
+        cfg = load_config(
             base_path=config_base,
             explicit_config=config_path,
             ignore_defaults=False,
         )
+        effective_ignore_policy = resolve_ignore_policy(ctx, cfg, current=ignore_policy)
+        inherit_defaults = config_inherit_defaults(cfg)
     except ConfigLoadError as err:
         print(err, file=sys.stderr)
         raise SystemExit(EXIT_CONFIG) from err
@@ -126,7 +145,8 @@ def explain(
         repo_root=repo_root,
         scan_paths=requested_paths,
         params=params,
-        ignore_policy=ignore_policy,
+        ignore_policy=effective_ignore_policy,
+        inherit_defaults=inherit_defaults,
         ignore_defaults_flag=ignore_defaults,
         no_ignore_config_flag=no_ignore_config,
         no_ignore_flag=no_ignore,

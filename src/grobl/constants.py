@@ -77,6 +77,7 @@ CONFIG_EXCLUDE_CONTENT = "exclude_content"
 
 CONFIG_INCLUDE_TREE_TAGS = "include_tree_tags"
 CONFIG_INCLUDE_FILE_TAGS = "include_file_tags"
+CONFIG_INHERIT_DEFAULTS = "inherit_defaults"
 
 # Exit codes
 EXIT_OK = 0

@@ -340,7 +340,7 @@ def test_cli_config_tag_customisation_applies_to_llm_payload(
 
     # Local config overrides tag names
     (base / ".grobl.toml").write_text(
-        'exclude_tree = []\nexclude_print = []\ninclude_tree_tags = "project"\ninclude_file_tags = "snippet"'
+        'exclude = []\ntree_only = []\ninclude_tree_tags = "project"\ninclude_file_tags = "snippet"'
         "\n",
         encoding="utf-8",
     )
@@ -381,7 +381,7 @@ def test_cli_exclude_print_hides_contents_but_keeps_metadata(
     (base / "secret.txt").write_text("secret-contents\n", encoding="utf-8")
 
     (base / ".grobl.toml").write_text(
-        "exclude_tree = []\nexclude_print = ['secret.txt']\n",
+        "exclude = []\ntree_only = ['secret.txt']\n",
         encoding="utf-8",
     )
 

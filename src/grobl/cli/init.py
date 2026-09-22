@@ -1,4 +1,4 @@
-"""CLI command that bootstraps a default configuration file."""
+"""CLI command that bootstraps a minimal project configuration file."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 
 from grobl.app.command_support import MAX_REF_PREVIEW, _scan_for_legacy_references
-from grobl.app.config_defaults import TOML_CONFIG, write_default_config
+from grobl.app.config_defaults import TOML_CONFIG, write_starter_config
 from grobl.app.config_loading import LEGACY_TOML_CONFIG
 
 from .help_format import LiteralEpilogCommand
@@ -48,8 +48,8 @@ def init(*, target: Path, force: bool) -> None:
         raise SystemExit(1)
 
     try:
-        write_default_config(target)
-        print(f"Wrote default config to {new}")
+        write_starter_config(target)
+        print(f"Wrote starter config to {new}")
     except OSError as e:
         print(f"Failed to write '{TOML_CONFIG}': {e}", file=sys.stderr)
         raise SystemExit(1) from e

@@ -6,26 +6,27 @@ Last updated: 2026-09-21
 
 ## Current focus
 
-2.3.1 is release-ready; no immediate implementation work remains.
+Validate the new project-delta configuration model and interactive legacy-maintenance flow.
 
 ## Recently completed
 
-- Refined `grobl config prune` to remove structural config redundancy while preserving meaningful overrides, XDG resets, `extends` suppression, and explanatory comments.
-- Reviewed the project config with `grobl config prune --current-tree --stdout` and applied the accepted minimal result.
-- `just check` passes after the pruning refinement.
-- `just release-check` passes, including distribution builds.
-- `grobl -V` and `grobl --version` both report `2.3.1` exactly.
+- Changed `grobl init` to generate a minimal commented project config rather than materializing bundled policy.
+- Added `inherit_defaults` as a policy-only switch; explicit CLI source selection remains higher precedence.
+- Added persistent config equivalents for stable scan behavior while keeping routing/actions invocation-specific.
+- Added automatic legacy-schema detection for scan/explain with interactive migration/pruning offers and noninteractive warn-only behavior.
+- Extended current-tree pruning so disabling inherited defaults is respected during counterfactual analysis.
+- Added regression coverage for config-vs-CLI precedence, disabled defaults, invalid configured behavior, and migration acceptance/decline.
 
 ## Known gaps and limitations
 
 - Structural pruning intentionally does not attempt arbitrary gitignore-glob subsumption.
-- `--current-tree` is repository-state dependent and may retain or remove rules differently after paths change.
-- Legacy policy files must be migrated before pruning.
+- `--current-tree` remains repository-state dependent and therefore requires explicit confirmation in the interactive flow.
+- Persistent scan-wide settings use the general config merge; nested path-specific configs remain policy layers rather than per-subtree payload-format/scope settings.
 
 ## Risks / blockers
 
-No known blocker for the 2.3.1 release.
+Repository validation has not yet been rerun after this config revision.
 
 ## Resume notes
 
-The repository has passed the release validation gates. Publishing remains a separate explicit release operation.
+Run the validation items in [TODO.md](TODO.md). The previously validated 2.3.1 state is the baseline; these changes are currently Unreleased.

@@ -1,6 +1,6 @@
 # Configuration
 
-grobl reads hierarchical `.grobl.toml` files. The bundled defaults ship with the package, and `grobl init` writes the current default configuration to a target directory.
+grobl reads hierarchical `.grobl.toml` files. Bundled defaults remain package-owned; `grobl init` writes a small commented project-delta configuration rather than copying the bundled policy into the repository.
 
 ## Creating a configuration file
 
@@ -8,7 +8,15 @@ grobl reads hierarchical `.grobl.toml` files. The bundled defaults ship with the
 grobl init --path .
 ```
 
-Add `--force` to replace an existing file.
+Add `--force` to replace an existing file. The generated file contains one explicit `inherit_defaults = true` setting plus commented examples for project policy and persistent scan behavior. It does not materialize Grobl's bundled exclusion lists.
+
+A new project inherits the bundled inclusion policy by default. To define inclusion policy entirely in configuration, set:
+
+```toml
+inherit_defaults = false
+```
+
+This switch affects only the bundled `exclude` / `tree_only` / `include` policy layer. It does not erase ordinary program defaults such as the default payload format.
 
 ## Inclusion policy
 
@@ -68,6 +76,28 @@ Patterns in a `.grobl.toml` are relative to the directory containing that file. 
 
 Later layers supersede earlier layers. This allows a repository default such as `tree_only = ["docs/"]` to be overridden by a deeper configuration or by `--include docs/architecture.md`.
 
+With `ignore_policy = "auto"`, `inherit_defaults = false` removes only layer 1 from that sequence. An explicit CLI source-selection choice such as `--ignore-policy defaults` or `--ignore-policy all` has higher precedence and can re-enable the bundled layer.
+
+## Persistent scan behavior
+
+Stable scan-wide CLI behavior can be stored in general configuration. Explicit CLI options always win:
+
+```toml
+scope = "all"
+format = "llm"
+summary = "auto"
+summary_style = "compact" # only when summary resolves to table
+lines = true
+characters = true
+tokens = true
+inclusion_status = true
+ignore_policy = "auto"
+```
+
+The existing `include_tree_tags` and `include_file_tags` settings remain configurable as well. Routing and invocation controls stay CLI-only: `--copy`, `--output`, `--stdout`, `--json`, `--summary-to`, `--summary-output`, `--config`, logging flags, and `--interactive/--no-interactive`.
+
+General non-policy values use the normal scalar merge precedence (bundled values, XDG/project/pyproject/environment sources, explicit config, then explicit CLI values). Inclusion patterns retain the separate hierarchical root-to-leaf policy layering above because each policy source has its own matching base.
+
 ## Pattern semantics
 
 Patterns use gitignore-style matching, including `**` and negation. A negated restrictive rule restores `full` inclusion. Prefer the explicit `include` list for new configuration because it states the resulting policy directly.
@@ -93,6 +123,8 @@ grobl config migrate .grobl.toml
 In-place migration keeps the original as `.grobl.toml.bak` by default. Use `--no-backup` to suppress the backup, `--stdout` to preview the translated TOML without writing it, or `--check` to exit nonzero when legacy keys are still present.
 
 The migration removes exact content-exclusion duplicates that are already dominated by an `exclude_tree` rule. When both legacy tree and content scopes contain patterns, grobl emits a warning because different overlapping glob patterns cannot always be proven equivalent under the canonical grouped precedence. Mixed canonical/legacy files are rejected rather than guessed.
+
+Normal `scan` and `explain` invocations also detect applicable legacy-schema `.grobl.toml` files. In an interactive terminal Grobl offers to migrate each one, preserving a `.bak` file, then offers structural pruning and separately offers current-tree pruning with its repository-state warning. Noninteractive invocations never block or modify configuration; they emit a concise migration warning and continue with compatibility parsing. Use `--interactive` or `--no-interactive` to override TTY auto-detection explicitly.
 
 ## Pruning redundant canonical rules
 

@@ -277,6 +277,12 @@ If payload output is written to stdout and no explicit summary destination is sp
 * Project policy files are named `.grobl.toml`.
 * Applicable `.grobl.toml` files **MUST** be discovered from the repository root toward each scanned path.
 * Rules from a configuration file **MUST** be interpreted relative to the directory containing that file.
+* `grobl init` **MUST** create a minimal, commented project-delta `.grobl.toml`; it **MUST NOT** materialize the bundled inclusion-policy lists into the project file.
+* General configuration **MUST** recognize persistent equivalents for the stable scan settings `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, and `ignore_policy`.
+* An explicitly supplied CLI value **MUST** override the corresponding persistent config value.
+* Payload/summary destinations, explicit config selection, logging, JSON convenience mode, and interaction forcing are invocation controls and are not required to have persistent config equivalents.
+
+The boolean `inherit_defaults` setting controls only whether the bundled inclusion-policy layer participates under automatic source selection. It defaults to `true`. Setting it to `false` **MUST NOT** remove unrelated program defaults or general configuration values.
 
 ### 7.2 Three inclusion states
 
@@ -339,7 +345,7 @@ The CLI **MUST** support:
 
 Semantics:
 
-* `auto`: defaults + discovered/explicit config + CLI
+* `auto`: discovered/explicit config + CLI, plus bundled defaults when `inherit_defaults` is true
 * `all`: all rule sources
 * `none`: no policy rules; unmatched `full` therefore applies everywhere
 * `defaults`: bundled defaults only
@@ -347,6 +353,8 @@ Semantics:
 * `cli`: CLI rules only
 
 The existing `--no-ignore`, `--ignore-defaults`, and `--no-ignore-config` convenience controls **MAY** remain as aliases for selecting sources.
+
+Explicit CLI source-selection controls have higher precedence than persistent config. In particular, explicit `--ignore-policy defaults` or `--ignore-policy all` **MAY** re-enable bundled policy even when config sets `inherit_defaults = false`; explicit `--ignore-defaults`, `--no-ignore-config`, and `--no-ignore` **MUST** disable their selected sources after configured source policy is resolved.
 
 ### 7.6 CLI state assignment
 
@@ -392,6 +400,11 @@ The CLI **MUST** provide `grobl config migrate [PATH]` for translating a legacy-
 * A source containing both canonical and legacy policy keys **MUST** be rejected rather than implicitly combining the models.
 * Exact legacy content exclusions dominated by an exact tree-omission rule **MUST NOT** be duplicated into `tree_only`.
 * If legacy tree and content scopes are both populated, the migration **MUST** warn that overlapping non-identical glob patterns may require review because grouped canonical precedence cannot prove equivalence for every such overlap.
+* Normal scan/explain invocations **MUST** detect applicable legacy-schema `.grobl.toml` sources before consuming them.
+* When stdin and stderr are interactive terminals, Grobl **SHOULD** offer to migrate each detected legacy source. A successful interactive migration **SHOULD** then offer structural pruning and **MAY** separately offer `--current-tree` pruning.
+* Repository-state-dependent current-tree pruning **MUST NOT** be applied automatically as part of migration; it requires a distinct confirmation that identifies its dependence on currently existing paths.
+* A noninteractive invocation **MUST NOT** prompt for input or modify configuration as a side effect of legacy detection. It **SHOULD** emit a concise migration warning and continue through the compatibility parser.
+* `--interactive` and `--no-interactive` **MAY** explicitly override automatic TTY detection for scan/explain maintenance prompts.
 
 ### 7.9 Canonical configuration pruning
 

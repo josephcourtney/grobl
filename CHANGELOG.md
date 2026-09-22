@@ -2,6 +2,13 @@
 
 ### Added
 - add `grobl config prune` with structural cleanup of shadowed rules, no-op policy keys, inherited duplicate settings, and orphaned policy comments, plus backup/preview/check modes and optional `--current-tree` counterfactual pruning of exact inherited policy duplicates.
+- add `inherit_defaults` for disabling only the bundled inclusion-policy layer under automatic source selection.
+- add persistent config equivalents for stable scan behavior (`scope`, payload format, summary mode/style, metadata visibility, and `ignore_policy`) with explicit CLI values taking precedence.
+- add interactive legacy-schema maintenance on scan/explain: offer migration, then structural pruning, with current-tree pruning as a separate opt-in; noninteractive runs warn without prompting or writing.
+
+### Changed
+- change `grobl init` to generate a minimal commented project-delta config instead of copying the bundled default policy into the repository.
+- omit current/legacy Grobl config backup files from bundled policy so migration backups are not captured in later payloads.
 
 ## [2.3.1] - 2026-09-21
 

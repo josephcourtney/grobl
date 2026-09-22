@@ -1,4 +1,18 @@
 # ============================================
+# General scan behavior
+# ============================================
+# This switch controls only the bundled inclusion-policy layer.
+inherit_defaults = true
+scope = "all"
+format = "llm"
+summary = "auto"
+lines = true
+characters = true
+tokens = true
+inclusion_status = true
+ignore_policy = "auto"
+
+# ============================================
 # Paths that should be absent from both the hierarchy and content payload
 # ============================================
 exclude = [
@@ -8,6 +22,9 @@ exclude = [
 
   # grobl-specific
   ".grobl.toml",
+  ".grobl.toml.bak",
+  ".grobl.config.toml",
+  ".grobl.config.toml.bak",
 
   # secrets
   ".envrc",

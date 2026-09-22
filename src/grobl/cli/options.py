@@ -214,6 +214,16 @@ def add_paths_argument(func: Callable[..., Any]) -> Callable[..., Any]:
     return _PATHS_ARGUMENT(func)
 
 
+def add_interaction_option(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Attach interactive-maintenance control used by scan and explain."""
+    decorator = click.option(
+        "--interactive/--no-interactive",
+        default=None,
+        help="Force or disable interactive config migration prompts (default: auto-detect TTY)",
+    )
+    return decorator(func)
+
+
 def add_scan_output_options(func: Callable[..., Any]) -> Callable[..., Any]:
     """Attach payload and summary routing options used by scan."""
     return _apply_decorators(func, _SCAN_OUTPUT_OPTION_DECORATORS)

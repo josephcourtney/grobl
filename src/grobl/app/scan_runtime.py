@@ -132,6 +132,7 @@ def assemble_layered_ignores(
     scan_paths: tuple[Path, ...],
     params: ScanParams,
     ignore_policy: str,
+    inherit_defaults: bool,
     ignore_defaults_flag: bool,
     no_ignore_config_flag: bool,
     no_ignore_flag: bool,
@@ -152,6 +153,7 @@ def assemble_layered_ignores(
 
     include_defaults, include_config = _ignore_source_flags(
         ignore_policy=ignore_policy_value,
+        inherit_defaults=inherit_defaults,
         ignore_defaults_flag=ignore_defaults_flag,
         no_ignore_config_flag=no_ignore_config_flag,
         no_ignore_flag=no_ignore_flag,
@@ -185,6 +187,7 @@ def _path_to_runtime_pattern(path: Path, *, repo_root: Path) -> str:
 def _ignore_source_flags(
     *,
     ignore_policy: IgnorePolicy,
+    inherit_defaults: bool,
     ignore_defaults_flag: bool,
     no_ignore_config_flag: bool,
     no_ignore_flag: bool,
@@ -194,8 +197,8 @@ def _ignore_source_flags(
     if no_ignore_flag:
         return include_defaults, include_config
     if ignore_policy is IgnorePolicy.AUTO:
-        include_defaults = not ignore_defaults_flag
-        include_config = not no_ignore_config_flag
+        include_defaults = inherit_defaults
+        include_config = True
     elif ignore_policy is IgnorePolicy.ALL:
         include_defaults = True
         include_config = True
@@ -205,5 +208,10 @@ def _ignore_source_flags(
         include_config = True
     elif ignore_policy is IgnorePolicy.CLI:
         include_defaults = False
+        include_config = False
+
+    if ignore_defaults_flag:
+        include_defaults = False
+    if no_ignore_config_flag:
         include_config = False
     return include_defaults, include_config

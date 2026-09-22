@@ -13,6 +13,7 @@ from .options import (
     add_config_option,
     add_ignore_options,
     add_ignore_policy_options,
+    add_interaction_option,
     add_paths_argument,
     add_scan_output_options,
     add_scope_option,
@@ -56,6 +57,7 @@ Examples:
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
+@add_interaction_option
 @add_scan_output_options
 @add_scope_option
 @add_paths_argument
@@ -78,6 +80,7 @@ def scan(
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
+    interactive: bool | None,
     payload_format: str,
     copy: bool,
     output: Path | None,
@@ -112,6 +115,7 @@ def scan(
         no_ignore_config=no_ignore_config,
         no_ignore=no_ignore,
         ignore_policy=ignore_policy,
+        interactive=interactive,
         payload_format=payload_format,
         copy=copy,
         output=output,
