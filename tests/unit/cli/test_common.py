@@ -85,7 +85,7 @@ def _cfg_with_ignores(tmp_path: Path) -> dict[str, object]:
     return {
         "exclude_tree": [],
         "exclude_print": [],
-        "_ignores": build_ignore_matcher(repo_root=tmp_path, scan_paths=[tmp_path]),
+        "_ignores": build_ignore_matcher(repo_root=tmp_path),
     }
 
 
