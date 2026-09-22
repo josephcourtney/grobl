@@ -340,8 +340,7 @@ def test_cli_config_tag_customisation_applies_to_llm_payload(
 
     # Local config overrides tag names
     (base / ".grobl.toml").write_text(
-        'exclude = []\ntree_only = []\ninclude_tree_tags = "project"\ninclude_file_tags = "snippet"'
-        "\n",
+        'exclude = []\ntree_only = []\ninclude_tree_tags = "project"\ninclude_file_tags = "snippet"\n',
         encoding="utf-8",
     )
 

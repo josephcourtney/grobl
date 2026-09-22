@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -22,6 +21,7 @@ from tests.support import build_ignore_matcher
 pytestmark = pytest.mark.medium
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from typing import Any
 
 

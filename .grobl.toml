@@ -4,24 +4,17 @@
 exclude = [
   ".ropeproject/",
   "uv.lock",
-  ".artifacts",
 
   # project-specific
-  "./best practices - automated testing.md",
-  "./best practices - command line interfaces.md",
 
   # environments / dependency caches
   "__pypackages__",
-
-  # tooling configs
-  ".sourcery.yaml",
 ]
 
 # ============================================
 # Paths whose hierarchy is useful but whose contents usually are not
 # ============================================
 tree_only = [
-  # docs
   "docs",
 ]
 

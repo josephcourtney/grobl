@@ -24,9 +24,9 @@ def test_scan_reads_persistent_behavior_from_project_config(repo_root: Path) -> 
         'format = "json"\n'
         'summary = "none"\n'
         'scope = "files"\n'
-        'lines = false\n'
-        'tokens = false\n'
-        'inclusion_status = false\n',
+        "lines = false\n"
+        "tokens = false\n"
+        "inclusion_status = false\n",
         encoding="utf-8",
     )
 

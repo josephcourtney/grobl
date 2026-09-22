@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import click
 from click.core import ParameterSource
 
 from grobl.constants import (
@@ -16,6 +16,9 @@ from grobl.constants import (
     TableStyle,
 )
 from grobl.errors import ConfigLoadError
+
+if TYPE_CHECKING:
+    import click
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,9 +144,8 @@ def resolve_scan_behavior(
         choices=tuple(item.value for item in SummaryFormat),
     )
     summary_explicit = not _use_config(ctx, "summary")
-    use_config_style = (
-        use_config_output
-        and not (summary_explicit and resolved_summary != SummaryFormat.TABLE.value)
+    use_config_style = use_config_output and not (
+        summary_explicit and resolved_summary != SummaryFormat.TABLE.value
     )
     style_value = _configured_value(
         ctx,

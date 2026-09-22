@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
@@ -17,6 +16,8 @@ from grobl.config_pruning import ConfigPruneError, inspect_config_pruning, prune
 from grobl.ignore import discover_grobl_toml_files
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from grobl.config_migration import ConfigMigrationResult
 
 

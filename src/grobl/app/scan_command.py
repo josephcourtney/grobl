@@ -17,8 +17,8 @@ from grobl.output import build_writer_from_config
 from . import output_routing
 from .command_support import ScanParams, execute_scan_with_handling, exit_on_broken_pipe
 from .config_behavior import resolve_scan_behavior
-from .config_maintenance import maintain_legacy_project_configs
 from .config_loading import load_config, resolve_config_base
+from .config_maintenance import maintain_legacy_project_configs
 from .output_routing import (
     emit_scan_outputs,
     normalize_summary_destination,
