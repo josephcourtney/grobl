@@ -135,7 +135,6 @@ def test_main_handles_broken_pipe(monkeypatch: pytest.MonkeyPatch) -> None:
     assert helper_calls["count"] == 1
 
 
-
 def test_main_normalizes_unhandled_oserror(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
