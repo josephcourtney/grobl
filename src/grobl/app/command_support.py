@@ -26,15 +26,12 @@ from grobl.ignore import LayeredIgnoreMatcher
 from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
 
 from .execution import ScanExecutor, ScanOptions
-from .legacy import scan_legacy_references
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
-MAX_REF_PREVIEW = 50
-
 
 @dataclass(frozen=True, slots=True)
 class ScanParams:
@@ -49,15 +46,6 @@ class ScanParams:
     repo_root: Path
     visibility: MetadataVisibility = DEFAULT_METADATA_VISIBILITY
     pattern_base: Path | None = None
-
-
-def iter_legacy_references(base: Path) -> Iterator[tuple[Path, int, str]]:
-    """Yield files that still reference the legacy config filename."""
-    yield from scan_legacy_references(base)
-
-
-def _scan_for_legacy_references(base: Path) -> list[tuple[Path, int, str]]:
-    return list(iter_legacy_references(base))
 
 
 def print_interrupt_diagnostics(cwd: Path, cfg: dict[str, object], builder: DirectoryTreeBuilder) -> None:

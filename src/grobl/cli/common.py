@@ -9,13 +9,10 @@ import sys
 from typing import TYPE_CHECKING, Any, Never
 
 from grobl.app.command_support import (
-    MAX_REF_PREVIEW,
     ScanExecutor,
     ScanOptions,
     ScanParams,
-    _scan_for_legacy_references,
     exit_on_broken_pipe,
-    iter_legacy_references,
     print_interrupt_diagnostics,
 )
 from grobl.constants import (
@@ -79,13 +76,10 @@ def _raise_system_exit(code: int, exc: BaseException, *, message: object | None 
 
 
 __all__ = [
-    "MAX_REF_PREVIEW",
     "ScanExecutor",
     "ScanOptions",
     "ScanParams",
     "_execute_with_handling",
-    "_scan_for_legacy_references",
     "exit_on_broken_pipe",
-    "iter_legacy_references",
     "print_interrupt_diagnostics",
 ]
