@@ -293,7 +293,6 @@ class LayeredIgnoreMatcher:
         abs_path: Path,
         *,
         is_dir: bool,
-        include_ancestors: bool = False,
     ) -> InclusionDecision:
         level = InclusionLevel.FULL
         reason: InclusionReason | None = None
@@ -306,11 +305,7 @@ class LayeredIgnoreMatcher:
             except OSError:
                 continue
 
-            candidates = (
-                _match_candidates(rel, is_dir=is_dir)
-                if include_ancestors
-                else (_to_git_path(rel, is_dir=is_dir),)
-            )
+            candidates = _match_candidates(rel, is_dir=is_dir)
             for rule in layer.rules:
                 if any(rule.spec.match_file(candidate) for candidate in candidates):
                     level = rule.level
@@ -328,20 +323,6 @@ class LayeredIgnoreMatcher:
 
     def explain_inclusion(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
         return self._decide(self.layers, abs_path, is_dir=is_dir)
-
-    def explain_inclusion_with_ancestors(
-        self,
-        abs_path: Path,
-        *,
-        is_dir: bool,
-    ) -> InclusionDecision:
-        """Resolve a path while preserving policy inherited from directory ancestors."""
-        return self._decide(
-            self.layers,
-            abs_path,
-            is_dir=is_dir,
-            include_ancestors=True,
-        )
 
     def explain_policy(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
         """Compatibility wrapper for the policy-migration API."""
