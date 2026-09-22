@@ -1,4 +1,4 @@
-"""Layered three-state inclusion policy discovery and matching.
+"""Layered three-state inclusion policy matching.
 
 Every path resolves to exactly one level: full, tree_only, or omit.
 Rules are evaluated sequentially across layers and the last matching rule wins.
@@ -164,33 +164,6 @@ def rules_from_config(source: dict[str, object]) -> tuple[InclusionRule, ...]:
         InclusionLevel.OMIT,
     )
     return tuple(rules)
-
-
-def discover_grobl_toml_files(*, repo_root: Path, scan_paths: Sequence[Path]) -> list[Path]:
-    """Return applicable .grobl.toml files ordered from repository root to leaf."""
-    root = repo_root.resolve()
-    targets = [_coerce_to_dir(path.resolve(strict=False)) for path in scan_paths]
-
-    found: set[Path] = set()
-    for target in targets:
-        if not target.is_relative_to(root):
-            continue
-        current = target
-        while True:
-            candidate = current / TOML_CONFIG
-            if candidate.exists():
-                found.add(candidate.resolve())
-            if current == root:
-                break
-            current = current.parent
-
-    return sorted(
-        found,
-        key=lambda path: (
-            len(path.parent.relative_to(root).parts),
-            path.as_posix().casefold(),
-        ),
-    )
 
 
 def _compile_rules(rules: Iterable[InclusionRule]) -> tuple[CompiledRule, ...]:
