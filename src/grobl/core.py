@@ -129,7 +129,7 @@ def run_scan(
                 return True
 
             should_descend = ignores.may_reinclude_descendant(path)
-            if should_descend:
+            if should_descend and not inside_omitted_subtree:
                 traversed_omitted_dirs.append(path)
             return should_descend
 
