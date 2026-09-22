@@ -40,9 +40,13 @@ def build_explain_entries(
     limits: ResourceLimits = UNLIMITED_RESOURCE_LIMITS,
 ) -> list[dict[str, Any]]:
     """Return sorted explain entries for the given targets."""
-    validated_paths = validate_existing_paths(paths)
+    validated_paths = sorted(
+        validate_existing_paths(paths),
+        key=lambda path: tuple(part.casefold() for part in path.parts),
+    )
+    budget = ResourceBudget(limits)
     return sorted(
-        (_explain_entry(path, ignores, limits) for path in validated_paths),
+        (_explain_entry(path, ignores, budget) for path in validated_paths),
         key=operator.itemgetter("path"),
     )
 
@@ -104,8 +108,9 @@ def _render_json(entries: list[dict[str, Any]]) -> str:
 def _explain_entry(
     abs_path: Path,
     ignores: LayeredIgnoreMatcher,
-    limits: ResourceLimits,
+    budget: ResourceBudget,
 ) -> dict[str, Any]:
+    limits = budget.limits
     is_dir = abs_path.is_dir()
     decision = ignores.explain_inclusion(abs_path, is_dir=is_dir)
     reason = inclusion_reason_to_dict(decision.reason) if decision.reason is not None else None
@@ -130,7 +135,6 @@ def _explain_entry(
             file_bytes = abs_path.stat().st_size
         except OSError:
             file_bytes = None
-        budget = ResourceBudget(limits)
         budget_reason = (
             budget.preflight(abs_path, file_bytes=file_bytes)
             if file_bytes is not None
