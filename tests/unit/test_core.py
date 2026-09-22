@@ -31,7 +31,6 @@ def _make_ignores(paths: Sequence[Path], *, repo_root: Path, cfg: dict[str, obje
     print_patterns = tuple(cast("Sequence[str]", cfg.get("exclude_print", ()))) if cfg else ()
     return build_ignore_matcher(
         repo_root=repo_root,
-        scan_paths=list(paths),
         tree_patterns=tree_patterns,
         print_patterns=print_patterns,
     )
@@ -135,7 +134,6 @@ def test_include_restores_specific_paths(tmp_path: Path) -> None:
 
     ignores = build_ignore_matcher(
         repo_root=tmp_path,
-        scan_paths=[tmp_path],
         exclude_patterns=(".gitignore",),
         include_patterns=("tests/fixtures/**/.gitignore",),
     )
