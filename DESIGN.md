@@ -63,6 +63,7 @@ The following are invariants:
 - Content capture implies hierarchy inclusion.
 - `tree_only` and `omit` paths are never read for content.
 - The core has no state equivalent to “content included while hierarchy omitted”.
+- Traversing through an `omit` directory solely to reach a possible restoration does not reset unmatched descendants to `full`; the omitted ancestor remains effective until a later matching rule restores or changes the state.
 - Text/binary detection is downstream of policy. A non-text `full` file remains `full` even when its bytes are not emitted.
 - A winning rule retains provenance sufficient to explain its pattern, resulting state, source, base directory, configuration origin, and negation.
 
