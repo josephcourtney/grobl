@@ -325,18 +325,26 @@ class ScanExecutor:
             msg = "internal error: layered ignores missing"
             raise TypeError(msg)
 
-        scan_kwargs: dict[str, object] = {
-            "paths": paths,
-            "cfg": cfg,
-            "ignores": ignores,
-            "match_base": options.pattern_base,
-            "repo_root": options.repo_root,
-            "limits": options.limits,
-        }
-        if self._timing is not None:
-            scan_kwargs["timing"] = self._timing
         with measure_timing(self._timing, "scan/traversal"):
-            result = self._deps.scan(**scan_kwargs)
+            if self._timing is None:
+                result = self._deps.scan(
+                    paths=paths,
+                    cfg=cfg,
+                    ignores=ignores,
+                    match_base=options.pattern_base,
+                    repo_root=options.repo_root,
+                    limits=options.limits,
+                )
+            else:
+                result = self._deps.scan(
+                    paths=paths,
+                    cfg=cfg,
+                    ignores=ignores,
+                    match_base=options.pattern_base,
+                    repo_root=options.repo_root,
+                    limits=options.limits,
+                    timing=self._timing,
+                )
 
         builder = result.builder
         context = SummaryContext(
