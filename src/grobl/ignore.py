@@ -13,8 +13,6 @@ from typing import TYPE_CHECKING
 
 from pathspec import PathSpec
 
-from .config_defaults import TOML_CONFIG
-from .config_loading import load_toml_config
 from .constants import (
     CONFIG_EXCLUDE,
     CONFIG_EXCLUDE_CONTENT,
@@ -115,10 +113,6 @@ class MatchDecision:
 
     excluded: bool
     reason: InclusionReason | None
-
-
-def _coerce_to_dir(path: Path) -> Path:
-    return path.parent if path.is_file() else path
 
 
 def _extract_patterns(source: dict[str, object], key: str) -> tuple[str, ...]:
@@ -356,11 +350,9 @@ def _runtime_rules(
 def build_layered_ignores(
     *,
     repo_root: Path,
-    scan_paths: Sequence[Path],
     include_defaults: bool,
-    include_config: bool,
     default_cfg: dict[str, object],
-    explicit_config: Path | None = None,
+    config_layers: Sequence[InclusionLayer] = (),
     runtime_exclude: Sequence[str] = (),
     runtime_tree_only: Sequence[str] = (),
     runtime_include: Sequence[str] = (),
@@ -380,31 +372,7 @@ def build_layered_ignores(
             )
         )
 
-    discovered: set[Path] = set()
-    if include_config:
-        for cfg_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths):
-            real = cfg_path.resolve()
-            discovered.add(real)
-            layers.append(
-                _config_layer(
-                    base_dir=real.parent,
-                    source=LayerSource.CONFIG,
-                    data=load_toml_config(real),
-                    config_path=real,
-                )
-            )
-
-        if explicit_config is not None:
-            real = explicit_config.resolve(strict=False)
-            if real.exists() and real not in discovered:
-                layers.append(
-                    _config_layer(
-                        base_dir=real.parent,
-                        source=LayerSource.EXPLICIT_CONFIG,
-                        data=load_toml_config(real),
-                        config_path=real,
-                    )
-                )
+    layers.extend(config_layers)
 
     layers.append(
         InclusionLayer(
