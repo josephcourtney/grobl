@@ -107,31 +107,15 @@ def run_scan(
     )
 
     registry = FileHandlerRegistry.default() if handlers is None else handlers
-    traversed_omitted_dirs: list[Path] = []
 
     def collect(path: Path, prefix: str, *, is_last: bool) -> bool:
         is_dir = path.is_dir()
-        inside_omitted_subtree = any(
-            path.is_relative_to(directory)
-            for directory in traversed_omitted_dirs
-        )
-        if inside_omitted_subtree:
-            decision = ignores.explain_inclusion_with_ancestors(
-                path,
-                is_dir=is_dir,
-            )
-        else:
-            decision = ignores.explain_inclusion(path, is_dir=is_dir)
-
+        decision = ignores.explain_inclusion(path, is_dir=is_dir)
         if is_dir:
             if decision.level is not InclusionLevel.OMIT:
                 builder.add_directory(path, prefix, is_last=is_last)
                 return True
-
-            should_descend = ignores.may_reinclude_descendant(path)
-            if should_descend and not inside_omitted_subtree:
-                traversed_omitted_dirs.append(path)
-            return should_descend
+            return ignores.may_reinclude_descendant(path)
 
         if decision.level is InclusionLevel.OMIT:
             return False
