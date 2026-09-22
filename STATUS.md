@@ -6,14 +6,13 @@ Last updated: 2026-09-21
 
 ## Current focus
 
-Validate the new canonical-config pruning workflow and the existing 2.3.1 release metadata.
+Review the pruning result for the project config and finish 2.3.1 release validation.
 
 ## Recently completed
 
-- Added `grobl config prune` for future-safe removal of same-source rules shadowed by later identical matchers.
-- Added optional `--current-tree` pruning for exact inherited same-base duplicates, guarded by counterfactual effective-state comparison.
-- Preserved backup, `--stdout`, and `--check` maintenance semantics shared with `config migrate`.
-- Added unit/component/CLI regression coverage and import-architecture wiring.
+- Added `grobl config prune` with conservative structural pruning and optional current-tree counterfactual pruning.
+- Added unit/component/CLI regression coverage, documentation, and import-architecture wiring.
+- `just check` passes on the pruning implementation, covering syntax, formatting, lint, typing, import architecture, the full test suite, and coverage reporting.
 
 ## Known gaps and limitations
 
@@ -23,8 +22,8 @@ Validate the new canonical-config pruning workflow and the existing 2.3.1 releas
 
 ## Risks / blockers
 
-No known implementation blocker. Full repository and release validation remain pending.
+No known implementation blocker. Release artifact validation with `just release-check` remains pending.
 
 ## Resume notes
 
-Run the validation items in [TODO.md](TODO.md). Review `grobl config prune --current-tree --stdout` before applying it to the project config.
+Preview `grobl config prune --current-tree --stdout` against the project config before applying it, then run the remaining release items in [TODO.md](TODO.md).
