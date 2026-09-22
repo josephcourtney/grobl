@@ -15,7 +15,7 @@ Validate the CLI-safety and simplification pass on the `critique-cleanup` branch
 - Added finite configurable per-file, aggregate-byte, and token budgets with explainable omissions.
 - Changed text detection to bounded-memory streaming and strengthened sensitive-filename defaults.
 - Normalized config-read, clipboard, and output-write failures and added explicit clipboard-success feedback.
-- Removed CLI/config/service compatibility facades and switched callers/tests toward canonical modules.
+- Removed CLI/config/service compatibility facades, the obsolete runtime-ignore compatibility API, and tests that existed only to preserve those legacy seams.
 - Cleaned duplicate, unused, and mutable package metadata.
 
 ## Known gaps and limitations
