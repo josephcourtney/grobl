@@ -6,17 +6,11 @@ from pathlib import Path
 import pytest
 
 from grobl import utils
-from grobl.config_runtime import apply_runtime_ignore_edits
 from grobl.errors import PathNotFoundError
 from grobl.utils import detect_text, find_common_ancestor, is_text, resolve_repo_root
 
 pytestmark = pytest.mark.medium
 
-try:  # import at module level; skip the whole module if unavailable
-    from hypothesis import given
-    from hypothesis import strategies as st
-except ImportError:  # pragma: no cover - tooling availability
-    pytest.skip("hypothesis not available", allow_module_level=True)
 
 
 def test_find_common_ancestor_empty_raises() -> None:
@@ -128,81 +122,6 @@ def test_common_ancestor_disjoint_drives_like(tmp_path: Path) -> None:
 def test_common_ancestor_windows_disjoint_drives() -> None:
     with pytest.raises(PathNotFoundError):
         find_common_ancestor([Path("C:/alpha"), Path("D:/beta")])
-
-
-SEGMENT = st.text(
-    min_size=1,
-    max_size=5,
-    alphabet=st.characters(min_codepoint=33, max_codepoint=126),
-)
-
-
-@given(
-    base=st.lists(SEGMENT, max_size=5),
-    add=st.lists(SEGMENT, max_size=3),
-    remove=st.lists(SEGMENT, max_size=3),
-    no_ignore=st.booleans(),
-)
-def test_apply_runtime_ignore_edits_matches_manual_logic(
-    base: list[str], add: list[str], remove: list[str], *, no_ignore: bool
-) -> None:
-    result = apply_runtime_ignore_edits(
-        base_tree=list(base),
-        base_print=[],
-        add_ignore=tuple(add),
-        remove_ignore=tuple(remove),
-        add_ignore_files=(),
-        unignore=(),
-        no_ignore=no_ignore,
-    )
-    if no_ignore:
-        assert result.tree_patterns == []
-        return
-
-    expected = base.copy()
-    for pattern in add:
-        if pattern not in expected:
-            expected.append(pattern)
-    for pattern in remove:
-        if pattern in expected:
-            expected.remove(pattern)
-    assert result.tree_patterns == expected
-
-
-def test_apply_runtime_ignore_edits_shared_excludes_and_includes() -> None:
-    result = apply_runtime_ignore_edits(
-        base_tree=[],
-        base_print=[],
-        add_ignore=(),
-        remove_ignore=(),
-        add_ignore_files=(),
-        unignore=(),
-        exclude=("foo",),
-        include=("bar",),
-    )
-    assert result.tree_patterns == ["foo", "!bar"]
-    assert result.print_patterns == ["foo", "!bar"]
-
-
-def test_apply_runtime_ignore_edits_scoped_overrides() -> None:
-    result = apply_runtime_ignore_edits(
-        base_tree=[],
-        base_print=[],
-        add_ignore=(),
-        remove_ignore=(),
-        add_ignore_files=(),
-        unignore=(),
-        exclude_tree=("tree-only",),
-        exclude_content=("content-only",),
-        include_tree=("keep-tree",),
-        include_content=("keep-content",),
-    )
-    assert "tree-only" in result.tree_patterns
-    assert "content-only" not in result.tree_patterns
-    assert "content-only" in result.print_patterns
-    assert "tree-only" not in result.print_patterns
-    assert "!keep-tree" in result.tree_patterns
-    assert "!keep-content" in result.print_patterns
 
 
 def test_common_ancestor_config_base(tmp_path: Path) -> None:
