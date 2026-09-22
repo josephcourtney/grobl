@@ -109,6 +109,9 @@ def main(argv: list[str] | None = None) -> None:
     except OutputError as err:
         click.echo(f"error: {err}", err=True)
         raise SystemExit(EXIT_IO) from err
+    except OSError as err:
+        click.echo(f"error: I/O failure: {err}", err=True)
+        raise SystemExit(EXIT_IO) from err
 
 
 cli.add_command(scan)
