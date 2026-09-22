@@ -12,6 +12,8 @@ grobl
 
 With default options and an interactive terminal, grobl writes the payload to the clipboard and prints a human-readable summary to stderr (the default summary destination). After a successful copy it also prints a concise stderr receipt with the included file count, token count when enabled, and payload size.
 
+When no payload destination is specified and stdout is not a TTY, grobl writes the payload to stdout instead of touching the clipboard. Summary routing remains independent.
+
 ### Save a payload to disk
 
 ```bash
