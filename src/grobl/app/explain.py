@@ -153,22 +153,26 @@ def _explain_entry(
                 )
                 detail = detection.detail or "binary file"
                 text_detection = {"is_text": False, "detail": detail}
-            elif limits.max_tokens is not None:
-                try:
-                    content = read_text(abs_path)
-                except OSError as err:
-                    content_included = False
-                    content_reason = format_content_reason(
-                        detection_detail=f"read error: {err}",
-                        subject=abs_path,
-                    )
-                else:
-                    tokens = count_tokens(content)
-                    actual_bytes = (
-                        file_bytes
-                        if file_bytes is not None
-                        else len(content.encode("utf-8"))
-                    )
+            else:
+                tokens = 0
+                actual_bytes = file_bytes
+                if limits.max_tokens is not None or actual_bytes is None:
+                    try:
+                        content = read_text(abs_path)
+                    except OSError as err:
+                        content_included = False
+                        content_reason = format_content_reason(
+                            detection_detail=f"read error: {err}",
+                            subject=abs_path,
+                        )
+                    else:
+                        tokens = count_tokens(content) if limits.max_tokens is not None else 0
+                        actual_bytes = (
+                            file_bytes
+                            if file_bytes is not None
+                            else len(content.encode("utf-8"))
+                        )
+                if content_included and actual_bytes is not None:
                     budget_reason = budget.accept(
                         abs_path,
                         file_bytes=actual_bytes,
