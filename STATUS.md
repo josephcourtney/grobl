@@ -1,30 +1,30 @@
 # Status
 
-This file is the short-horizon project snapshot for continuity and handoff. It is intentionally compact; durable architecture is in [DESIGN.md](DESIGN.md), execution strategy in [PLAN.md](PLAN.md), and immediate work in [TODO.md](TODO.md).
+This file is the short-horizon project snapshot for continuity and handoff. Durable architecture is in [DESIGN.md](DESIGN.md), execution strategy in [PLAN.md](PLAN.md), and immediate work in [TODO.md](TODO.md).
 
 Last updated: 2026-09-21
 
 ## Current focus
 
-Prepare the 2.3.1 maintenance release after integrating the three-state inclusion policy, test-isolation fixes, and documentation-policy cleanup.
+Validate the new canonical-config pruning workflow and the existing 2.3.1 release metadata.
 
 ## Recently completed
 
-- Integrated the `full | tree_only | omit` policy and canonical `exclude` / `tree_only` / `include` configuration.
-- Added `grobl config migrate`, explain provenance, compatibility adapters, and regression coverage.
-- Corrected test-size/isolation failures and the TTY fixture mismatch found by the full test run.
-- Merged the three-state feature history into `main` and aligned project records with `POLICY.md`.
+- Added `grobl config prune` for future-safe removal of same-source rules shadowed by later identical matchers.
+- Added optional `--current-tree` pruning for exact inherited same-base duplicates, guarded by counterfactual effective-state comparison.
+- Preserved backup, `--stdout`, and `--check` maintenance semantics shared with `config migrate`.
+- Added unit/component/CLI regression coverage and import-architecture wiring.
 
 ## Known gaps and limitations
 
-- Legacy policy keys and hidden scoped CLI flags remain intentionally supported at ingress.
-- Migration can only warn about overlapping non-identical legacy globs whose equivalence cannot be proven mechanically.
-- A fresh `just check` and `just release-check` are still required after the 2.3.1 metadata/documentation update.
+- Default pruning intentionally does not attempt arbitrary gitignore-glob subsumption.
+- `--current-tree` is repository-state dependent and may retain or remove rules differently after paths change.
+- Legacy policy files must be migrated before pruning.
 
 ## Risks / blockers
 
-No known behavioral blocker. Release readiness depends on the pending full validation gates.
+No known implementation blocker. Full repository and release validation remain pending.
 
 ## Resume notes
 
-Run the items in [TODO.md](TODO.md). If both validation gates pass, the repository is ready for the 2.3.1 release step.
+Run the validation items in [TODO.md](TODO.md). Review `grobl config prune --current-tree --stdout` before applying it to the project config.

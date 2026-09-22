@@ -60,6 +60,10 @@ Bootstrap a `.grobl.toml` configuration file using the bundled defaults. Without
 
 Translate a legacy-only `.grobl.toml` inclusion policy to canonical `exclude`, `tree_only`, and `include` keys. In-place migration keeps a `.bak` copy by default; use `--stdout` to preview or `--check` to test whether migration is needed without writing.
 
+### `grobl config prune [PATH]`
+
+Remove redundant rules from a canonical inclusion config. Without extra flags, pruning removes only same-source rules shadowed by a later identical matcher. Add `--current-tree` to counterfactually test exact inherited same-base duplicates against the current traversable tree before removing them. `--stdout`, `--check`, and `--backup/--no-backup` mirror the migration command.
+
 ### `grobl version`
 
 Print the installed grobl version.

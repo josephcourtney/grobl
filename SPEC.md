@@ -393,6 +393,24 @@ The CLI **MUST** provide `grobl config migrate [PATH]` for translating a legacy-
 * Exact legacy content exclusions dominated by an exact tree-omission rule **MUST NOT** be duplicated into `tree_only`.
 * If legacy tree and content scopes are both populated, the migration **MUST** warn that overlapping non-identical glob patterns may require review because grouped canonical precedence cannot prove equivalence for every such overlap.
 
+### 7.9 Canonical configuration pruning
+
+The CLI **MUST** provide `grobl config prune [PATH]` for removing redundant rules from a canonical policy source.
+
+* The default path **MUST** be `.grobl.toml`.
+* In-place pruning **MUST** preserve the original as `PATH.bak` by default and **MUST** support disabling that backup.
+* `--stdout` **MUST** emit the pruned TOML without modifying the source.
+* `--check` **MUST** avoid writes and exit nonzero when removable rules are found.
+* `--stdout` and `--check` **MUST NOT** be combined.
+* A source containing legacy policy keys **MUST** be rejected with guidance to run `grobl config migrate` first.
+* Default pruning **MUST** remove only rules whose redundancy is independent of repository contents. At minimum, an earlier rule whose exact matcher is shadowed by a later identical matcher in the same normalized source is removable.
+* `--current-tree` **MAY** additionally consider exact inherited rules from a lower-precedence layer only when the inherited layer has the same matching base as the target source.
+* Under `--current-tree`, a candidate **MUST NOT** be removed unless counterfactual evaluation with that rule deleted leaves the effective inclusion state unchanged for every path reached by traversal rooted at the target config directory under both policies.
+* `--current-tree` **MUST NOT** remove a unique rule solely because no current path matches it.
+* When `--current-tree` removes any inherited duplicate, the CLI **MUST** warn that the result depends on repository paths that exist at pruning time.
+
+Pruning compares effective inclusion states, not winning provenance. A change in the winning source with the same effective state does not by itself make a rule necessary.
+
 ## 8. Pattern Semantics
 
 ### 8.1 Gitignore Semantics

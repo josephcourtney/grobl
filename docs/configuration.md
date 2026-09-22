@@ -94,6 +94,26 @@ In-place migration keeps the original as `.grobl.toml.bak` by default. Use `--no
 
 The migration removes exact content-exclusion duplicates that are already dominated by an `exclude_tree` rule. When both legacy tree and content scopes contain patterns, grobl emits a warning because different overlapping glob patterns cannot always be proven equivalent under the canonical grouped precedence. Mixed canonical/legacy files are rejected rather than guessed.
 
+## Pruning redundant canonical rules
+
+Use `grobl config prune [PATH]` after migration when a canonical file has accumulated redundant rules:
+
+```bash
+grobl config prune .grobl.toml --stdout
+```
+
+Default pruning is future-safe: it removes only a rule shadowed by a later identical matcher in the same config source. In-place pruning creates `PATH.bak` by default; `--check` exits nonzero when pruning is available, and `--stdout` previews without writing.
+
+To consider exact repetitions of inherited same-base policy, opt into repository-state analysis:
+
+```bash
+grobl config prune .grobl.toml --current-tree --stdout
+```
+
+For each inherited duplicate candidate, grobl removes the rule only when a counterfactual matcher produces the same effective states for the currently traversable tree rooted at the config directory. Unique rules are not candidates merely because no path currently matches them. This mode is deliberately repository-state dependent, so future paths can make a previously redundant inherited rule useful again.
+
+Legacy policy files are rejected by `config prune`; run `grobl config migrate` first.
+
 ## Tag settings
 
 The LLM payload wrapper names remain configurable:

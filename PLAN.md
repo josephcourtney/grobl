@@ -23,6 +23,7 @@ When a configuration model changes:
 - reject ambiguous mixed schemas rather than guessing;
 - preserve source files by default for destructive migrations;
 - surface cases that cannot be proven equivalent as warnings requiring review.
+- keep config pruning proof-based by default; repository-state-dependent pruning must be an explicit mode, compare effective states counterfactually, and retain backups/preview before destructive edits.
 
 ## Validation strategy
 

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- add `grobl config prune` with conservative same-source pruning, backup/preview/check modes, and optional `--current-tree` counterfactual pruning of exact inherited duplicates.
+
 ## [2.3.1] - 2026-09-21
 
 ### Fixed

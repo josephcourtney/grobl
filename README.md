@@ -132,6 +132,16 @@ Behavior:
   * Spacing
 * If the target `.grobl.toml` already exists and `--force` is **not** given, the command exits with an error.
 
+### `grobl config migrate [PATH]`
+
+Translate a legacy-only inclusion config to canonical `exclude`, `tree_only`, and `include` keys. The command backs up in-place edits by default and supports `--stdout` and `--check`.
+
+### `grobl config prune [PATH]`
+
+Remove redundant canonical inclusion rules. Default pruning is future-safe and only removes rules shadowed by a later identical matcher in the same file. Add `--current-tree` to consider exact inherited same-base duplicates and remove them only when counterfactual matching leaves the currently traversable scan tree unchanged.
+
+Like migration, pruning supports `--stdout`, `--check`, and `--backup/--no-backup`. Legacy policy files must be migrated first.
+
 ### `grobl version`
 
 Print the installed grobl version (derived from the package metadata):
@@ -432,6 +442,15 @@ grobl config migrate .grobl.toml
 ```
 
 The command writes in place and creates `.grobl.toml.bak` by default. `--stdout` previews without writing, `--check` reports whether migration is still needed, and `--no-backup` disables the backup. Mixed canonical/legacy files are rejected. If both old tree and content scopes contain patterns, the command warns that overlapping globs should be reviewed after migration.
+
+Canonical configs can then be minimized conservatively:
+
+```bash
+grobl config prune .grobl.toml --stdout
+grobl config prune .grobl.toml --current-tree --stdout
+```
+
+The first form removes only same-source rules that are provably shadowed by a later identical matcher. `--current-tree` additionally tests exact inherited duplicates against the current traversable repository tree; because that result depends on paths that exist now, grobl warns when it removes any such rule.
 
 Example runtime override:
 

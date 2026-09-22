@@ -52,6 +52,9 @@ Examples:
 
   grobl config migrate
     Translate legacy inclusion keys to the canonical three-state config.
+
+  grobl config prune --current-tree
+    Remove redundant canonical rules after counterfactual policy checks.
 """
 
 

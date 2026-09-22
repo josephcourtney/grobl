@@ -9,7 +9,7 @@ name = "CLI wraps application layer"
 type = "layers"
 layers = [
   "grobl.cli",
-  "grobl.app : grobl.config : grobl.config_migration : grobl.services",
+  "grobl.app : grobl.config : grobl.config_migration : grobl.config_pruning : grobl.services",
   "grobl.core : grobl.renderers : grobl.summary : grobl.formatter : grobl.output : grobl.tty",
   "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.utils : grobl.logging_utils",
   "grobl.constants : grobl.errors : grobl._version : grobl.resources",
@@ -23,6 +23,7 @@ source_modules = [
   "grobl.app",
   "grobl.config",
   "grobl.config_migration",
+  "grobl.config_pruning",
   "grobl.services",
 ]
 forbidden_modules = ["grobl.cli"]
