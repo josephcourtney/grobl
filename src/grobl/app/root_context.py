@@ -198,5 +198,5 @@ def _root_opt_skip(flag: str) -> int:
 ROOT_FLAGS_WITH_VALUES = {
     "--log-level",
 }
-ROOT_FLAGS_NO_VALUES = {}
+ROOT_FLAGS_NO_VALUES = {"--debug"}
 ROOT_EQUALS_FORMS = tuple(f"{flag}=" for flag in ROOT_FLAGS_WITH_VALUES)
