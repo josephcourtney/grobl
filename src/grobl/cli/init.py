@@ -7,9 +7,7 @@ from pathlib import Path
 
 import click
 
-from grobl.app.command_support import MAX_REF_PREVIEW, _scan_for_legacy_references
 from grobl.app.config_defaults import TOML_CONFIG, write_starter_config
-from grobl.app.config_loading import LEGACY_TOML_CONFIG
 
 from .help_format import LiteralEpilogCommand
 
@@ -53,12 +51,3 @@ def init(*, target: Path, force: bool) -> None:
     except OSError as e:
         print(f"Failed to write '{TOML_CONFIG}': {e}", file=sys.stderr)
         raise SystemExit(1) from e
-
-    refs = _scan_for_legacy_references(target)
-    if refs:
-        print(f"Heads up: found {len(refs)} reference(s) to '{LEGACY_TOML_CONFIG}' in this repository:")
-        for p, ln, text in refs[:50]:
-            print(f"  - {p}:{ln}: {text}")
-        if len(refs) > MAX_REF_PREVIEW:
-            print("  ... (truncated)")
-        print("Update these to '.grobl.toml' to avoid confusion.")

@@ -9,6 +9,7 @@
 ### Changed
 - change `grobl init` to generate a minimal commented project-delta config instead of copying the bundled default policy into the repository.
 - omit current/legacy Grobl config backup files from bundled policy so migration backups are not captured in later payloads.
+- make `grobl init` return immediately after writing the starter config instead of recursively scanning the repository for textual references to the legacy config filename.
 
 ## [2.3.1] - 2026-09-21
 

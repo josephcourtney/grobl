@@ -25,23 +25,6 @@ if TYPE_CHECKING:
     from typing import Any
 
 
-# ------------------ iter_legacy_references / _scan_for_legacy -----------------
-def test_iter_and_scan_legacy_references(tmp_path: Path) -> None:
-    # Create files that do and don't contain the legacy name
-    (tmp_path / "README.md").write_text("see .grobl.config.toml here", encoding="utf-8")
-    (tmp_path / "note.txt").write_text("nothing to see", encoding="utf-8")
-    hits = list(ccommon.iter_legacy_references(tmp_path))
-    assert hits, "expected at least one legacy reference"
-    # _scan_for_legacy_references returns the same results as a list
-    scanned = ccommon._scan_for_legacy_references(tmp_path)
-    assert scanned == hits
-    # Spot check tuple structure: (Path, line_number, text)
-    p, ln, text = hits[0]
-    assert isinstance(p, Path)
-    assert isinstance(ln, int)
-    assert ".grobl.config.toml" in text
-
-
 # --------------------------- print_interrupt_diagnostics ----------------------
 
 

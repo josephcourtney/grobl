@@ -17,7 +17,8 @@ Finish smoke testing and release validation for the new project-delta configurat
 - Extended current-tree pruning so disabling inherited defaults is respected during counterfactual analysis.
 - Added regression coverage for config-vs-CLI precedence, disabled defaults, invalid configured behavior, migration acceptance/decline, and config-backup omission.
 - Fixed the new component-test repository-root setup and kept the SMALL broken-pipe test hermetic by mocking config maintenance.
-- `just check` passes after the config revision and fixture fixes, covering syntax, formatting, lint, typing, import contracts, the full test suite, and coverage.
+- `just check` passed after the config revision and fixture fixes, covering syntax, formatting, lint, typing, import contracts, the full test suite, and coverage.
+- Removed the repository-wide legacy-filename reference scan from `grobl init`; the command now stops after writing the starter config.
 
 ## Known gaps and limitations
 
@@ -27,7 +28,7 @@ Finish smoke testing and release validation for the new project-delta configurat
 
 ## Risks / blockers
 
-No known implementation blocker. Manual smoke checks and `just release-check` remain pending.
+No known implementation blocker. Repository validation must be rerun after removing the init-time legacy-reference scan; manual smoke checks and `just release-check` remain pending.
 
 ## Resume notes
 
