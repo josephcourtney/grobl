@@ -22,7 +22,6 @@ def build_ignore_matcher(
     tree_patterns: Iterable[str] = (),
     print_patterns: Iterable[str] = (),
     include_defaults: bool = False,
-    include_config: bool = False,
 ) -> LayeredIgnoreMatcher:
     """Return a matcher mirroring the CLI inclusion assembly.
 
@@ -32,9 +31,7 @@ def build_ignore_matcher(
     default_cfg = load_default_config()
     return build_layered_ignores(
         repo_root=repo_root,
-        scan_paths=scan_paths,
         include_defaults=include_defaults,
-        include_config=include_config,
         runtime_exclude=tuple(exclude_patterns),
         runtime_tree_only=tuple(tree_only_patterns),
         runtime_include=tuple(include_patterns),
