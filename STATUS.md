@@ -6,25 +6,25 @@ Last updated: 2026-09-21
 
 ## Current focus
 
-Validate the new canonical-config pruning workflow and the existing 2.3.1 release metadata.
+Validate the refined config-pruning output and finish 2.3.1 release validation.
 
 ## Recently completed
 
-- Added `grobl config prune` for future-safe removal of same-source rules shadowed by later identical matchers.
-- Added optional `--current-tree` pruning for exact inherited same-base duplicates, guarded by counterfactual effective-state comparison.
-- Preserved backup, `--stdout`, and `--check` maintenance semantics shared with `config migrate`.
-- Added unit/component/CLI regression coverage and import-architecture wiring.
+- Refined pruning to remove semantically empty canonical policy keys and non-policy settings that repeat their effective inherited value.
+- Added cleanup of orphaned comment-only groups inside pruned policy arrays.
+- Kept XDG/general-config resets and `extends` suppression semantics from being pruned incorrectly.
+- Kept `--current-tree` as the only repository-path-dependent pruning mode.
 
 ## Known gaps and limitations
 
-- Default pruning intentionally does not attempt arbitrary gitignore-glob subsumption.
+- Structural pruning intentionally does not attempt arbitrary gitignore-glob subsumption.
 - `--current-tree` is repository-state dependent and may retain or remove rules differently after paths change.
 - Legacy policy files must be migrated before pruning.
 
 ## Risks / blockers
 
-No known implementation blocker. Full repository and release validation remain pending.
+The refined pruning implementation still needs the strict repository validation gate.
 
 ## Resume notes
 
-Run the validation items in [TODO.md](TODO.md). Review `grobl config prune --current-tree --stdout` before applying it to the project config.
+Run the items in [TODO.md](TODO.md), then preview the project config again before applying pruning.

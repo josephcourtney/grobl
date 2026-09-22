@@ -62,7 +62,7 @@ Translate a legacy-only `.grobl.toml` inclusion policy to canonical `exclude`, `
 
 ### `grobl config prune [PATH]`
 
-Remove redundant rules from a canonical inclusion config. Without extra flags, pruning removes only same-source rules shadowed by a later identical matcher. Add `--current-tree` to counterfactually test exact inherited same-base duplicates against the current traversable tree before removing them. `--stdout`, `--check`, and `--backup/--no-backup` mirror the migration command.
+Remove redundant entries from a canonical config. Without extra flags, pruning performs tree-independent structural cleanup: shadowed same-source policy rules, semantically empty canonical policy keys, inherited duplicate non-policy settings, and orphaned policy-array comment groups. Add `--current-tree` to counterfactually test exact inherited same-base policy duplicates against the current traversable tree before removing them. `--stdout`, `--check`, and `--backup/--no-backup` mirror the migration command.
 
 ### `grobl version`
 

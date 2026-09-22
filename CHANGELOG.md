@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Added
-- add `grobl config prune` with conservative same-source pruning, backup/preview/check modes, and optional `--current-tree` counterfactual pruning of exact inherited duplicates.
+- add `grobl config prune` with structural cleanup of shadowed rules, no-op policy keys, inherited duplicate settings, and orphaned policy comments, plus backup/preview/check modes and optional `--current-tree` counterfactual pruning of exact inherited policy duplicates.
 
 ## [2.3.1] - 2026-09-21
 

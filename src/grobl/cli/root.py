@@ -54,7 +54,7 @@ Examples:
     Translate legacy inclusion keys to the canonical three-state config.
 
   grobl config prune --current-tree
-    Remove redundant canonical rules after counterfactual policy checks.
+    Remove redundant config entries, including counterfactually safe policy duplicates.
 """
 
 

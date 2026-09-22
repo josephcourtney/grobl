@@ -102,7 +102,9 @@ Use `grobl config prune [PATH]` after migration when a canonical file has accumu
 grobl config prune .grobl.toml --stdout
 ```
 
-Default pruning is future-safe: it removes only a rule shadowed by a later identical matcher in the same config source. In-place pruning creates `PATH.bak` by default; `--check` exits nonzero when pruning is available, and `--stdout` previews without writing.
+Default pruning is tree-independent structural cleanup. It removes rules shadowed by later identical matchers in the same source, empty canonical policy keys whose removal leaves the source policy unchanged, and non-policy settings that exactly repeat the value inherited from lower-precedence configuration. When removals empty a comment-labelled subsection of a policy array, that orphaned comment group is removed as well.
+
+In-place pruning creates `PATH.bak` by default; `--check` exits nonzero when pruning is available, and `--stdout` previews without writing.
 
 To consider exact repetitions of inherited same-base policy, opt into repository-state analysis:
 
@@ -110,7 +112,9 @@ To consider exact repetitions of inherited same-base policy, opt into repository
 grobl config prune .grobl.toml --current-tree --stdout
 ```
 
-For each inherited duplicate candidate, grobl removes the rule only when a counterfactual matcher produces the same effective states for the currently traversable tree rooted at the config directory. Unique rules are not candidates merely because no path currently matches them. This mode is deliberately repository-state dependent, so future paths can make a previously redundant inherited rule useful again.
+For each exact inherited same-base policy duplicate candidate, grobl removes the rule only when a counterfactual matcher produces the same effective states for the currently traversable tree rooted at the config directory. Unique rules are not candidates merely because no path currently matches them. This mode is deliberately repository-state dependent, so future paths can make a previously redundant inherited rule useful again.
+
+A non-policy setting is pruned only when its value equals the value actually inherited from earlier general-config sources. For example, a project setting that resets an XDG override is retained even when it happens to equal the bundled default.
 
 Legacy policy files are rejected by `config prune`; run `grobl config migrate` first.
 

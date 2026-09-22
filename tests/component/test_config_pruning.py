@@ -21,9 +21,10 @@ def test_current_tree_prunes_exact_inherited_duplicate(tmp_path: Path) -> None:
         repo_root=tmp_path,
         default_cfg={"tree_only": ["*.png"]},
     )
+    parsed = tomlkit.parse(result.text)
 
     assert result.changed is True
-    assert list(tomlkit.parse(result.text)["tree_only"]) == []
+    assert "tree_only" not in parsed
     assert result.warnings
 
 
@@ -62,3 +63,123 @@ def test_current_tree_does_not_remove_unique_dormant_rule(tmp_path: Path) -> Non
 
     assert result.changed is False
     assert result.text == source
+
+
+def test_prune_removes_empty_policy_key_and_inherited_setting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    config = tmp_path / ".grobl.toml"
+    config.write_text(
+        """\
+exclude = ["custom"]
+include = []
+include_tree_tags = "directory"
+include_file_tags = "file"
+""",
+        encoding="utf-8",
+    )
+
+    result = inspect_config_pruning(
+        config,
+        repo_root=tmp_path,
+        default_cfg={
+            "include": [],
+            "include_tree_tags": "directory",
+            "include_file_tags": "files",
+        },
+    )
+    parsed = tomlkit.parse(result.text)
+
+    assert result.changed is True
+    assert list(parsed["exclude"]) == ["custom"]
+    assert "include" not in parsed
+    assert "include_tree_tags" not in parsed
+    assert parsed["include_file_tags"] == "file"
+    assert result.removed_settings == ("include_tree_tags",)
+    assert result.removed_empty_keys == ("include",)
+
+
+def test_prune_keeps_setting_that_resets_xdg_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xdg_home = tmp_path / "xdg"
+    xdg_config = xdg_home / "grobl" / "config.toml"
+    xdg_config.parent.mkdir(parents=True)
+    xdg_config.write_text('include_tree_tags = "custom"\n', encoding="utf-8")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_home))
+
+    project = tmp_path / "project"
+    project.mkdir()
+    config = project / ".grobl.toml"
+    source = 'include_tree_tags = "directory"\n'
+    config.write_text(source, encoding="utf-8")
+
+    result = inspect_config_pruning(
+        config,
+        repo_root=project,
+        default_cfg={"include_tree_tags": "directory"},
+    )
+
+    assert result.changed is False
+    assert result.text == source
+
+
+def test_prune_keeps_empty_policy_key_that_suppresses_extends(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    base = tmp_path / "base.toml"
+    base.write_text('include = ["keep/**"]\n', encoding="utf-8")
+    config = tmp_path / ".grobl.toml"
+    source = 'extends = ["base.toml"]\ninclude = []\n'
+    config.write_text(source, encoding="utf-8")
+
+    result = inspect_config_pruning(
+        config,
+        repo_root=tmp_path,
+        default_cfg={},
+    )
+
+    assert result.changed is False
+    assert result.text == source
+
+
+def test_current_tree_removes_orphaned_policy_sections(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    config = tmp_path / ".grobl.toml"
+    config.write_text(
+        """\
+exclude = [
+  "custom",
+
+  # secrets
+  ".env",
+
+  # version control
+  ".git",
+
+  # project-specific
+  "keep",
+]
+""",
+        encoding="utf-8",
+    )
+
+    result = inspect_config_pruning(
+        config,
+        current_tree=True,
+        repo_root=tmp_path,
+        default_cfg={"exclude": [".env", ".git"]},
+    )
+
+    assert "# secrets" not in result.text
+    assert "# version control" not in result.text
+    assert "# project-specific" in result.text
+    assert list(tomlkit.parse(result.text)["exclude"]) == ["custom", "keep"]

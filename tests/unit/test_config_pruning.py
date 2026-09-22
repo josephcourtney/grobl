@@ -24,10 +24,29 @@ include = []
     assert result.removed[0].pattern == "foo"
 
 
-def test_prune_text_preserves_comments_around_removed_array_item() -> None:
+def test_prune_text_removes_orphaned_comment_group() -> None:
     source = """\
 exclude = [
-  # generated
+  # stale group
+  "build",
+
+  # surviving group
+  "build",
+]
+"""
+
+    result = prune_config_text(source)
+
+    assert "# stale group" not in result.text
+    assert "# surviving group" in result.text
+    assert list(tomlkit.parse(result.text)["exclude"]) == ["build"]
+
+
+def test_prune_text_preserves_preexisting_comment_only_group() -> None:
+    source = """\
+exclude = [
+  # explanatory note
+
   "build",
   "build",
 ]
@@ -35,8 +54,7 @@ exclude = [
 
     result = prune_config_text(source)
 
-    assert "# generated" in result.text
-    assert list(tomlkit.parse(result.text)["exclude"]) == ["build"]
+    assert "# explanatory note" in result.text
 
 
 def test_prune_text_leaves_irredundant_config_unchanged() -> None:
