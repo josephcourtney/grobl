@@ -8,14 +8,13 @@ from grobl.config_defaults import load_default_config
 from grobl.ignore import LayeredIgnoreMatcher, build_layered_ignores
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable
     from pathlib import Path
 
 
 def build_ignore_matcher(
     *,
     repo_root: Path,
-    scan_paths: Sequence[Path],
     exclude_patterns: Iterable[str] = (),
     tree_only_patterns: Iterable[str] = (),
     include_patterns: Iterable[str] = (),
