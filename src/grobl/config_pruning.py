@@ -13,7 +13,12 @@ from tomlkit.exceptions import TOMLKitError
 from tomlkit.items import Array
 
 from grobl.config_defaults import TOML_CONFIG, load_default_config
-from grobl.config_loading import discover_grobl_toml_files, LEGACY_TOML_CONFIG, PYPROJECT_TOML, load_toml_config
+from grobl.config_loading import (
+    LEGACY_TOML_CONFIG,
+    PYPROJECT_TOML,
+    discover_grobl_toml_files,
+    load_toml_config,
+)
 from grobl.constants import (
     CONFIG_EXCLUDE,
     CONFIG_EXCLUDE_CONTENT,
