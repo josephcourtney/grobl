@@ -26,9 +26,8 @@ from grobl.constants import (
 from grobl.errors import ConfigLoadError
 from grobl.ignore import (
     InclusionLayer,
-    InclusionRule,
-    LayerSource,
     LayeredIgnoreMatcher,
+    LayerSource,
     compile_layers,
     discover_grobl_toml_files,
     rules_from_config,
@@ -478,9 +477,7 @@ def _prune_empty_policy_keys(document: TOMLDocument, *, path: Path) -> list[str]
 
 def _matcher(layers: Sequence[InclusionLayer]) -> LayeredIgnoreMatcher:
     compiled = compile_layers(layers)
-    has_reinclusions = any(
-        rule.level is InclusionLevel.FULL for layer in compiled for rule in layer.rules
-    )
+    has_reinclusions = any(rule.level is InclusionLevel.FULL for layer in compiled for rule in layer.rules)
     return LayeredIgnoreMatcher(layers=compiled, has_reinclusions=has_reinclusions)
 
 
@@ -607,8 +604,10 @@ def inspect_config_pruning(
             removed.extend(current_removed)
             if current_removed:
                 warnings = (
-                    "current-tree pruning depends on the repository paths that exist now; "
-                    "future paths may make an inherited duplicate relevant again",
+                    (
+                        "current-tree pruning depends on the repository paths that exist now; "
+                        "future paths may make an inherited duplicate relevant again"
+                    ),
                 )
 
         removed_empty_keys = _prune_empty_policy_keys(document, path=path)
