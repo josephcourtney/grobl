@@ -64,10 +64,7 @@ class ResourceBudget:
 
     def preflight(self, path: Path, *, file_bytes: int) -> dict[str, Any] | None:
         """Reject a file before reading when byte limits already make it ineligible."""
-        if (
-            self.limits.max_file_bytes is not None
-            and file_bytes > self.limits.max_file_bytes
-        ):
+        if self.limits.max_file_bytes is not None and file_bytes > self.limits.max_file_bytes:
             return resource_limit_reason(
                 path=path,
                 limit="max_file_bytes",
@@ -97,10 +94,7 @@ class ResourceBudget:
         byte_reason = self.preflight(path, file_bytes=file_bytes)
         if byte_reason is not None:
             return byte_reason
-        if (
-            self.limits.max_tokens is not None
-            and self.total_tokens + tokens > self.limits.max_tokens
-        ):
+        if self.limits.max_tokens is not None and self.total_tokens + tokens > self.limits.max_tokens:
             return resource_limit_reason(
                 path=path,
                 limit="max_tokens",

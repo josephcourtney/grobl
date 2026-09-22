@@ -55,7 +55,8 @@ def test_writer_file_failure_is_domain_error(tmp_path: Path) -> None:
 
 def test_writer_clipboard_failure_is_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def fail_copy(_value: str) -> None:
-        raise pyperclip.PyperclipException("clipboard backend missing")
+        msg = "clipboard backend missing"
+        raise pyperclip.PyperclipException(msg)
 
     monkeypatch.setattr(pyperclip, "copy", fail_copy, raising=True)
 
@@ -68,7 +69,8 @@ def test_writer_stdout_failure_is_domain_error(monkeypatch: pytest.MonkeyPatch) 
     class FailingStdout(io.StringIO):
         def write(self, value: str) -> int:
             _ = value
-            raise OSError("stream unavailable")
+            msg = "stream unavailable"
+            raise OSError(msg)
 
     monkeypatch.setattr(sys, "stdout", FailingStdout(), raising=True)
     writer = build_writer_from_config(copy=False, output=Path("-"))

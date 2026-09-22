@@ -24,7 +24,7 @@ from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError, ScanInterrupted
 from grobl.ignore import LayeredIgnoreMatcher
 from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
-from grobl.resource_limits import ResourceLimits, UNLIMITED_RESOURCE_LIMITS
+from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceLimits
 
 from .execution import ScanExecutor, ScanOptions
 

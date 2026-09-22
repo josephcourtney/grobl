@@ -143,7 +143,8 @@ def test_main_normalizes_unhandled_oserror(
         @staticmethod
         def main(*, args: list[str], prog_name: str, standalone_mode: bool) -> None:
             _ = args, prog_name, standalone_mode
-            raise OSError("permission denied")
+            msg = "permission denied"
+            raise OSError(msg)
 
     monkeypatch.setattr(cli_root, "cli", FailingCLI(), raising=True)
 

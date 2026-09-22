@@ -37,7 +37,8 @@ def build_summary_writer(
             except BrokenPipeError:
                 raise
             except OSError as err:
-                raise OutputWriteError(f"cannot write summary output stderr: {err}") from err
+                msg_0 = f"cannot write summary output stderr: {err}"
+                raise OutputWriteError(msg_0) from err
 
         return _write
 
@@ -50,7 +51,8 @@ def build_summary_writer(
             except BrokenPipeError:
                 raise
             except OSError as err:
-                raise OutputWriteError(f"cannot write summary output stdout: {err}") from err
+                msg_0 = f"cannot write summary output stdout: {err}"
+                raise OutputWriteError(msg_0) from err
 
         return _write
 
@@ -62,7 +64,8 @@ def build_summary_writer(
         try:
             output.write_text(text, encoding="utf-8")
         except OSError as err:
-            raise OutputWriteError(f"cannot write summary output {output}: {err}") from err
+            msg_0 = f"cannot write summary output {output}: {err}"
+            raise OutputWriteError(msg_0) from err
 
     return _write
 

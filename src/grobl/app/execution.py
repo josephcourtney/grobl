@@ -20,8 +20,8 @@ from grobl.formatter import human_summary
 from grobl.ignore import LayeredIgnoreMatcher
 from grobl.logging_utils import StructuredLogEvent, get_logger, log_event
 from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
-from grobl.resource_limits import ResourceLimits, UNLIMITED_RESOURCE_LIMITS
 from grobl.renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
+from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceLimits
 from grobl.summary import SummaryContext, build_ndjson_payload, build_sink_payload_json, build_summary
 
 if TYPE_CHECKING:
@@ -95,8 +95,7 @@ def build_summary_for_format(
     resource_omitted = [
         record
         for record in omitted_files
-        if record.content_reason is not None
-        and record.content_reason.get("source") == "resource-limit"
+        if record.content_reason is not None and record.content_reason.get("source") == "resource-limit"
     ]
     other_omitted = len(omitted_files) - len(resource_omitted)
     notes: list[str] = []

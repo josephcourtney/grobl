@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-import grobl.app.command_support as command_support
+from grobl.app import command_support
 from grobl.constants import (
     EXIT_INTERRUPT,
     EXIT_PATH,

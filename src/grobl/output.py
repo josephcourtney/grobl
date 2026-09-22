@@ -29,7 +29,8 @@ class FileOutput:
         try:
             self._path.write_text(content, encoding="utf-8")
         except OSError as err:
-            raise OutputWriteError(f"cannot write output {self._path}: {err}") from err
+            msg = f"cannot write output {self._path}: {err}"
+            raise OutputWriteError(msg) from err
 
 
 class ClipboardOutput:
@@ -66,7 +67,8 @@ class ClipboardOutput:
                     context={"max_attempts": MAX_CLIPBOARD_RETRIES},
                 ),
             )
-            raise ClipboardUnavailableError("clipboard unavailable") from last_error
+            msg = "clipboard unavailable"
+            raise ClipboardUnavailableError(msg) from last_error
 
 
 class StdoutOutput:
@@ -80,7 +82,8 @@ class StdoutOutput:
         except BrokenPipeError:
             raise
         except OSError as err:
-            raise OutputWriteError(f"cannot write output stdout: {err}") from err
+            msg = f"cannot write output stdout: {err}"
+            raise OutputWriteError(msg) from err
 
 
 def build_writer_from_config(*, copy: bool, output: Path | None) -> Callable[[str], None]:

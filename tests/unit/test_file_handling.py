@@ -102,7 +102,8 @@ def test_text_handler_normalizes_late_read_failure(tmp_path: Path) -> None:
     ignores = build_ignore_matcher(repo_root=tmp_path, scan_paths=[tmp_path])
 
     def reader(_path: Path) -> str:
-        raise OSError("permission changed")
+        msg = "permission changed"
+        raise OSError(msg)
 
     context = FileProcessingContext(
         builder=builder,

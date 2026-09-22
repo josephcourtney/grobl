@@ -57,6 +57,10 @@
 [build-system]
   requires      = ["uv_build>=0.12.0,<0.13.0"]
   build-backend = "uv_build"
+[tool.uv]
+  [tool.uv.sources]
+    showcov = { git = "https://github.com/josephcourtney/showcov.git", rev = "main" }
+
 # =================================== lint =====================================
 [tool.ruff]
   extend         = "./ruff.default.toml"

@@ -58,11 +58,7 @@ def _file_entries(snapshot: SummaryTotals, *, visibility: MetadataVisibility) ->
             entry["included"] = record.included
         if record.content_reason is not None:
             entry["content_reason"] = record.content_reason
-        reason_source = (
-            record.content_reason.get("source")
-            if record.content_reason is not None
-            else None
-        )
+        reason_source = record.content_reason.get("source") if record.content_reason is not None else None
         if reason_source == "text-detection":
             entry["binary"] = True
         files.append(entry)

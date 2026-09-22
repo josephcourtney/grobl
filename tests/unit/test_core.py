@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import string
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -196,11 +197,12 @@ def test_run_scan_can_be_extended_with_custom_handler(tmp_path: Path) -> None:
 
 def test_max_file_bytes_omits_before_text_detection(tmp_path: Path) -> None:
     target = tmp_path / "large.txt"
-    target.write_text("0123456789", encoding="utf-8")
+    target.write_text(string.digits, encoding="utf-8")
     ignores = _make_ignores([tmp_path], repo_root=tmp_path)
 
     def detector(_path: Path) -> TextDetectionResult:
-        raise AssertionError("oversized file should not be read")
+        msg = "oversized file should not be read"
+        raise AssertionError(msg)
 
     result = run_scan(
         paths=[tmp_path],

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -9,9 +9,6 @@ from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
 pytestmark = pytest.mark.medium
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def write_toml(p: Path, content: str) -> None:
@@ -143,7 +140,8 @@ def test_unreadable_config_is_normalized_as_config_error(
 
     def read_text(path: Path, *args: object, **kwargs: object) -> str:
         if path == config:
-            raise OSError("permission denied")
+            msg = "permission denied"
+            raise OSError(msg)
         return original_read_text(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "read_text", read_text)

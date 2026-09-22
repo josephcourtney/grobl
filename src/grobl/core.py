@@ -10,7 +10,7 @@ from grobl.constants import InclusionLevel
 from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, traverse_dir
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
-from grobl.resource_limits import ResourceBudget, ResourceLimits, UNLIMITED_RESOURCE_LIMITS
+from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:

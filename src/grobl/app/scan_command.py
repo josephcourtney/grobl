@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import click
 
@@ -21,7 +21,6 @@ from grobl.constants import (
 from grobl.errors import ConfigLoadError, OutputError
 from grobl.metadata_visibility import MetadataVisibility
 from grobl.output import build_writer_from_config
-from grobl.resource_limits import ResourceLimits
 
 from . import output_routing
 from .command_support import ScanParams, execute_scan_with_handling, exit_on_broken_pipe
@@ -42,6 +41,9 @@ from .scan_runtime import (
     gather_runtime_ignore_patterns,
     resolve_runtime_paths,
 )
+
+if TYPE_CHECKING:
+    from grobl.resource_limits import ResourceLimits
 
 
 def run_scan_command(  # ruff: ignore[too-many-locals]

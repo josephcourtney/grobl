@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from .constants import InclusionLevel
 from .provenance import format_content_reason, inclusion_reason_to_dict
-from .resource_limits import ResourceBudget, UNLIMITED_RESOURCE_LIMITS
+from .resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget
 from .token_counting import count_tokens
 from .utils import TextDetectionResult, detect_text, read_text
 
@@ -39,9 +39,7 @@ class FileProcessingContext:
     common: Path
     ignores: LayeredIgnoreMatcher
     dependencies: ScanDependencies
-    budget: ResourceBudget = field(
-        default_factory=lambda: ResourceBudget(UNLIMITED_RESOURCE_LIMITS)
-    )
+    budget: ResourceBudget = field(default_factory=lambda: ResourceBudget(UNLIMITED_RESOURCE_LIMITS))
 
 
 @dataclass(frozen=True, slots=True)

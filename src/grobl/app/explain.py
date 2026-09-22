@@ -10,7 +10,7 @@ import click
 
 from grobl.constants import InclusionLevel
 from grobl.provenance import format_content_reason, inclusion_reason_to_dict
-from grobl.resource_limits import ResourceBudget, ResourceLimits, UNLIMITED_RESOURCE_LIMITS
+from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
 from grobl.token_counting import count_tokens
 from grobl.utils import detect_text, read_text
 
@@ -135,11 +135,7 @@ def _explain_entry(
             file_bytes = abs_path.stat().st_size
         except OSError:
             file_bytes = None
-        budget_reason = (
-            budget.preflight(abs_path, file_bytes=file_bytes)
-            if file_bytes is not None
-            else None
-        )
+        budget_reason = budget.preflight(abs_path, file_bytes=file_bytes) if file_bytes is not None else None
         if budget_reason is not None:
             content_included = False
             content_reason = budget_reason
@@ -167,11 +163,7 @@ def _explain_entry(
                         )
                     else:
                         tokens = count_tokens(content) if limits.max_tokens is not None else 0
-                        actual_bytes = (
-                            file_bytes
-                            if file_bytes is not None
-                            else len(content.encode("utf-8"))
-                        )
+                        actual_bytes = file_bytes if file_bytes is not None else len(content.encode("utf-8"))
                 if content_included and actual_bytes is not None:
                     budget_reason = budget.accept(
                         abs_path,
