@@ -24,6 +24,7 @@ from grobl.directory import DirectoryTreeBuilder
 from grobl.errors import PathNotFoundError, ScanInterrupted
 from grobl.ignore import LayeredIgnoreMatcher
 from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
+from grobl.resource_limits import ResourceLimits, UNLIMITED_RESOURCE_LIMITS
 
 from .execution import ScanExecutor, ScanOptions
 
@@ -46,6 +47,7 @@ class ScanParams:
     paths: tuple[Path, ...]
     repo_root: Path
     visibility: MetadataVisibility = DEFAULT_METADATA_VISIBILITY
+    limits: ResourceLimits = UNLIMITED_RESOURCE_LIMITS
     pattern_base: Path | None = None
 
 
@@ -96,6 +98,7 @@ def execute_scan_with_handling(
                 summary_style=summary_style,
                 repo_root=params.repo_root,
                 visibility=params.visibility,
+                limits=params.limits,
                 pattern_base=params.pattern_base,
             ),
         )

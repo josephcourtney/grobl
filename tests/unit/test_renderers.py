@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.config import load_default_config
+from grobl.config_defaults import load_default_config
 from grobl.constants import ContentScope
 from grobl.core import run_scan
 from grobl.directory import DirectoryTreeBuilder

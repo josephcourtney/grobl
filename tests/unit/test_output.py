@@ -7,6 +7,7 @@ from pathlib import Path
 import pyperclip
 import pytest
 
+from grobl.errors import ClipboardUnavailableError, OutputWriteError
 from grobl.output import build_writer_from_config
 
 pytestmark = pytest.mark.medium
@@ -43,3 +44,34 @@ def test_writer_output_dash_writes_stdout(monkeypatch: pytest.MonkeyPatch) -> No
 def test_writer_requires_destination() -> None:
     with pytest.raises(ValueError, match="destination"):
         build_writer_from_config(copy=False, output=None)
+
+
+def test_writer_file_failure_is_domain_error(tmp_path: Path) -> None:
+    writer = build_writer_from_config(copy=False, output=tmp_path)
+
+    with pytest.raises(OutputWriteError, match="cannot write output"):
+        writer("payload")
+
+
+def test_writer_clipboard_failure_is_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_copy(_value: str) -> None:
+        raise pyperclip.PyperclipException("clipboard backend missing")
+
+    monkeypatch.setattr(pyperclip, "copy", fail_copy, raising=True)
+
+    writer = build_writer_from_config(copy=True, output=None)
+    with pytest.raises(ClipboardUnavailableError, match="clipboard unavailable"):
+        writer("payload")
+
+
+def test_writer_stdout_failure_is_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FailingStdout(io.StringIO):
+        def write(self, value: str) -> int:
+            _ = value
+            raise OSError("stream unavailable")
+
+    monkeypatch.setattr(sys, "stdout", FailingStdout(), raising=True)
+    writer = build_writer_from_config(copy=False, output=Path("-"))
+
+    with pytest.raises(OutputWriteError, match="cannot write output stdout"):
+        writer("payload")

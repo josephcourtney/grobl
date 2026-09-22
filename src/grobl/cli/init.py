@@ -7,7 +7,8 @@ from pathlib import Path
 
 import click
 
-from grobl.app.config_defaults import TOML_CONFIG, write_starter_config
+from grobl.config_defaults import TOML_CONFIG, write_starter_config
+from grobl.constants import EXIT_IO
 
 from .help_format import LiteralEpilogCommand
 
@@ -49,5 +50,5 @@ def init(*, target: Path, force: bool) -> None:
         write_starter_config(target)
         print(f"Wrote starter config to {new}")
     except OSError as e:
-        print(f"Failed to write '{TOML_CONFIG}': {e}", file=sys.stderr)
-        raise SystemExit(1) from e
+        print(f"error: cannot write config {new}: {e}", file=sys.stderr)
+        raise SystemExit(EXIT_IO) from e

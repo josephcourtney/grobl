@@ -11,6 +11,7 @@ import click
 
 from grobl import tty
 from grobl.constants import PayloadFormat, SummaryDestination, SummaryFormat, TableStyle
+from grobl.errors import OutputWriteError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -30,16 +31,26 @@ def build_summary_writer(
     if destination is SummaryDestination.STDERR:
 
         def _write(text: str) -> None:
-            sys.stderr.write(text)
-            sys.stderr.flush()
+            try:
+                sys.stderr.write(text)
+                sys.stderr.flush()
+            except BrokenPipeError:
+                raise
+            except OSError as err:
+                raise OutputWriteError(f"cannot write summary output stderr: {err}") from err
 
         return _write
 
     if destination is SummaryDestination.STDOUT:
 
         def _write(text: str) -> None:
-            sys.stdout.write(text)
-            sys.stdout.flush()
+            try:
+                sys.stdout.write(text)
+                sys.stdout.flush()
+            except BrokenPipeError:
+                raise
+            except OSError as err:
+                raise OutputWriteError(f"cannot write summary output stdout: {err}") from err
 
         return _write
 
@@ -48,7 +59,10 @@ def build_summary_writer(
         raise ValueError(msg)
 
     def _write(text: str) -> None:
-        output.write_text(text, encoding="utf-8")
+        try:
+            output.write_text(text, encoding="utf-8")
+        except OSError as err:
+            raise OutputWriteError(f"cannot write summary output {output}: {err}") from err
 
     return _write
 

@@ -64,7 +64,11 @@ def _load_with_extends(path: Path, *, _visited: set[Path] | None = None) -> dict
         return {}
     _visited.add(real)
 
-    raw = path.read_text(encoding="utf-8")
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as err:
+        msg = f"cannot read config {path}: {err}"
+        raise ConfigLoadError(msg) from err
     try:
         data = tomlkit.loads(raw)
     except TOMLKitError as err:
@@ -100,7 +104,12 @@ def _merge_pyproject_cfg(pyproject_path: Path, cfg: dict[str, Any]) -> dict[str,
     if not pyproject_path.exists():
         return cfg
     try:
-        data = tomlkit.loads(pyproject_path.read_text(encoding="utf-8"))
+        raw = pyproject_path.read_text(encoding="utf-8")
+    except OSError as err:
+        msg = f"cannot read config {pyproject_path}: {err}"
+        raise ConfigLoadError(msg) from err
+    try:
+        data = tomlkit.loads(raw)
     except TOMLKitError as err:
         msg = f"Error parsing pyproject.toml: {err}"
         raise ConfigLoadError(msg) from err

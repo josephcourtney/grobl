@@ -42,6 +42,9 @@ inherit_defaults = true
 # tokens = true
 # inclusion_status = true
 # ignore_policy = "auto"
+# max_file_bytes = 1048576   # 0 disables
+# max_total_bytes = 16777216 # 0 disables
+# max_tokens = 200000        # 0 disables
 
 # LLM payload tag names:
 # include_tree_tags = "directory"

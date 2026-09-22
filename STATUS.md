@@ -2,34 +2,32 @@
 
 This file is the short-horizon project snapshot for continuity and handoff. Durable architecture is in [DESIGN.md](DESIGN.md), execution strategy in [PLAN.md](PLAN.md), and immediate work in [TODO.md](TODO.md).
 
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 ## Current focus
 
-Finish smoke testing and release validation for the new project-delta configuration model and interactive legacy-maintenance flow.
+Validate the CLI-safety and simplification pass on the `critique-cleanup` branch.
 
 ## Recently completed
 
-- Changed `grobl init` to generate a minimal commented project config rather than materializing bundled policy.
-- Added `inherit_defaults` as a policy-only switch; explicit CLI source selection remains higher precedence.
-- Added persistent config equivalents for stable scan behavior while keeping routing/actions invocation-specific.
-- Added automatic legacy-schema detection for scan/explain with interactive migration/pruning offers and noninteractive warn-only behavior.
-- Extended current-tree pruning so disabling inherited defaults is respected during counterfactual analysis.
-- Added regression coverage for config-vs-CLI precedence, disabled defaults, invalid configured behavior, migration acceptance/decline, and config-backup omission.
-- Fixed the new component-test repository-root setup and kept the SMALL broken-pipe test hermetic by mocking config maintenance.
-- `just check` passed after the config revision and fixture fixes, covering syntax, formatting, lint, typing, import contracts, the full test suite, and coverage.
-- Removed the repository-wide legacy-filename reference scan from `grobl init`; the command now stops after writing the starter config.
+- Made scan/explain warning-only for legacy configuration; migration and pruning are explicit config commands.
+- Simplified implicit scan parsing so unknown first positionals are paths rather than unknown commands.
+- Added finite configurable per-file, aggregate-byte, and token budgets with explainable omissions.
+- Changed text detection to bounded-memory streaming and strengthened sensitive-filename defaults.
+- Normalized config-read, clipboard, and output-write failures and added explicit clipboard-success feedback.
+- Removed CLI/config/service compatibility facades and switched callers/tests toward canonical modules.
+- Cleaned duplicate, unused, and mutable package metadata.
 
 ## Known gaps and limitations
 
-- Structural pruning intentionally does not attempt arbitrary gitignore-glob subsumption.
-- `--current-tree` remains repository-state dependent and therefore requires explicit confirmation in the interactive flow.
-- Persistent scan-wide settings use the general config merge; nested path-specific configs remain policy layers rather than per-subtree payload-format/scope settings.
+- Sensitive-file protection is path-based and does not attempt content-level secret scanning.
+- Aggregate byte/token omissions depend on deterministic scan order; standalone `explain` reports the active budgets and direct per-file violations rather than reconstructing a previous scan.
+- Legacy inclusion keys remain supported as ingress compatibility syntax until a future explicit removal.
 
 ## Risks / blockers
 
-No known implementation blocker. Repository validation must be rerun after removing the init-time legacy-reference scan; manual smoke checks and `just release-check` remain pending.
+Repository validation still needs to confirm formatting, typing, import contracts, tests, and coverage after this pass.
 
 ## Resume notes
 
-Run the remaining smoke tests and release validation in [TODO.md](TODO.md). These changes remain Unreleased.
+Run the validation items in `TODO.md` from a local checkout. This environment could review and update the repository through GitHub but could not execute the repository because outbound GitHub/DNS access from the code container was unavailable.

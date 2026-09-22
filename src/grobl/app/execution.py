@@ -20,6 +20,7 @@ from grobl.formatter import human_summary
 from grobl.ignore import LayeredIgnoreMatcher
 from grobl.logging_utils import StructuredLogEvent, get_logger, log_event
 from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
+from grobl.resource_limits import ResourceLimits, UNLIMITED_RESOURCE_LIMITS
 from grobl.renderers import DirectoryRenderer, build_llm_payload, build_markdown_payload
 from grobl.summary import SummaryContext, build_ndjson_payload, build_sink_payload_json, build_summary
 
@@ -38,6 +39,7 @@ class ScanOptions:
     summary_style: TableStyle
     repo_root: Path
     visibility: MetadataVisibility = DEFAULT_METADATA_VISIBILITY
+    limits: ResourceLimits = UNLIMITED_RESOURCE_LIMITS
     pattern_base: Path | None = None
 
 
@@ -90,10 +92,22 @@ def build_summary_for_format(
     snapshot = builder.summary_totals()
     tree_lines = renderer.tree_lines(include_metadata=True, visibility=options.visibility)
     omitted_files = [record for _, record in snapshot.iter_files() if not record.included]
+    resource_omitted = [
+        record
+        for record in omitted_files
+        if record.content_reason is not None
+        and record.content_reason.get("source") == "resource-limit"
+    ]
+    other_omitted = len(omitted_files) - len(resource_omitted)
     notes: list[str] = []
-    if omitted_files:
+    if resource_omitted:
         notes.append(
-            f"{len(omitted_files)} file contents omitted by filters or text detection; "
+            f"{len(resource_omitted)} file contents omitted by resource limits; "
+            "run `grobl explain <path>` for details."
+        )
+    if other_omitted:
+        notes.append(
+            f"{other_omitted} file contents omitted by filters or text detection; "
             "run `grobl explain <path>` for details."
         )
     human_summary_text = human_formatter(
@@ -315,6 +329,7 @@ class ScanExecutor:
             ignores=ignores,
             match_base=options.pattern_base,
             repo_root=options.repo_root,
+            limits=options.limits,
         )
 
         builder = result.builder

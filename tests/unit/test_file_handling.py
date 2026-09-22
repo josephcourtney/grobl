@@ -93,3 +93,36 @@ def test_count_tokens_accepts_text_with_special_token_markers() -> None:
     count = count_tokens("prefix <|endoftext|> suffix")
 
     assert count > 0
+
+
+def test_text_handler_normalizes_late_read_failure(tmp_path: Path) -> None:
+    target = tmp_path / "note.txt"
+    target.write_text("hello\n", encoding="utf-8")
+    builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
+    ignores = build_ignore_matcher(repo_root=tmp_path, scan_paths=[tmp_path])
+
+    def reader(_path: Path) -> str:
+        raise OSError("permission changed")
+
+    context = FileProcessingContext(
+        builder=builder,
+        common=tmp_path,
+        ignores=ignores,
+        dependencies=_deps(
+            detector=lambda _path: TextDetectionResult(is_text=True),
+            reader=reader,
+        ),
+    )
+
+    TextFileHandler().process(
+        path=target,
+        context=context,
+        is_text_file=True,
+        detection=TextDetectionResult(is_text=True),
+    )
+
+    record = dict(builder.metadata_items())["note.txt"]
+    assert record.included is False
+    assert record.content_reason is not None
+    assert record.content_reason["source"] == "text-detection"
+    assert "read error" in str(record.content_reason["detail"])

@@ -12,6 +12,11 @@ tokens = true
 inclusion_status = true
 ignore_policy = "auto"
 
+# Content budgets. Set any value to 0 to disable that limit.
+max_file_bytes = 1048576
+max_total_bytes = 16777216
+max_tokens = 200000
+
 # ============================================
 # Paths that should be absent from both the hierarchy and content payload
 # ============================================
@@ -30,6 +35,28 @@ exclude = [
   ".envrc",
   ".direnv",
   ".env",
+  ".env.*",
+  ".npmrc",
+  ".pypirc",
+  ".netrc",
+  ".authinfo",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*.ppk",
+  "id_rsa*",
+  "id_dsa*",
+  "id_ecdsa*",
+  "id_ed25519*",
+  ".aws/credentials",
+  ".config/gcloud",
+  ".azure",
+  ".kube/config",
+  ".docker/config.json",
+  "application_default_credentials.json",
+  "service-account*.json",
+  "service_account*.json",
 
   # version control
   ".git",

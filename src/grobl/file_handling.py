@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .constants import InclusionLevel
 from .provenance import format_content_reason, inclusion_reason_to_dict
+from .resource_limits import ResourceBudget, UNLIMITED_RESOURCE_LIMITS
 from .token_counting import count_tokens
 from .utils import TextDetectionResult, detect_text, read_text
 
@@ -38,6 +39,9 @@ class FileProcessingContext:
     common: Path
     ignores: LayeredIgnoreMatcher
     dependencies: ScanDependencies
+    budget: ResourceBudget = field(
+        default_factory=lambda: ResourceBudget(UNLIMITED_RESOURCE_LIMITS)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +125,23 @@ class TextFileHandler(BaseFileHandler):
         _ = self
         del is_text_file
         deps = context.dependencies
-        content = deps.text_reader(path) if detection.content is None else detection.content
+        try:
+            content = deps.text_reader(path) if detection.content is None else detection.content
+        except OSError as err:
+            try:
+                size = path.stat().st_size
+            except OSError:
+                size = 0
+            return FileAnalysis(
+                lines=0,
+                chars=size,
+                tokens=0,
+                include_content=False,
+                content_reason=format_content_reason(
+                    detection_detail=f"read error: {err}",
+                    subject=path,
+                ),
+            )
         line_count = len(content.splitlines())
         char_count = len(content)
         token_count = count_tokens(content)
@@ -132,6 +152,20 @@ class TextFileHandler(BaseFileHandler):
             if not include_content and decision.reason is not None
             else None
         )
+        if include_content:
+            try:
+                file_bytes = path.stat().st_size
+            except OSError:
+                file_bytes = len(content.encode("utf-8"))
+            budget_reason = context.budget.accept(
+                path,
+                file_bytes=file_bytes,
+                tokens=token_count,
+            )
+            if budget_reason is not None:
+                include_content = False
+                reason = budget_reason
+
         return FileAnalysis(
             lines=line_count,
             chars=char_count,
@@ -205,6 +239,22 @@ class FileHandlerRegistry:
                 content_reason=reason,
             )
             return
+
+        try:
+            file_bytes = path.stat().st_size
+        except OSError:
+            file_bytes = None
+        if file_bytes is not None:
+            budget_reason = context.budget.preflight(path, file_bytes=file_bytes)
+            if budget_reason is not None:
+                context.builder.record_metadata(
+                    path.relative_to(context.common),
+                    0,
+                    0,
+                    0,
+                    content_reason=budget_reason,
+                )
+                return
 
         deps = context.dependencies
         detection = deps.text_detector(path)

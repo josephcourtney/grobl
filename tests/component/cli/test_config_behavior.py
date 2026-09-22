@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-import tomlkit
 from click.testing import CliRunner
 
 from grobl.cli import cli
@@ -109,7 +108,7 @@ def test_inherit_defaults_false_disables_only_bundled_policy(repo_root: Path) ->
     assert "license body" not in explicit_defaults.stdout
 
 
-def test_noninteractive_legacy_config_warns_without_modifying(repo_root: Path) -> None:
+def test_legacy_config_warns_without_modifying(repo_root: Path) -> None:
     (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
     path = repo_root / ".grobl.toml"
     source = 'exclude_tree = ["dist"]\n'
@@ -120,7 +119,6 @@ def test_noninteractive_legacy_config_warns_without_modifying(repo_root: Path) -
         [
             "scan",
             str(repo_root),
-            "--no-interactive",
             "--format",
             "none",
             "--summary",
@@ -134,31 +132,20 @@ def test_noninteractive_legacy_config_warns_without_modifying(repo_root: Path) -
     assert not Path(f"{path}.bak").exists()
 
 
-def test_interactive_legacy_config_offers_migration_then_pruning(repo_root: Path) -> None:
-    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+def test_explain_legacy_config_warns_without_modifying(repo_root: Path) -> None:
+    target = repo_root / "a.txt"
+    target.write_text("hello\n", encoding="utf-8")
     path = repo_root / ".grobl.toml"
     source = 'exclude_tree = ["dist", "dist"]\n'
     path.write_text(source, encoding="utf-8")
 
-    result = CliRunner().invoke(
-        cli,
-        [
-            "scan",
-            str(repo_root),
-            "--interactive",
-            "--format",
-            "none",
-            "--summary",
-            "table",
-        ],
-        input="y\ny\nn\n",
-    )
+    result = CliRunner().invoke(cli, ["explain", "--format", "json", str(target)])
 
     assert result.exit_code == 0
-    parsed = tomlkit.parse(path.read_text(encoding="utf-8"))
-    assert "exclude_tree" not in parsed
-    assert list(parsed["exclude"]) == ["dist"]
-    assert Path(f"{path}.bak").read_text(encoding="utf-8") == source
+    assert "legacy inclusion schema" in result.stderr
+    json.loads(result.stdout)
+    assert path.read_text(encoding="utf-8") == source
+    assert not Path(f"{path}.bak").exists()
 
 
 def test_cli_ignore_defaults_overrides_configured_all_policy(repo_root: Path) -> None:
@@ -187,27 +174,16 @@ def test_invalid_persistent_behavior_is_config_error(repo_root: Path) -> None:
     assert "invalid config value for 'scope'" in result.stderr
 
 
-def test_interactive_legacy_migration_can_be_declined(repo_root: Path) -> None:
+def test_scan_rejects_removed_interactive_flag(repo_root: Path) -> None:
     (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
     path = repo_root / ".grobl.toml"
     source = 'exclude_tree = ["dist"]\n'
     path.write_text(source, encoding="utf-8")
 
-    result = CliRunner().invoke(
-        cli,
-        [
-            "scan",
-            str(repo_root),
-            "--interactive",
-            "--format",
-            "none",
-            "--summary",
-            "table",
-        ],
-        input="n\n",
-    )
+    result = CliRunner().invoke(cli, ["scan", str(repo_root), "--interactive"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 2
+    assert "No such option: --interactive" in (result.stdout + result.stderr)
     assert path.read_text(encoding="utf-8") == source
     assert not Path(f"{path}.bak").exists()
 
@@ -224,3 +200,98 @@ def test_bundled_policy_omits_migration_backup(repo_root: Path) -> None:
     assert result.exit_code == 0
     assert ".grobl.toml.bak" not in result.stdout
     assert "legacy-secret" not in result.stdout
+
+
+def test_sensitive_defaults_filter_common_credential_files(repo_root: Path) -> None:
+    (repo_root / ".env.local").write_text("TOKEN=secret-value\n", encoding="utf-8")
+    (repo_root / ".env.example").write_text("TOKEN=template-value\n", encoding="utf-8")
+    (repo_root / ".npmrc").write_text("//registry/:_authToken=npm-secret\n", encoding="utf-8")
+    (repo_root / "id_ed25519").write_text("private-key-material\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["scan", str(repo_root), "--summary", "none", "--output", "-"],
+    )
+
+    assert result.exit_code == 0
+    for sensitive_value in (
+        "secret-value",
+        "template-value",
+        "npm-secret",
+        "private-key-material",
+    ):
+        assert sensitive_value not in result.stdout
+
+
+def test_explicit_include_can_restore_sensitive_named_file(repo_root: Path) -> None:
+    secret = repo_root / ".env.local"
+    secret.write_text("TOKEN=intentional\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--include",
+            ".env.local",
+            "--summary",
+            "none",
+            "--output",
+            "-",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "TOKEN=intentional" in result.stdout
+
+
+def test_configured_resource_limit_can_be_disabled_explicitly(repo_root: Path) -> None:
+    target = repo_root / "large.txt"
+    target.write_text("hello\n", encoding="utf-8")
+    (repo_root / ".grobl.toml").write_text("max_file_bytes = 1\n", encoding="utf-8")
+
+    limited = CliRunner().invoke(cli, ["explain", "--format", "json", str(target)])
+    assert limited.exit_code == 0
+    limited_entry = json.loads(limited.stdout)[0]
+    assert limited_entry["content"]["included"] is False
+    assert limited_entry["content"]["reason"]["source"] == "resource-limit"
+
+    unlimited = CliRunner().invoke(
+        cli,
+        ["explain", "--format", "json", "--max-file-bytes", "0", str(target)],
+    )
+    assert unlimited.exit_code == 0
+    unlimited_entry = json.loads(unlimited.stdout)[0]
+    assert unlimited_entry["content"]["included"] is True
+
+
+def test_explain_reports_sensitive_default_provenance(repo_root: Path) -> None:
+    target = repo_root / ".env.local"
+    target.write_text("TOKEN=secret-value\n", encoding="utf-8")
+
+    result = CliRunner().invoke(cli, ["explain", "--format", "json", str(target)])
+
+    assert result.exit_code == 0
+    entry = json.loads(result.stdout)[0]
+    assert entry["state"] == "omit"
+    assert entry["reason"]["source"] == "defaults"
+    assert entry["reason"]["pattern"] == ".env.*"
+
+
+def test_legacy_filename_warns_without_modifying(repo_root: Path) -> None:
+    target = repo_root / "a.txt"
+    target.write_text("hello\n", encoding="utf-8")
+    path = repo_root / ".grobl.config.toml"
+    source = 'exclude_tree = ["dist"]\n'
+    path.write_text(source, encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["scan", str(repo_root), "--summary", "none", "--output", "-"],
+    )
+
+    assert result.exit_code == 0
+    assert "legacy inclusion schema" in result.stderr
+    assert str(path) in result.stderr
+    assert path.read_text(encoding="utf-8") == source
+    assert not Path(f"{path}.bak").exists()

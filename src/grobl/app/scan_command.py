@@ -9,16 +9,24 @@ from typing import cast
 
 import click
 
-from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat, SummaryDestination, SummaryFormat
-from grobl.errors import ConfigLoadError
+from grobl.config_loading import load_config, resolve_config_base
+from grobl.constants import (
+    EXIT_CONFIG,
+    EXIT_IO,
+    ContentScope,
+    PayloadFormat,
+    SummaryDestination,
+    SummaryFormat,
+)
+from grobl.errors import ConfigLoadError, OutputError
 from grobl.metadata_visibility import MetadataVisibility
 from grobl.output import build_writer_from_config
+from grobl.resource_limits import ResourceLimits
 
 from . import output_routing
 from .command_support import ScanParams, execute_scan_with_handling, exit_on_broken_pipe
 from .config_behavior import resolve_scan_behavior
-from .config_loading import load_config, resolve_config_base
-from .config_maintenance import maintain_legacy_project_configs
+from .config_maintenance import warn_legacy_project_configs
 from .output_routing import (
     emit_scan_outputs,
     normalize_summary_destination,
@@ -63,11 +71,13 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     show_chars: bool,
     show_tokens: bool,
     show_inclusion_status: bool,
+    max_file_bytes: int | None,
+    max_total_bytes: int | None,
+    max_tokens: int | None,
     ignore_defaults: bool,
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
-    interactive: bool | None,
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
@@ -90,11 +100,10 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
     config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
-    maintain_legacy_project_configs(
+    warn_legacy_project_configs(
         repo_root=repo_root,
         scan_paths=requested_paths,
         explicit_config=config_path,
-        interactive=interactive,
     )
 
     try:
@@ -115,10 +124,13 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
             show_tokens=show_tokens,
             show_inclusion_status=show_inclusion_status,
             ignore_policy=ignore_policy,
+            max_file_bytes=max_file_bytes,
+            max_total_bytes=max_total_bytes,
+            max_tokens=max_tokens,
             json_mode=json_mode,
         )
     except ConfigLoadError as err:
-        print(err, file=sys.stderr)
+        print(f"error: {err}", file=sys.stderr)
         raise SystemExit(EXIT_CONFIG) from err
 
     params = build_scan_params(
@@ -139,6 +151,7 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
             tokens=behavior.show_tokens,
             inclusion_status=behavior.show_inclusion_status,
         ),
+        limits=behavior.limits,
         requested_paths=requested_paths,
         repo_root=repo_root,
         pattern_base=config_base,
@@ -195,28 +208,30 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
         summary_dest=summary_dest,
     )
 
-    direct_writer = build_writer_from_config(copy=params.payload_copy, output=params.payload_output)
-    payload_buffer: list[str] | None = [] if merged_destination else None
-
-    if merged_destination:
-        buffered_payload = cast("list[str]", payload_buffer)
-
-        def _buffered_writer(text: str) -> None:
-            buffered_payload.append(text)
-
-        payload_writer = _buffered_writer
-    else:
-        payload_writer = direct_writer
-
-    summary_text, summary_json = execute_scan_with_handling(
-        params=params,
-        cfg={**cfg, "_ignores": ignores},
-        cwd=cwd,
-        write_fn=payload_writer,
-        summary_style=params.summary_style,
-    )
-
     try:
+        direct_writer = build_writer_from_config(
+            copy=params.payload_copy,
+            output=params.payload_output,
+        )
+        payload_buffer: list[str] | None = [] if merged_destination else None
+        payload_bytes = 0
+
+        def _payload_writer(text: str) -> None:
+            nonlocal payload_bytes
+            payload_bytes += len(text.encode("utf-8"))
+            if payload_buffer is not None:
+                payload_buffer.append(text)
+            else:
+                direct_writer(text)
+
+        summary_text, summary_json = execute_scan_with_handling(
+            params=params,
+            cfg={**cfg, "_ignores": ignores},
+            cwd=cwd,
+            write_fn=_payload_writer,
+            summary_style=params.summary_style,
+        )
+
         emit_scan_outputs(
             params=params,
             summary_output=summary_output,
@@ -226,8 +241,38 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
             summary_text=summary_text,
             summary_json=summary_json,
         )
+        if params.payload_copy and params.payload is not PayloadFormat.NONE:
+            _emit_clipboard_status(summary_json, payload_bytes=payload_bytes)
     except BrokenPipeError:
         exit_on_broken_pipe()
+    except OutputError as err:
+        click.echo(f"error: {err}", err=True)
+        raise SystemExit(EXIT_IO) from err
+
+
+def _format_payload_size(size: int) -> str:
+    if size < 1024:
+        return f"{size} B"
+    kib = size / 1024
+    if kib < 1024:
+        return f"{kib:.1f} KiB"
+    return f"{kib / 1024:.1f} MiB"
+
+
+def _emit_clipboard_status(summary: dict[str, object], *, payload_bytes: int) -> None:
+    totals = summary.get("totals")
+    totals_dict = totals if isinstance(totals, dict) else {}
+    file_count = totals_dict.get("included_files")
+    token_count = totals_dict.get("total_tokens")
+
+    parts: list[str] = []
+    if isinstance(file_count, int):
+        noun = "file" if file_count == 1 else "files"
+        parts.append(f"{file_count:,} {noun}")
+    if isinstance(token_count, int):
+        parts.append(f"{token_count:,} tokens")
+    parts.append(_format_payload_size(payload_bytes))
+    click.echo(f"Copied {' · '.join(parts)} to clipboard.", err=True)
 
 
 def build_scan_params(
@@ -244,6 +289,7 @@ def build_scan_params(
     write_to_stdout: bool,
     json_mode: bool,
     visibility: MetadataVisibility,
+    limits: ResourceLimits,
     requested_paths: tuple[Path, ...],
     repo_root: Path,
     pattern_base: Path | None,
@@ -308,6 +354,7 @@ def build_scan_params(
         paths=requested_paths,
         repo_root=repo_root,
         visibility=visibility,
+        limits=limits,
         pattern_base=pattern_base,
     )
 

@@ -13,8 +13,8 @@ from .options import (
     add_config_option,
     add_ignore_options,
     add_ignore_policy_options,
-    add_interaction_option,
     add_paths_argument,
+    add_resource_limit_options,
     add_scan_output_options,
     add_scope_option,
 )
@@ -57,8 +57,8 @@ Examples:
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
-@add_interaction_option
 @add_scan_output_options
+@add_resource_limit_options
 @add_scope_option
 @add_paths_argument
 @click.pass_context
@@ -80,7 +80,6 @@ def scan(
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
-    interactive: bool | None,
     payload_format: str,
     copy: bool,
     output: Path | None,
@@ -94,6 +93,9 @@ def scan(
     show_chars: bool,
     show_tokens: bool,
     show_inclusion_status: bool,
+    max_file_bytes: int | None,
+    max_total_bytes: int | None,
+    max_tokens: int | None,
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
@@ -115,7 +117,6 @@ def scan(
         no_ignore_config=no_ignore_config,
         no_ignore=no_ignore,
         ignore_policy=ignore_policy,
-        interactive=interactive,
         payload_format=payload_format,
         copy=copy,
         output=output,
@@ -129,6 +130,9 @@ def scan(
         show_chars=show_chars,
         show_tokens=show_tokens,
         show_inclusion_status=show_inclusion_status,
+        max_file_bytes=max_file_bytes,
+        max_total_bytes=max_total_bytes,
+        max_tokens=max_tokens,
         scope=scope,
         paths=paths,
     )

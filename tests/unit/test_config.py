@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grobl.config import apply_runtime_ignore_edits, load_config, resolve_config_base
+from grobl.config_loading import load_config, load_toml_config, resolve_config_base
+from grobl.config_runtime import apply_runtime_ignore_edits
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
@@ -174,3 +175,21 @@ def test_resolve_config_base_walks_up_to_config_root(tmp_path: Path) -> None:
 
     resolved = resolve_config_base(base_path=nested, explicit_config=None)
     assert resolved == root.resolve()
+
+
+def test_unreadable_config_is_normalized_as_config_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "config.toml"
+    config.write_text("scope = 'all'\n", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path == config:
+            raise OSError("permission denied")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    with pytest.raises(ConfigLoadError, match="cannot read config"):
+        load_toml_config(config)

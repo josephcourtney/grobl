@@ -10,11 +10,10 @@ from typing import TYPE_CHECKING
 
 import click
 
+from grobl.config_defaults import load_default_config
 from grobl.constants import IgnorePolicy
 from grobl.ignore import LayeredIgnoreMatcher, build_layered_ignores
 from grobl.utils import resolve_repo_root
-
-from .config_defaults import load_default_config
 
 if TYPE_CHECKING:
     from grobl.app.command_support import ScanParams

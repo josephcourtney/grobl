@@ -4,12 +4,20 @@
 - add `grobl config prune` with structural cleanup of shadowed rules, no-op policy keys, inherited duplicate settings, and orphaned policy comments, plus backup/preview/check modes and optional `--current-tree` counterfactual pruning of exact inherited policy duplicates.
 - add `inherit_defaults` for disabling only the bundled inclusion-policy layer under automatic source selection.
 - add persistent config equivalents for stable scan behavior (`scope`, payload format, summary mode/style, metadata visibility, and `ignore_policy`) with explicit CLI values taking precedence.
-- add interactive legacy-schema maintenance on scan/explain: offer migration, then structural pruning, with current-tree pruning as a separate opt-in; noninteractive runs warn without prompting or writing.
+- add configurable prompt-content budgets with per-file byte, aggregate byte, and aggregate token limits; files omitted by a budget remain visible and explainable.
+- add conservative bundled filtering for common credential files, environment-file variants, and private-key patterns, with explicit include rules available as the override.
 
 ### Changed
+- make scan/explain strictly read-only with respect to configuration: legacy schema now produces a migration warning and only explicit config maintenance commands may write.
+- simplify implicit command parsing so any first positional token that is not an exact subcommand is treated as a scan target, including nonexistent paths.
+- keep clipboard-first interactive delivery while reporting copied file count, token count, and payload size on stderr.
+- stream text detection without retaining whole-file probe contents and enforce resource budgets before payload inclusion.
+- remove compatibility facades and legacy test patch points in favor of one canonical module location per responsibility.
 - change `grobl init` to generate a minimal commented project-delta config instead of copying the bundled default policy into the repository.
 - omit current/legacy Grobl config backup files from bundled policy so migration backups are not captured in later payloads.
 - make `grobl init` return immediately after writing the starter config instead of recursively scanning the repository for textual references to the legacy config filename.
+- normalize expected config-read, clipboard, and output-write failures into concise diagnostics with stable nonzero exit codes.
+- clean package metadata by removing the unused Rich runtime dependency, duplicate pytest-asyncio declaration, and mutable showcov Git override.
 
 ## [2.3.1] - 2026-09-21
 

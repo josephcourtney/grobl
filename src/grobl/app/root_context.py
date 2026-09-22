@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
@@ -63,8 +61,7 @@ def normalize_argv(
     if any(token in _VERSION_FLAGS for token in pre):
         return args
 
-    normalized_pre = _route_help_flags(pre, command_names)
-    return _reorder_root_options(normalized_pre, command_options=command_options, tail=tail)
+    return _reorder_root_options(pre, command_options=command_options, tail=tail)
 
 
 def inject_default_scan(
@@ -72,33 +69,22 @@ def inject_default_scan(
     *,
     command_names: Iterable[str] | None = None,
 ) -> list[str]:
-    """Insert ``scan`` when the first non-global token looks like a scan target."""
+    """Insert scan unless the first positional token is a known subcommand."""
     normalized = list(args)
     known_commands = set(command_names or ())
     pre = normalized[: normalized.index("--")] if "--" in normalized else normalized
-    if (
-        not known_commands
-        or any(token in known_commands for token in pre)
-        or any(token in _HELP_FLAGS for token in pre)
-    ):
+
+    if not known_commands or any(token in _VERSION_FLAGS for token in pre):
         return normalized
 
     idx = _first_non_global_index(normalized)
     if idx is None:
+        if any(token in _HELP_FLAGS for token in pre):
+            return normalized
         normalized.append(DEFAULT_COMMAND)
-        return normalized
-
-    token = normalized[idx]
-    if token not in known_commands and _should_inject_for_token(token):
+    elif normalized[idx] not in known_commands:
         normalized.insert(idx, DEFAULT_COMMAND)
-        return normalized
-
-    msg = (
-        f"Unknown command: {token}\n"
-        "See `grobl --help` for available commands.\n"
-        "If you meant to scan a path, ensure it exists or run `grobl scan <path>`."
-    )
-    raise click.UsageError(msg)
+    return normalized
 
 
 def _split_on_ddash(args: list[str]) -> tuple[list[str], list[str], bool]:
@@ -106,20 +92,6 @@ def _split_on_ddash(args: list[str]) -> tuple[list[str], list[str], bool]:
         cut = args.index("--")
         return args[:cut], args[cut + 1 :], True
     return args, [], False
-
-
-def _route_help_flags(pre: list[str], command_names: set[str]) -> list[str]:
-    help_index = next((index for index, token in enumerate(pre) if token in _HELP_FLAGS), None)
-    if help_index is None:
-        return pre
-    command_index = next((index for index, token in enumerate(pre) if token in command_names), None)
-    if command_index is None or help_index > command_index:
-        return pre
-    stripped = [token for token in pre if token not in _HELP_FLAGS]
-    command_index = next((index for index, token in enumerate(stripped) if token in command_names), None)
-    if command_index is None:
-        return pre
-    return [*stripped[: command_index + 1], "--help", *stripped[command_index + 1 :]]
 
 
 def _reorder_root_options(
@@ -179,13 +151,11 @@ def _extract_root_options(
 
 
 def _first_non_global_index(args: list[str]) -> int | None:
-    if "--" in args:
-        ddash = args.index("--")
-        return None if ddash + 1 >= len(args) else ddash + 1
-
     index = 0
     while index < len(args):
         token = args[index]
+        if token == "--":
+            return index
         if token in _HELP_FLAGS or token in _VERSION_FLAGS or _is_vflag(token):
             index += 1
             continue
@@ -223,25 +193,6 @@ def _root_opt_skip(flag: str) -> int:
         if flag.startswith(prefix):
             return 1
     return 0
-
-
-def _should_inject_for_token(token: str) -> bool:
-    if token.startswith("-"):
-        return True
-    return _resolves_to_existing_path(token)
-
-
-def _resolves_to_existing_path(token: str) -> bool:
-    try:
-        expanded = os.path.expandvars(token)
-        try:
-            candidate = Path(expanded).expanduser()
-        except RuntimeError:
-            return False
-        candidate.lstat()
-    except OSError:
-        return False
-    return True
 
 
 ROOT_FLAGS_WITH_VALUES = {

@@ -93,73 +93,44 @@ def _decode_with_logging(
         return "", f"unicode decode error: {err}"
 
 
-def _process_remainder(
-    decoder: codecs.IncrementalDecoder,
-    fh: BinaryIO,
-    *,
-    file_path: Path,
-    decoded_chunk: str,
-) -> tuple[str, str | None]:
-    """Read the remainder of the probe and extend the decoded content."""
-    remainder = fh.read()
-    if b"\x00" in remainder:
-        return "", "null byte detected"
-    if remainder:
-        decoded_remainder, detail = _decode_with_logging(
-            decoder,
-            remainder,
-            file_path=file_path,
-            final=True,
-            message="utf-8 remainder decode failed",
-        )
-        if detail:
-            return "", detail
-        return decoded_chunk + decoded_remainder, None
-    trimmed, detail = _decode_with_logging(
-        decoder,
-        b"",
-        file_path=file_path,
-        final=True,
-        message="utf-8 probe flush failed",
-    )
-    if detail:
-        return "", detail
-    return decoded_chunk + trimmed, None
-
-
 def _detect_text_from_stream(
     fh: BinaryIO,
     *,
     file_path: Path,
     probe_size: int,
 ) -> TextDetectionResult:
-    """Classify an already-open binary stream and prefetch its contents."""
-    chunk = fh.read(probe_size)
-    if b"\x00" in chunk:
-        return TextDetectionResult(is_text=False, detail="null byte detected")
+    """Classify a binary stream as UTF-8 text without retaining its contents."""
     decoder = codecs.getincrementaldecoder("utf-8")()
-    decoded_chunk, detail = _decode_with_logging(
+    while True:
+        chunk = fh.read(probe_size)
+        if not chunk:
+            break
+        if b"\x00" in chunk:
+            return TextDetectionResult(is_text=False, detail="null byte detected")
+        _, detail = _decode_with_logging(
+            decoder,
+            chunk,
+            file_path=file_path,
+            final=False,
+            message="utf-8 decode failed",
+        )
+        if detail:
+            return TextDetectionResult(is_text=False, detail=detail)
+
+    _, detail = _decode_with_logging(
         decoder,
-        chunk,
+        b"",
         file_path=file_path,
-        final=False,
-        message="utf-8 probe chunk failed",
+        final=True,
+        message="utf-8 final decode failed",
     )
     if detail:
         return TextDetectionResult(is_text=False, detail=detail)
-    content, detail = _process_remainder(
-        decoder,
-        fh,
-        file_path=file_path,
-        decoded_chunk=decoded_chunk,
-    )
-    if detail:
-        return TextDetectionResult(is_text=False, detail=detail)
-    return TextDetectionResult(is_text=True, content=content)
+    return TextDetectionResult(is_text=True)
 
 
 def detect_text(file_path: Path, *, probe_size: int = 4096) -> TextDetectionResult:
-    """Probe ``file_path`` to determine if it is text and prefetch its contents."""
+    """Probe file_path to determine whether it contains valid UTF-8 text."""
     try:
         with file_path.open("rb") as fh:
             return _detect_text_from_stream(fh, file_path=file_path, probe_size=probe_size)

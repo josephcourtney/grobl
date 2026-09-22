@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-import grobl.cli.common as ccommon
+import grobl.app.command_support as command_support
 from grobl.constants import (
     EXIT_INTERRUPT,
     EXIT_PATH,
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 def test_print_interrupt_diagnostics_prints_state(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    ccommon.print_interrupt_diagnostics(
+    command_support.print_interrupt_diagnostics(
         tmp_path,
         {"exclude": [], "tree_only": [], "include": []},
         builder,
@@ -45,7 +45,7 @@ def test_print_interrupt_diagnostics_prints_state(tmp_path: Path, capsys: pytest
     assert "DirectoryTreeBuilder(" in out
 
 
-# ---------------------------- _execute_with_handling --------------------------
+# ---------------------------- execute_scan_with_handling --------------------------
 class _DummyExecOK:
     def __init__(self, *, sink: object) -> None:
         self.sink = sink
@@ -67,8 +67,8 @@ class _DummyExecRaises:
         raise self.exc
 
 
-def _params_for(tmp_path: Path) -> ccommon.ScanParams:
-    return ccommon.ScanParams(
+def _params_for(tmp_path: Path) -> command_support.ScanParams:
+    return command_support.ScanParams(
         scope=ContentScope.ALL,
         summary_style=TableStyle.COMPACT,
         config_path=None,
@@ -89,10 +89,10 @@ def _cfg_with_ignores(tmp_path: Path) -> dict[str, object]:
     }
 
 
-def test__execute_with_handling_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(ccommon, "ScanExecutor", _DummyExecOK)
+def test_execute_scan_with_handling_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(command_support, "ScanExecutor", _DummyExecOK)
     writes: list[str] = []
-    human, js = ccommon._execute_with_handling(
+    human, js = command_support.execute_scan_with_handling(
         params=_params_for(tmp_path),
         cfg=_cfg_with_ignores(tmp_path),
         cwd=tmp_path,
@@ -111,17 +111,17 @@ def test__execute_with_handling_success(monkeypatch: pytest.MonkeyPatch, tmp_pat
         (KeyboardInterrupt(), EXIT_INTERRUPT),
     ],
 )
-def test__execute_with_handling_exception_exit_code_mapping(
+def test_execute_scan_with_handling_exception_exit_code_mapping(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, exc: BaseException, expected_code: int
 ) -> None:
     dummy = _DummyExecRaises(sink=None)
     dummy.exc = exc
-    monkeypatch.setattr(ccommon, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
+    monkeypatch.setattr(command_support, "ScanExecutor", lambda *, sink: dummy)  # type: ignore[misc]
     # Avoid making these tests depend on exact diagnostics formatting/contents.
-    monkeypatch.setattr(ccommon, "print_interrupt_diagnostics", lambda *_: None)
+    monkeypatch.setattr(command_support, "print_interrupt_diagnostics", lambda *_: None)
 
     with pytest.raises(SystemExit) as excinfo:
-        ccommon._execute_with_handling(
+        command_support.execute_scan_with_handling(
             params=_params_for(tmp_path),
             cfg=_cfg_with_ignores(tmp_path),
             cwd=tmp_path,

@@ -7,7 +7,7 @@ import pytest
 from click.testing import CliRunner
 
 from grobl.cli import cli
-from grobl.constants import EXIT_USAGE
+from grobl.constants import EXIT_PATH
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -20,13 +20,13 @@ pytestmark = pytest.mark.medium
     [
         (["./"], True, 0, False),  # path-like token
         (["--summary", "json", "."], True, 0, False),  # begins with dash, then path
-        (["notapath"], False, EXIT_USAGE, True),  # non-injectable unknown token
-        (["scan1"], False, EXIT_USAGE, True),  # non-alpha command token
-        (["sc-an"], False, EXIT_USAGE, True),
-        (["sc_an"], False, EXIT_USAGE, True),
-        (["Σ"], False, EXIT_USAGE, True),
-        (["~definitely-not-a-real-path"], False, EXIT_USAGE, True),  # inject scan; then scan errors
-        (["doesnotexist"], False, EXIT_USAGE, True),
+        (["notapath"], False, EXIT_PATH, False),  # implicit missing path
+        (["scan1"], False, EXIT_PATH, False),  # implicit missing path
+        (["sc-an"], False, EXIT_PATH, False),
+        (["sc_an"], False, EXIT_PATH, False),
+        (["Σ"], False, EXIT_PATH, False),
+        (["~definitely-not-a-real-path"], False, EXIT_PATH, False),  # implicit missing path
+        (["doesnotexist"], False, EXIT_PATH, False),
     ],
 )
 def test_root_injection_and_unknown_command_contract(
@@ -58,3 +58,11 @@ def test_root_injection_env_var_expansion(tmp_path: Path, monkeypatch: pytest.Mo
     res = CliRunner().invoke(cli, ["$GROBL_TEST_PATH", "--summary", "none", "--output", "-"])
     assert res.exit_code == 0
     assert "a.txt" in res.stdout
+
+
+def test_missing_path_with_help_uses_scan_help_not_unknown_command() -> None:
+    result = CliRunner().invoke(cli, ["doesnotexist", "--help"])
+
+    assert result.exit_code == 0
+    assert "Unknown command:" not in (result.stdout + result.stderr)
+    assert "--scope" in result.output

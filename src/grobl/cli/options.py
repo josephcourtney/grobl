@@ -164,6 +164,27 @@ _SCAN_OUTPUT_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
     ),
 )
 
+_RESOURCE_LIMIT_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
+    click.option(
+        "--max-file-bytes",
+        type=click.IntRange(min=0),
+        default=None,
+        help="Maximum bytes for one captured file; 0 disables the limit",
+    ),
+    click.option(
+        "--max-total-bytes",
+        type=click.IntRange(min=0),
+        default=None,
+        help="Maximum aggregate bytes of captured file contents; 0 disables the limit",
+    ),
+    click.option(
+        "--max-tokens",
+        type=click.IntRange(min=0),
+        default=None,
+        help="Maximum aggregate captured tokens; 0 disables the limit",
+    ),
+)
+
 _PATHS_ARGUMENT: CommandDecorator = click.argument(
     "paths",
     nargs=-1,
@@ -214,16 +235,11 @@ def add_paths_argument(func: Callable[..., Any]) -> Callable[..., Any]:
     return _PATHS_ARGUMENT(func)
 
 
-def add_interaction_option(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Attach interactive-maintenance control used by scan and explain."""
-    decorator = click.option(
-        "--interactive/--no-interactive",
-        default=None,
-        help="Force or disable interactive config migration prompts (default: auto-detect TTY)",
-    )
-    return decorator(func)
-
-
 def add_scan_output_options(func: Callable[..., Any]) -> Callable[..., Any]:
     """Attach payload and summary routing options used by scan."""
     return _apply_decorators(func, _SCAN_OUTPUT_OPTION_DECORATORS)
+
+
+def add_resource_limit_options(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Attach content-resource budget options."""
+    return _apply_decorators(func, _RESOURCE_LIMIT_OPTION_DECORATORS)

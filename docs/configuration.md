@@ -92,9 +92,14 @@ characters = true
 tokens = true
 inclusion_status = true
 ignore_policy = "auto"
+max_file_bytes = 1048576
+max_total_bytes = 16777216
+max_tokens = 200000
 ```
 
-The existing `include_tree_tags` and `include_file_tags` settings remain configurable as well. Routing and invocation controls stay CLI-only: `--copy`, `--output`, `--stdout`, `--json`, `--summary-to`, `--summary-output`, `--config`, logging flags, and `--interactive/--no-interactive`.
+A resource-limit value of `0` disables that limit. Budgeted files are omitted as complete units rather than truncated, and the omission reason is available in summaries and `grobl explain`.
+
+The existing `include_tree_tags` and `include_file_tags` settings remain configurable as well. Routing and invocation controls stay CLI-only: `--copy`, `--output`, `--stdout`, `--json`, `--summary-to`, `--summary-output`, `--config`, and logging flags.
 
 General non-policy values use the normal scalar merge precedence (bundled values, XDG/project/pyproject/environment sources, explicit config, then explicit CLI values). Inclusion patterns retain the separate hierarchical root-to-leaf policy layering above because each policy source has its own matching base.
 
@@ -124,7 +129,7 @@ In-place migration keeps the original as `.grobl.toml.bak` by default. Use `--no
 
 The migration removes exact content-exclusion duplicates that are already dominated by an `exclude_tree` rule. When both legacy tree and content scopes contain patterns, grobl emits a warning because different overlapping glob patterns cannot always be proven equivalent under the canonical grouped precedence. Mixed canonical/legacy files are rejected rather than guessed.
 
-Normal `scan` and `explain` invocations also detect applicable legacy-schema `.grobl.toml` files. In an interactive terminal Grobl offers to migrate each one, preserving a `.bak` file, then offers structural pruning and separately offers current-tree pruning with its repository-state warning. Noninteractive invocations never block or modify configuration; they emit a concise migration warning and continue with compatibility parsing. Use `--interactive` or `--no-interactive` to override TTY auto-detection explicitly.
+Normal `scan` and `explain` invocations also detect applicable legacy-schema configuration. They emit a concise migration warning and continue with compatibility parsing, but never migrate, back up, or prune files. Use `grobl config migrate` and `grobl config prune` explicitly for all configuration modifications.
 
 ## Pruning redundant canonical rules
 
@@ -158,3 +163,8 @@ The LLM payload wrapper names remain configurable:
 include_tree_tags = "directory"
 include_file_tags = "files"
 ```
+
+
+## Sensitive-name defaults
+
+The bundled inclusion policy conservatively omits common credential-bearing paths such as `.env.*`, `.npmrc`, `.pypirc`, private-key filename patterns, and common cloud credential locations. These defaults are path-based safeguards, not content-level secret detection. A more specific project `include` rule or CLI `--include` can override them when a sensitive-looking file is intentionally safe to send.

@@ -15,11 +15,23 @@ if TYPE_CHECKING:
 
 
 class PathNotFoundError(Exception):
-    """Raised when no common ancestor can be found."""
+    """Raised when a scan path cannot be resolved or no common ancestor exists."""
 
 
 class ConfigLoadError(Exception):
     """Raised when a configuration file cannot be loaded."""
+
+
+class OutputError(Exception):
+    """Base class for expected output-destination failures."""
+
+
+class OutputWriteError(OutputError):
+    """Raised when a payload or summary cannot be written."""
+
+
+class ClipboardUnavailableError(OutputError):
+    """Raised when the system clipboard cannot be used."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +63,10 @@ class ScanInterrupted(KeyboardInterrupt):
 __all__ = [
     "ERROR_MSG_EMPTY_PATHS",
     "ERROR_MSG_NO_COMMON_ANCESTOR",
+    "ClipboardUnavailableError",
     "ConfigLoadError",
+    "OutputError",
+    "OutputWriteError",
     "PathNotFoundError",
     "ScanInterrupted",
     "ScanStateSnapshot",

@@ -50,4 +50,4 @@ Configuration changes should preserve one simple model:
 - project `.grobl.toml` files are deltas expressed with `exclude`, `tree_only`, `include`, and optional `inherit_defaults`;
 - stable scan-wide behavior may be persisted when it has an unambiguous config meaning, while destinations/actions remain invocation-specific;
 - explicit CLI values remain the highest-precedence user intent;
-- interactive migration is a convenience wrapper around deterministic migrate/prune primitives and must have a noninteractive no-write path.
+- read-oriented commands only detect and warn about legacy configuration; all migration and pruning writes remain explicit config-command operations.

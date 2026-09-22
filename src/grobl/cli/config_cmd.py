@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import click
 
-from grobl.app.config_defaults import TOML_CONFIG
+from grobl.config_defaults import TOML_CONFIG
 from grobl.config_migration import (
     ConfigMigrationError,
     migrate_config_file,

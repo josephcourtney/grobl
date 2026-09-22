@@ -8,7 +8,9 @@ from typing import TYPE_CHECKING, cast
 
 from grobl.constants import InclusionLevel
 from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, traverse_dir
+from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
+from grobl.resource_limits import ResourceBudget, ResourceLimits, UNLIMITED_RESOURCE_LIMITS
 from grobl.utils import find_common_ancestor
 
 if TYPE_CHECKING:
@@ -65,6 +67,7 @@ def run_scan(
     match_base: Path | None = None,
     handlers: FileHandlerRegistry | None = None,
     dependencies: ScanDependencies | None = None,
+    limits: ResourceLimits = UNLIMITED_RESOURCE_LIMITS,
 ) -> ScanResult:
     """Run a filesystem scan under the effective three-state inclusion policy."""
     resolved_paths = [p.resolve() for p in paths]
@@ -72,9 +75,14 @@ def run_scan(
         msg = "run_scan requires at least one path"
         raise ValueError(msg)
 
-    if any(not p.exists() for p in resolved_paths):
-        msg = "scan paths do not exist"
-        raise ValueError(msg)
+    missing = [path for path in resolved_paths if not path.exists()]
+    if missing:
+        if len(missing) == 1:
+            msg = f"scan path not found: {missing[0]}"
+        else:
+            joined = ", ".join(str(path) for path in missing)
+            msg = f"scan paths not found: {joined}"
+        raise PathNotFoundError(msg)
 
     common = find_common_ancestor(resolved_paths)
     if common.is_file():
@@ -95,6 +103,7 @@ def run_scan(
         common=builder_base,
         ignores=ignores,
         dependencies=ScanDependencies.default() if dependencies is None else dependencies,
+        budget=ResourceBudget(limits),
     )
 
     registry = FileHandlerRegistry.default() if handlers is None else handlers

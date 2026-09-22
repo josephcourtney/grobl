@@ -8,28 +8,29 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 
 ## 1. Command Structure and Argument Parsing
 
-### 1.1 Commands and Subcommands
+### 1.1 Commands and subcommands
 
-* Commands **MUST** consist solely of alphabetic characters (`[A-Za-z]+`).
-* Subcommands **MAY** be chained (e.g. `grobl scan foo`), and each segment **MUST** be alphabetic.
-* Unknown commands **MUST** result in a usage error, subject to default-scan injection rules (§2).
-
-The CLI **MUST** support at minimum the following commands:
+Registered root command names are recognized by exact match. The CLI **MUST** support at minimum:
 
 * `scan`
 * `explain`
+* `config`
+* `init`
+* `version`
+* `completions`
 
-### 1.2 Global Options
+A first positional token that does not exactly match a registered root command is not an unknown command; it participates in implicit scan dispatch (§2). After a registered command group such as `config` has been selected, unknown nested subcommands **MUST** use the normal command-group usage error.
 
-The following options are **global** and **MUST** be recognized regardless of position:
+### 1.2 Root and command options
 
-* `-h`, `--help`
+Root logging options are:
+
 * `-v`, `--verbose`
 * `--log-level`
-* `--config`
-* All output format flags and output routing flags that are not specific to a particular subcommand’s semantics
 
-Global options **MUST** be recognized before or after the command token.
+They **MAY** be accepted before or after the resolved root command token. Root help and version retain the positional semantics in §2.2.
+
+Options such as `--config`, inclusion controls, resource limits, payload formats, and output routing belong to the commands that declare them. Implicit scan dispatch **MUST** allow scan options to be used without writing the literal `scan` command.
 
 ### 1.3 Option Parsing Model
 
@@ -43,46 +44,30 @@ After command resolution (§2), all remaining non-option tokens **MUST** be inte
 
 For the `scan` command, positional arguments **MUST** be interpreted as scan paths (§3.1).
 
-For the `explain` command, positional arguments **MUST** be interpreted as explain target paths (§7.6).
+For the `explain` command, positional arguments **MUST** be interpreted as explain target paths (§11.1).
 
 ---
 
 ## 2. Default Command and Scan Injection
 
-### 2.1 Default Command
+### 2.1 Default command
 
 * The default command is `scan`.
-* Default command injection **MAY** occur according to §2.2.
-* If injection does not occur and no valid command is present, the CLI **MUST** terminate with a usage error indicating an unknown command.
+* After global options are accounted for, if the first positional token exactly matches a registered subcommand, that subcommand **MUST** be used.
+* Otherwise the CLI **MUST** interpret the positional tokens as arguments to an implicit `scan` command.
+* Implicit scan dispatch **MUST NOT** depend on whether the first path currently exists.
 
-### 2.2 Injectable Tokens
+Thus `grobl src` is equivalent to `grobl scan src`, and `grobl does-not-exist` **MUST** fail as a scan path error rather than as an unknown-command error.
 
-Let *T* be the **first non-option token** after parsing global options (ignoring `--help` for the purpose of command resolution).
+### 2.2 Help and version precedence
 
-*T* is considered injectable if **any** of the following are true after user expansion (§3.3):
+* Root `--help` / `-h` appearing before a command token **MUST** retain ordinary root-help semantics.
+* Subcommand help is requested with the help flag after the resolved subcommand, including after implicit scan injection.
+* Root `--version` / `-V` **MUST NOT** trigger implicit scan dispatch.
 
-* *T* begins with `-`
-* *T* resolves to an existing filesystem path (§3.4)
+### 2.3 Injection scope
 
-Path-like syntax alone (e.g. `.`, `~`, `/`) **MUST NOT** trigger injection unless the path exists.
-
-### 2.3 Injection Conditions
-
-The CLI **MUST** inject the `scan` command if **any** injectable condition in §2.2 holds for *T*.
-
-### 2.4 Non-Injection Conditions
-
-The CLI **MUST NOT** inject the `scan` command if:
-
-* *T* matches a valid command name, or
-* *T* does not begin with `-` and does not resolve to an existing path
-
-In this case, the CLI **MUST** terminate with a usage error indicating an unknown command and **SHOULD** explain why injection did not occur.
-
-### 2.5 Injection Scope
-
-Only *T*, the first non-option token, participates in default-scan injection.
-Subsequent tokens **MUST** be treated as positional arguments to the resolved command.
+Only command resolution is implicit. Once `scan` is selected, remaining positional tokens **MUST** be treated as scan paths and scan options **MUST** retain their normal meanings.
 
 ---
 
@@ -167,7 +152,9 @@ Destination selection rules:
    * If stdout is connected to a TTY, the payload **MUST** be written to the system clipboard.
    * If stdout is not connected to a TTY, the payload **MUST** be written to stdout.
 
-If clipboard output is selected and clipboard access fails, the CLI **MUST** terminate with a usage error explaining the failure and suggesting `--output`.
+When clipboard output succeeds, the CLI **MUST** emit a concise receipt to stderr identifying the clipboard destination and **SHOULD** include useful payload size/count information.
+
+If clipboard output is selected and clipboard access fails, the CLI **MUST** terminate with the stable I/O-error exit and a concise diagnostic. It **MUST NOT** expose an uncaught backend traceback during normal operation.
 
 ### 4.3 Mutual Exclusivity
 
@@ -222,7 +209,7 @@ stderr | stdout | file
 When `--summary json` is selected, the CLI **MAY** add new fields over time.
 Added fields **MUST NOT** change the meaning of existing fields.
 
-If the summary JSON reports per-path inclusion booleans for either tree visibility or content capture, the implementation **SHOULD** additionally report an exclusion reason object when inclusion is `false`. If present, reason objects **MUST** be stable and machine-readable (§7.5, §7.6).
+If the summary JSON reports per-path inclusion booleans for either tree visibility or content capture, the implementation **SHOULD** additionally report an exclusion reason object when inclusion is `false`. If present, reason objects **MUST** be stable and machine-readable (§11.4).
 
 When `--summary json` is selected, each file entry with `included=false` **MUST** include a `content_reason` object describing the winning rule for that scope. The reason object **MUST** contain the keys `pattern`, `negated`, `source`, `base_dir`, `config_path`, and `detail`, with `base_dir` and `config_path` rendered as strings (or `null` if unavailable). Binary exclusions derived from non-text detection **MUST** use the sentinel `pattern` `<non-text>` and `source` `text-detection`, and `detail` should summarize the detection outcome. Summary JSON **MUST** remain deterministic: sort file entries consistently (e.g., lexicographically by path), ensure nested dictionaries use stable key ordering (such as `json.dumps(..., sort_keys=True)`), and include a trailing newline.
 
@@ -278,9 +265,9 @@ If payload output is written to stdout and no explicit summary destination is sp
 * Applicable `.grobl.toml` files **MUST** be discovered from the repository root toward each scanned path.
 * Rules from a configuration file **MUST** be interpreted relative to the directory containing that file.
 * `grobl init` **MUST** create a minimal, commented project-delta `.grobl.toml`; it **MUST NOT** materialize the bundled inclusion-policy lists into the project file.
-* General configuration **MUST** recognize persistent equivalents for the stable scan settings `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, and `ignore_policy`.
+* General configuration **MUST** recognize persistent equivalents for the stable scan settings `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, `ignore_policy`, `max_file_bytes`, `max_total_bytes`, and `max_tokens`.
 * An explicitly supplied CLI value **MUST** override the corresponding persistent config value.
-* Payload/summary destinations, explicit config selection, logging, JSON convenience mode, and interaction forcing are invocation controls and are not required to have persistent config equivalents.
+* Payload/summary destinations, explicit config selection, logging, and JSON convenience mode are invocation controls and are not required to have persistent config equivalents.
 
 The boolean `inherit_defaults` setting controls only whether the bundled inclusion-policy layer participates under automatic source selection. It defaults to `true`. Setting it to `false` **MUST NOT** remove unrelated program defaults or general configuration values.
 
@@ -400,11 +387,11 @@ The CLI **MUST** provide `grobl config migrate [PATH]` for translating a legacy-
 * A source containing both canonical and legacy policy keys **MUST** be rejected rather than implicitly combining the models.
 * Exact legacy content exclusions dominated by an exact tree-omission rule **MUST NOT** be duplicated into `tree_only`.
 * If legacy tree and content scopes are both populated, the migration **MUST** warn that overlapping non-identical glob patterns may require review because grouped canonical precedence cannot prove equivalence for every such overlap.
-* Normal scan/explain invocations **MUST** detect applicable legacy-schema `.grobl.toml` sources before consuming them.
-* When stdin and stderr are interactive terminals, Grobl **SHOULD** offer to migrate each detected legacy source. A successful interactive migration **SHOULD** then offer structural pruning and **MAY** separately offer `--current-tree` pruning.
-* Repository-state-dependent current-tree pruning **MUST NOT** be applied automatically as part of migration; it requires a distinct confirmation that identifies its dependence on currently existing paths.
-* A noninteractive invocation **MUST NOT** prompt for input or modify configuration as a side effect of legacy detection. It **SHOULD** emit a concise migration warning and continue through the compatibility parser.
-* `--interactive` and `--no-interactive` **MAY** explicitly override automatic TTY detection for scan/explain maintenance prompts.
+* Normal scan/explain invocations **MUST** detect applicable legacy-schema project configuration before consuming it.
+* Scan and explain **MUST NOT** migrate, back up, prune, or otherwise modify configuration.
+* When legacy schema is detected, scan/explain **SHOULD** emit a concise migration warning and continue through the compatibility parser.
+* All migration and pruning writes **MUST** be initiated through explicit `grobl config migrate` or `grobl config prune` commands.
+* Repository-state-dependent current-tree pruning **MUST NOT** be applied automatically as part of migration.
 
 ### 7.9 Canonical configuration pruning
 
@@ -427,6 +414,32 @@ The CLI **MUST** provide `grobl config prune [PATH]` for removing redundant rule
 * When `--current-tree` removes any inherited duplicate, the CLI **MUST** warn that the result depends on repository paths that exist at pruning time.
 
 Current-tree pruning compares effective inclusion states, not winning provenance. A change in the winning source with the same effective state does not by itself make a rule necessary. Structural setting pruning compares the actual inherited value, not only the bundled default.
+
+### 7.10 Content resource limits
+
+Grobl **MUST** support scan-wide content budgets for:
+
+* maximum bytes per file (`max_file_bytes` / `--max-file-bytes`)
+* maximum total included file bytes (`max_total_bytes` / `--max-total-bytes`)
+* maximum total included tokens (`max_tokens` / `--max-tokens`)
+
+The bundled defaults **MUST** be finite. A configured or CLI value of `0` **MUST** disable that individual limit.
+
+When a file would exceed an active content budget:
+
+* its contents **MUST NOT** be partially emitted;
+* the path **MUST** remain represented when its inclusion policy otherwise permits hierarchy visibility;
+* the omission **MUST** carry a machine-readable reason distinguishable from policy and text-detection omissions;
+* per-file and aggregate-byte limits **SHOULD** be checked before reading file contents when filesystem size metadata is available.
+
+Budget admission **MUST** be deterministic with respect to scan order. Standalone `explain` **MUST** report active limits and direct per-file violations; it is not required to reconstruct aggregate admission decisions from a prior scan.
+
+### 7.11 Sensitive-name defaults
+
+The bundled policy **MUST** conservatively omit common credential-bearing filenames and locations, including environment-file variants, package-registry credential files, private-key patterns, and common cloud credential paths.
+
+This protection is path-based and **MUST NOT** be represented as comprehensive content-level secret detection. Higher-precedence project or CLI include rules **MAY** explicitly restore a sensitive-looking path.
+
 
 ## 8. Pattern Semantics
 
@@ -498,6 +511,7 @@ For each target, explain output **MUST** report:
 * the winning policy reason when a rule matched.
 * compatibility tree/content projections showing the consequences of that state.
 * text-detection information when a `full` file is omitted from content because it is non-text.
+* active content resource limits and any direct resource-limit reason that makes the target ineligible for content.
 
 The compatibility projections **MUST** obey:
 
@@ -519,7 +533,7 @@ A winning policy reason **MUST** include:
 * config path when applicable
 * whether the source pattern used negation
 
-Binary-detection reasons **MUST** remain distinguishable from policy reasons and use the sentinel pattern `<non-text>` with source `text-detection`.
+Binary-detection reasons **MUST** remain distinguishable from policy reasons and use the sentinel pattern `<non-text>` with source `text-detection`. Resource-budget reasons **MUST** likewise remain distinguishable and use a stable source such as `resource-limit`.
 
 ## 12. Version Reporting
 
@@ -537,6 +551,8 @@ Binary-detection reasons **MUST** remain distinguishable from policy reasons and
   * Exit non-zero
   * Explain why the error occurred
   * Suggest resolutions when possible
+* Expected configuration, path, clipboard, and output-write failures **MUST** be rendered as concise diagnostics without Python tracebacks.
+* The CLI **MUST** maintain distinct stable exit classes for usage, configuration, path, I/O, and interruption failures.
 
 ---
 

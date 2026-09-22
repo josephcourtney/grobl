@@ -15,6 +15,8 @@ from grobl.app.root_context import (
     normalize_argv,
     resolve_log_level,
 )
+from grobl.constants import EXIT_IO
+from grobl.errors import OutputError
 
 from .completions import completions
 from .config_cmd import config_command
@@ -31,9 +33,6 @@ CLI_CONTEXT_SETTINGS = {
 ROOT_EPILOG = """\
 Default behavior:
   Running `grobl` or `grobl <path>` is shorthand for `grobl scan <path>`.
-  If you intended to scan a path but it does not exist, use `grobl scan <path>`
-  to see scan-specific diagnostics.
-
 Examples:
   grobl
     Scan the current directory using the default interactive behavior.
@@ -63,9 +62,8 @@ class RootGroup(LiteralEpilogGroup):
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
         command_options = build_command_option_map(self.commands)
-        normalized = normalize_argv(list(args), command_options=command_options)
-        normalized = inject_default_scan(list(normalized), command_names=self.commands)
-        normalized = normalize_argv(list(normalized), command_options=command_options)
+        injected = inject_default_scan(list(args), command_names=self.commands)
+        normalized = normalize_argv(injected, command_options=command_options)
         return super().parse_args(ctx, normalized)
 
     def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
@@ -108,6 +106,9 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(err.exit_code) from err
     except BrokenPipeError:
         exit_on_broken_pipe()
+    except OutputError as err:
+        click.echo(f"error: {err}", err=True)
+        raise SystemExit(EXIT_IO) from err
 
 
 cli.add_command(scan)

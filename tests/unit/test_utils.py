@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from grobl import utils
-from grobl.config import apply_runtime_ignore_edits
+from grobl.config_runtime import apply_runtime_ignore_edits
 from grobl.errors import PathNotFoundError
 from grobl.utils import detect_text, find_common_ancestor, is_text, resolve_repo_root
 
@@ -50,7 +50,7 @@ def test_detect_text_prefetches_content(tmp_path: Path) -> None:
     detection = detect_text(sample)
 
     assert detection.is_text is True
-    assert detection.content == sample.read_text(encoding="utf-8", errors="ignore")
+    assert detection.content is None
 
 
 def test_detect_text_binary_payload(tmp_path: Path) -> None:
@@ -73,7 +73,7 @@ def test_detect_text_handles_utf8_chunk_boundary(tmp_path: Path) -> None:
 
     assert detection.is_text is True
     expected_content = payload.decode("utf-8", errors="ignore")
-    assert detection.content == expected_content
+    assert detection.content is None
 
 
 def test_detect_text_returns_false_on_invalid_utf8(tmp_path: Path) -> None:

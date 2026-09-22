@@ -29,6 +29,9 @@ class SummaryContext:
 def _visible_totals(context: SummaryContext, snapshot: SummaryTotals) -> dict[str, int]:
     totals: dict[str, int] = {}
     visibility = context.visibility
+    files = tuple(snapshot.iter_files())
+    totals["included_files"] = sum(1 for _, record in files if record.included)
+    totals["all_files"] = len(files)
     if visibility.lines:
         totals["total_lines"] = snapshot.total_lines
         totals["all_total_lines"] = snapshot.all_total_lines
@@ -55,9 +58,12 @@ def _file_entries(snapshot: SummaryTotals, *, visibility: MetadataVisibility) ->
             entry["included"] = record.included
         if record.content_reason is not None:
             entry["content_reason"] = record.content_reason
-        # Heuristic: non-empty files with zero lines are treated as binary
-        is_binary = record.chars > 0 and record.lines == 0 and not record.included
-        if is_binary:
+        reason_source = (
+            record.content_reason.get("source")
+            if record.content_reason is not None
+            else None
+        )
+        if reason_source == "text-detection":
             entry["binary"] = True
         files.append(entry)
     return files

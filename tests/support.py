@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from grobl.config import load_default_config
+from grobl.config_defaults import load_default_config
 from grobl.ignore import LayeredIgnoreMatcher, build_layered_ignores
 
 if TYPE_CHECKING:

@@ -18,7 +18,7 @@ def _patch_scan_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_scan, "resolve_runtime_paths", lambda _paths: ((Path(),), Path()))
     monkeypatch.setattr(app_scan, "ensure_paths_within_repo", lambda **_: None)
     monkeypatch.setattr(app_scan, "resolve_config_base", lambda **_: None)
-    monkeypatch.setattr(app_scan, "maintain_legacy_project_configs", lambda **_: None)
+    monkeypatch.setattr(app_scan, "warn_legacy_project_configs", lambda **_: None)
     monkeypatch.setattr(app_scan, "load_config", lambda **_: {})
     monkeypatch.setattr(app_scan, "assemble_layered_ignores", lambda **_: object())
     monkeypatch.setattr(app_scan, "build_writer_from_config", lambda **_: lambda _payload: None)

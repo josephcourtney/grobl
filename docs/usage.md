@@ -1,6 +1,6 @@
 # Usage guide
 
-The `grobl` command groups functionality into subcommands. When invoked without a subcommand, `grobl` behaves as if `grobl scan` was called.
+The `grobl` command groups functionality into subcommands. A first positional token is treated as a subcommand only when it exactly matches a registered command; otherwise Grobl injects `scan`. Thus `grobl src` is equivalent to `grobl scan src`, and nonexistent implicit targets produce path errors rather than unknown-command errors.
 
 ## Common workflows
 
@@ -10,7 +10,7 @@ The `grobl` command groups functionality into subcommands. When invoked without 
 grobl
 ```
 
-With default options and an interactive terminal, grobl writes the payload to the clipboard and prints a human-readable summary to stderr (the default summary destination).
+With default options and an interactive terminal, grobl writes the payload to the clipboard and prints a human-readable summary to stderr (the default summary destination). After a successful copy it also prints a concise stderr receipt with the included file count, token count when enabled, and payload size.
 
 ### Save a payload to disk
 
@@ -97,9 +97,13 @@ CLI rules have higher precedence than bundled defaults and discovered configurat
 
 Use `--ignore-policy auto|all|none|defaults|config|cli` to choose which rule sources participate. `--no-ignore` disables all inclusion-policy rules. In config, `inherit_defaults = false` disables only the bundled policy layer when source selection is automatic.
 
-Persistent config equivalents exist for `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, and `ignore_policy`; explicit CLI values override them. Output destinations, explicit config selection, logging, and interaction forcing remain invocation-only.
+Persistent config equivalents exist for `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, `ignore_policy`, `max_file_bytes`, `max_total_bytes`, and `max_tokens`; explicit CLI values override them. Output destinations, explicit config selection, and logging remain invocation-only.
 
-When scan or explain encounters an applicable legacy inclusion schema, an interactive invocation offers migration followed by pruning. Noninteractive runs only warn and continue; `--interactive/--no-interactive` overrides automatic TTY detection.
+Content budgets can also be set directly with `--max-file-bytes`, `--max-total-bytes`, and `--max-tokens`. The bundled defaults are 1 MiB per file, 16 MiB total included bytes, and 200,000 included tokens; `0` disables an individual limit. Files that would exceed a budget remain visible but their contents are omitted with an explainable `resource-limit` reason.
+
+The bundled policy conservatively excludes common sensitive filenames and credential locations, including `.env.*`, package-registry credential files, private-key patterns, and common cloud credential paths. This is path-based protection; an explicit `--include` can restore a file when inclusion is intentional.
+
+When scan or explain encounters an applicable legacy inclusion schema, it warns and continues through compatibility parsing without changing configuration. Migration and pruning happen only through the explicit `grobl config migrate` and `grobl config prune` commands.
 
 ## Global CLI options
 

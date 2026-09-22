@@ -16,6 +16,7 @@ from grobl.constants import (
     TableStyle,
 )
 from grobl.errors import ConfigLoadError
+from grobl.resource_limits import ResourceLimits
 
 if TYPE_CHECKING:
     import click
@@ -35,6 +36,7 @@ class ScanBehavior:
     show_inclusion_status: bool
     ignore_policy: str
     inherit_defaults: bool
+    limits: ResourceLimits
 
 
 def _use_config(ctx: click.Context, parameter: str) -> bool:
@@ -74,6 +76,63 @@ def _boolean(value: object, *, key: str) -> bool:
     return value
 
 
+def _resource_limit(
+    ctx: click.Context,
+    cfg: dict[str, object],
+    *,
+    parameter: str,
+    key: str,
+    current: int | None,
+) -> int | None:
+    value = _configured_value(
+        ctx,
+        cfg,
+        parameter=parameter,
+        key=key,
+        current=current,
+    )
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        msg = f"config key {key!r} must be a non-negative integer"
+        raise ConfigLoadError(msg)
+    return None if value == 0 else value
+
+
+def resolve_resource_limits(
+    ctx: click.Context,
+    cfg: dict[str, object],
+    *,
+    max_file_bytes: int | None,
+    max_total_bytes: int | None,
+    max_tokens: int | None,
+) -> ResourceLimits:
+    """Resolve content budgets from config unless explicitly set on the CLI."""
+    return ResourceLimits(
+        max_file_bytes=_resource_limit(
+            ctx,
+            cfg,
+            parameter="max_file_bytes",
+            key="max_file_bytes",
+            current=max_file_bytes,
+        ),
+        max_total_bytes=_resource_limit(
+            ctx,
+            cfg,
+            parameter="max_total_bytes",
+            key="max_total_bytes",
+            current=max_total_bytes,
+        ),
+        max_tokens=_resource_limit(
+            ctx,
+            cfg,
+            parameter="max_tokens",
+            key="max_tokens",
+            current=max_tokens,
+        ),
+    )
+
+
 def config_inherit_defaults(cfg: dict[str, object]) -> bool:
     """Return whether configuration enables the bundled inclusion-policy layer."""
     return _boolean(cfg.get(CONFIG_INHERIT_DEFAULTS, True), key=CONFIG_INHERIT_DEFAULTS)
@@ -109,6 +168,9 @@ def resolve_scan_behavior(
     show_tokens: bool,
     show_inclusion_status: bool,
     ignore_policy: str,
+    max_file_bytes: int | None,
+    max_total_bytes: int | None,
+    max_tokens: int | None,
     json_mode: bool,
 ) -> ScanBehavior:
     """Resolve persistent scan settings with explicit CLI values taking precedence."""
@@ -219,4 +281,11 @@ def resolve_scan_behavior(
         ),
         ignore_policy=resolve_ignore_policy(ctx, cfg, current=ignore_policy),
         inherit_defaults=config_inherit_defaults(cfg),
+        limits=resolve_resource_limits(
+            ctx,
+            cfg,
+            max_file_bytes=max_file_bytes,
+            max_total_bytes=max_total_bytes,
+            max_tokens=max_tokens,
+        ),
     )

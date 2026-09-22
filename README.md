@@ -88,7 +88,7 @@ grobl scan --format none --summary json
 
 ## Commands
 
-The `grobl` entry point behaves like `grobl scan` when no subcommand is given, but `grobl --help` shows the real top-level command list.
+The `grobl` entry point treats the first positional token as a subcommand only when it exactly matches a registered command. Otherwise the invocation is an implicit scan, so `grobl src` is equivalent to `grobl scan src` and a nonexistent token produces a scan path error rather than an unknown-command error. `grobl --help` shows the real top-level command list.
 
 ### `grobl scan [OPTIONS] [PATHS...]`
 
@@ -191,7 +191,7 @@ All subcommands share a top-level CLI group:
 
 * `-V, --version`: same as `grobl version`
 
-* `-h, --help`: help for the group or a subcommand
+* `-h, --help`: help for the group when placed before the command token; use it after a subcommand for that subcommand's help
 
 Examples:
 
@@ -311,12 +311,25 @@ That run still emits paths and content, but omits token metadata and inclusion b
 ```
 
 * When neither `--copy` nor `--output` is provided, grobl uses the clipboard when stdout is a TTY and stdout otherwise.
+* Successful clipboard delivery prints a concise stderr receipt with the included file count, token count when enabled, and payload size.
 * `--copy` forces clipboard delivery and cannot be combined with `--output` or `--stdout`.
 * `--output -` writes the payload to stdout.
 * `--stdout` writes the payload to stdout.
 * `--output PATH` writes the payload to the specified file.
 
 The **summary** defaults to `stderr`, not stdout. This keeps operator feedback separate from payload streams.
+
+### Content budgets
+
+```bash
+--max-file-bytes N
+--max-total-bytes N
+--max-tokens N
+```
+
+Grobl bounds prompt content by default: 1 MiB per file, 16 MiB total included file bytes, and 200,000 included tokens. Set a limit to `0` to disable that limit for the invocation. The same settings can be persisted as `max_file_bytes`, `max_total_bytes`, and `max_tokens`.
+
+Budget limits omit whole file contents rather than truncating a file. The path remains visible in the hierarchy and summary, with a `resource-limit` reason that is also surfaced by `grobl explain`. Per-file and byte budgets are checked before content is read when file size is available; token limits are checked after text decoding/tokenization.
 
 Examples:
 
@@ -404,7 +417,7 @@ include = [
 
 General non-policy configuration is still loaded through grobl's normal config merge (`XDG`, project config, `pyproject.toml`, environment override, explicit `--config`). Inclusion rules specifically use the hierarchical policy layering above so their pattern bases remain well-defined.
 
-`inherit_defaults = false` disables the bundled inclusion-policy layer under automatic source selection without changing unrelated program defaults. Stable scan settings can also be persisted as `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, and `ignore_policy`. Explicit CLI values have higher precedence. Destination/action controls such as `--copy`, `--output`, `--stdout`, `--json`, `--summary-to`, `--summary-output`, `--config`, logging, and interaction forcing remain invocation-specific.
+`inherit_defaults = false` disables the bundled inclusion-policy layer under automatic source selection without changing unrelated program defaults. Stable scan settings can also be persisted as `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, `ignore_policy`, `max_file_bytes`, `max_total_bytes`, and `max_tokens`. Explicit CLI values have higher precedence. Destination/action controls such as `--copy`, `--output`, `--stdout`, `--json`, `--summary-to`, `--summary-output`, `--config`, and logging remain invocation-specific.
 
 ### `extends` in TOML
 
@@ -440,7 +453,7 @@ grobl config migrate .grobl.toml
 
 The command writes in place and creates `.grobl.toml.bak` by default. `--stdout` previews without writing, `--check` reports whether migration is still needed, and `--no-backup` disables the backup. Mixed canonical/legacy files are rejected. If both old tree and content scopes contain patterns, the command warns that overlapping globs should be reviewed after migration.
 
-Normal scan/explain runs detect applicable legacy-schema configs too. Interactive runs offer migration, then structural pruning, then optional current-tree pruning. Noninteractive runs never prompt or modify files; they warn and continue using compatibility parsing. `--interactive` and `--no-interactive` override automatic TTY detection.
+Normal scan/explain runs detect applicable legacy-schema configs too, emit a concise migration warning, and continue using compatibility parsing. They never migrate, back up, or prune configuration. All configuration writes are reserved for explicit `grobl config migrate` and `grobl config prune` commands.
 
 Canonical configs can then be minimized conservatively:
 
@@ -457,7 +470,10 @@ Example runtime override:
 grobl scan --tree-only "docs/**" --include "docs/architecture.md" .
 ```
 
-Use `--no-ignore` cautiously: it disables every inclusion-policy rule and can make scans significantly slower and payloads very large.
+The bundled defaults also conservatively exclude common credential-bearing names such as `.env.*`, `.npmrc`, `.pypirc`, private-key patterns, and common cloud credential locations. This is filename/path filtering, not content-level secret detection. Use an explicit higher-precedence `include` rule or `--include` only when you intentionally want one of those files in the payload.
+
+Use `--no-ignore` cautiously: it disables every inclusion-policy rule—including sensitive-name filtering—and can make scans significantly slower and payloads very large.
+
 ### Tag customization
 
 Two config keys control the XML-like tag names for the payload:
@@ -820,6 +836,9 @@ grobl uses stable exit codes:
 * `4`: path error
 
   * Invalid paths (nonexistent) or no meaningful common ancestor between paths.
+* `5`: I/O error
+
+  * Output file/stream writes fail or the system clipboard is unavailable.
 * `130`: interrupted by user (Ctrl-C)
 
   * On interruption, grobl captures scan state and may print diagnostics for debugging.

@@ -8,9 +8,12 @@ from typing import TYPE_CHECKING
 import click
 
 from grobl.app.command_support import ScanParams
-from grobl.app.config_behavior import config_inherit_defaults, resolve_ignore_policy
-from grobl.app.config_loading import load_config, resolve_config_base
-from grobl.app.config_maintenance import maintain_legacy_project_configs
+from grobl.app.config_behavior import (
+    config_inherit_defaults,
+    resolve_ignore_policy,
+    resolve_resource_limits,
+)
+from grobl.app.config_maintenance import warn_legacy_project_configs
 from grobl.app.explain import build_explain_entries, render_explain
 from grobl.app.scan_runtime import (
     IgnoreCLIArgs,
@@ -19,6 +22,7 @@ from grobl.app.scan_runtime import (
     gather_runtime_ignore_patterns,
     resolve_runtime_paths,
 )
+from grobl.config_loading import load_config, resolve_config_base
 from grobl.constants import EXIT_CONFIG, ContentScope, PayloadFormat, SummaryFormat, TableStyle
 from grobl.errors import ConfigLoadError
 
@@ -27,8 +31,8 @@ from .options import (
     add_config_option,
     add_ignore_options,
     add_ignore_policy_options,
-    add_interaction_option,
     add_paths_argument,
+    add_resource_limit_options,
 )
 
 if TYPE_CHECKING:
@@ -54,7 +58,7 @@ Examples:
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
-@add_interaction_option
+@add_resource_limit_options
 @click.option(
     "--format",
     "explain_format",
@@ -82,8 +86,10 @@ def explain(
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
-    interactive: bool | None,
     explain_format: str,
+    max_file_bytes: int | None,
+    max_total_bytes: int | None,
+    max_tokens: int | None,
     paths: tuple[Path, ...],
 ) -> None:
     """Explain the effective inclusion state for one or more paths."""
@@ -104,11 +110,10 @@ def explain(
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
     config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
 
-    maintain_legacy_project_configs(
+    warn_legacy_project_configs(
         repo_root=repo_root,
         scan_paths=requested_paths,
         explicit_config=config_path,
-        interactive=interactive,
     )
 
     runtime_exclude, runtime_tree_only, runtime_include = gather_runtime_ignore_patterns(
@@ -124,8 +129,15 @@ def explain(
         )
         effective_ignore_policy = resolve_ignore_policy(ctx, cfg, current=ignore_policy)
         inherit_defaults = config_inherit_defaults(cfg)
+        limits = resolve_resource_limits(
+            ctx,
+            cfg,
+            max_file_bytes=max_file_bytes,
+            max_total_bytes=max_total_bytes,
+            max_tokens=max_tokens,
+        )
     except ConfigLoadError as err:
-        print(err, file=sys.stderr)
+        print(f"error: {err}", file=sys.stderr)
         raise SystemExit(EXIT_CONFIG) from err
 
     params = ScanParams(
@@ -138,6 +150,7 @@ def explain(
         payload_output=None,
         paths=requested_paths,
         repo_root=repo_root,
+        limits=limits,
         pattern_base=config_base,
     )
 
@@ -155,5 +168,5 @@ def explain(
         runtime_include=runtime_include,
     )
 
-    entries = build_explain_entries(paths=requested_paths, ignores=ignores)
+    entries = build_explain_entries(paths=requested_paths, ignores=ignores, limits=limits)
     click.echo(render_explain(entries, explain_format=explain_format), nl=False)

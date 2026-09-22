@@ -9,9 +9,9 @@ name = "CLI wraps application layer"
 type = "layers"
 layers = [
   "grobl.cli",
-  "grobl.app : grobl.config : grobl.config_migration : grobl.config_pruning : grobl.services",
+  "grobl.app : grobl.config_defaults : grobl.config_loading : grobl.config_runtime : grobl.config_migration : grobl.config_pruning",
   "grobl.core : grobl.renderers : grobl.summary : grobl.formatter : grobl.output : grobl.tty",
-  "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.utils : grobl.logging_utils",
+  "grobl.directory : grobl.file_handling : grobl.ignore : grobl.provenance : grobl.resource_limits : grobl.utils : grobl.logging_utils",
   "grobl.constants : grobl.errors : grobl._version : grobl.resources",
 ]
 
@@ -21,10 +21,11 @@ name = "Application layer does not import CLI"
 type = "forbidden"
 source_modules = [
   "grobl.app",
-  "grobl.config",
+  "grobl.config_defaults",
+  "grobl.config_loading",
+  "grobl.config_runtime",
   "grobl.config_migration",
   "grobl.config_pruning",
-  "grobl.services",
 ]
 forbidden_modules = ["grobl.cli"]
 
@@ -38,6 +39,7 @@ source_modules = [
   "grobl.file_handling",
   "grobl.ignore",
   "grobl.provenance",
+  "grobl.resource_limits",
   "grobl.utils",
   "grobl.logging_utils",
   "grobl.renderers",
@@ -76,12 +78,7 @@ id = "cli-shared-helpers-do-not-import-commands"
 name = "CLI shared helpers stay below command modules"
 type = "forbidden"
 source_modules = [
-  "grobl.cli.argv",
-  "grobl.cli.common",
-  "grobl.cli.context",
   "grobl.cli.options",
-  "grobl.cli.routing",
-  "grobl.cli.runtime",
 ]
 forbidden_modules = [
   "grobl.cli.scan",

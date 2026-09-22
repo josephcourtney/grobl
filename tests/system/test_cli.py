@@ -11,7 +11,7 @@ from click.testing import CliRunner
 
 from grobl.app import output_routing as app_routing
 from grobl.cli import cli
-from grobl.constants import EXIT_USAGE
+from grobl.constants import EXIT_IO, EXIT_USAGE
 from grobl.token_counting import count_tokens
 
 if TYPE_CHECKING:
@@ -36,12 +36,12 @@ def test_cli_help_and_scan_help() -> None:
     assert "--format" in scan_help.output
     assert "--summary" in scan_help.output
 
-    # global help before command routes to subcommand help
-    scan_help2 = runner.invoke(cli, ["-h", "scan"])
-    assert scan_help2.exit_code == 0
-    assert "--scope" in scan_help2.output
-    assert "--format" in scan_help2.output
-    assert "Usage:" in scan_help2.output
+    # Root help remains root help when it appears before a command token.
+    root_help_before_command = runner.invoke(cli, ["-h", "scan"])
+    assert root_help_before_command.exit_code == 0
+    assert "Commands:" in root_help_before_command.output
+    assert "scan" in root_help_before_command.output
+    assert "--scope" not in root_help_before_command.output
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX-only filesystem root semantics")
@@ -587,11 +587,14 @@ def test_payload_destination_contract(
 
     if case.expect_clipboard_used:
         assert fake_clipboard
+        assert "Copied " in res.stderr
+        assert " to clipboard." in res.stderr
         # If JSON, parse it to ensure validity
         if fake_clipboard[0].lstrip().startswith("{"):
             json.loads(fake_clipboard[0])
     else:
         assert not fake_clipboard
+        assert " to clipboard." not in res.stderr
 
     if case.expect_output_file:
         out_path = repo_root / "payload.json"
@@ -898,3 +901,23 @@ def test_root_logging_flags_work_before_or_after_command(
     )
     assert res2.exit_code == 0
     json.loads(res2.stdout)
+
+
+def test_cli_output_write_failure_is_short_io_error(repo_root: Path) -> None:
+    (repo_root / "a.txt").write_text("hello\n", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(repo_root),
+            "--summary",
+            "none",
+            "--output",
+            str(repo_root),
+        ],
+    )
+
+    assert result.exit_code == EXIT_IO
+    assert "error: cannot write output" in result.stderr
+    assert "Traceback" not in (result.stdout + result.stderr)

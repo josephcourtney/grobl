@@ -16,7 +16,7 @@ grobl turns a set of filesystem paths into deterministic, prompt-ready context w
 - A graphical user interface or editor integration.
 - A general-purpose backup, synchronization, or archival system.
 - Automatic interpretation of binary file contents.
-- Performance guarantees beyond avoiding unnecessary work for omitted or hierarchy-only files.
+- Exact prediction of downstream model context capacity; Grobl enforces its own configurable content budgets instead.
 - Independent hierarchy/content states beyond the three-state inclusion model.
 
 ## Architectural structure
@@ -27,7 +27,7 @@ The package is layered, and the dependency direction is enforced by `import-lint
    - Defines Click commands, options, help text, and argument normalization.
    - Delegates behavior to the application layer rather than owning scan policy or rendering logic.
 
-2. **Application/configuration layer — `grobl.app`, `grobl.config*`, `grobl.services`**
+2. **Application/configuration layer — `grobl.app`, `grobl.config_*`, migration/pruning modules**
    - Orchestrates scan and explain workflows.
    - Resolves configuration, repository roots, output routing, and compatibility inputs.
    - Translates user-facing inputs into core policy and execution objects.
@@ -87,7 +87,7 @@ Bundled policy is implementation-owned data, not project-owned boilerplate. `gro
 
 `inherit_defaults` controls only installation of the bundled inclusion-policy layer. Under automatic source selection, `false` starts policy composition with project/config layers; it does not erase payload, summary, metadata, tag, or other program defaults. Explicit CLI source-selection remains the final authority.
 
-Stable scan-wide behavior can be persisted using config keys corresponding to `scope`, payload `format`, summary mode/style, metadata visibility, and `ignore_policy`. Explicit CLI values override those settings. Routing/actions remain invocation-owned so a repository cannot unexpectedly force clipboard writes, output paths, JSON convenience mode, logging, explicit config selection, or interactivity.
+Stable scan-wide behavior can be persisted using config keys corresponding to `scope`, payload `format`, summary mode/style, metadata visibility, `ignore_policy`, and content resource limits. Explicit CLI values override those settings. Routing/actions remain invocation-owned so a repository cannot unexpectedly force clipboard writes, output paths, JSON convenience mode, logging, explicit config selection, or interactivity.
 
 Inclusion policy remains hierarchical because each policy source has a path-relative matching base. Scan-wide scalar behavior is resolved through the general config merge rather than varying by nested path; one scan invocation has one payload format, scope, summary mode, and metadata-visibility policy even when it spans multiple subtrees.
 
@@ -97,7 +97,7 @@ Legacy `exclude_tree`, `exclude_print`, and `exclude_content` inputs remain supp
 
 `grobl config migrate` is the deterministic explicit path from legacy-only configuration to canonical `exclude`/`tree_only`/`include` configuration. Mixed legacy/canonical policy sources are rejected rather than interpreted ambiguously. Migration preserves the original by default and warns when overlapping legacy globs cannot be proven equivalent.
 
-Scan/explain add an interactive convenience layer around that same migration primitive: applicable legacy-schema files are offered for migration only when the run is interactive (or explicitly forced interactive), the original backup is retained, structural pruning is offered afterward, and repository-state pruning requires its own opt-in confirmation. Noninteractive runs only warn and continue using compatibility parsing; configuration maintenance must never make automation block on a prompt.
+Scan and explain never modify configuration. When they encounter legacy schema they emit a warning and continue through the compatibility parser. Migration and pruning are explicit maintenance operations performed only by `grobl config migrate` and `grobl config prune`.
 
 Canonical configuration maintenance distinguishes tree-independent structural pruning from repository-state pruning. Structural pruning removes same-source rules shadowed by identical later matchers, semantically empty canonical policy keys, and non-policy settings that simply repeat their effective inherited value; formatting cleanup removes comment-only policy subsections left empty by those edits. Repository-state pruning is explicit: it considers only exact inherited same-base policy duplicates and removes a candidate after counterfactual matching proves that the currently traversable tree keeps the same effective states. Unique dormant rules are never removed merely for having no current matches.
 
@@ -109,7 +109,9 @@ A scan proceeds conceptually through stable boundaries:
 - assemble the layered inclusion policy
 - traverse deterministically while honoring possible reinclusion
 - classify visible files by inclusion state
-- perform text detection and content reads only for `full` files
+- preflight `full` files against per-file and aggregate byte budgets before reading
+- perform streaming text detection and content reads only for budget-eligible `full` files
+- enforce aggregate token budget before admitting content to the payload
 - build metadata, tree, payload, and summary representations
 - route payload and summary streams independently
 
@@ -127,7 +129,7 @@ Payload and summary are independent streams.
 
 ## Error handling
 
-Expected user errors are translated into stable CLI usage/config/path exits rather than uncaught tracebacks. Broken stdout pipes are treated as successful pipeline termination. Internal programming errors are not silently converted into user-facing success.
+Expected user errors are translated into stable CLI usage/config/path/I/O exits rather than uncaught tracebacks. Broken stdout pipes are treated as successful pipeline termination. Internal programming errors are not silently converted into user-facing success.
 
 ## Quality requirements
 
@@ -135,3 +137,7 @@ Expected user errors are translated into stable CLI usage/config/path exits rath
 - Tests use strict resource-isolation categories: SMALL tests are hermetic; tests requiring real filesystem access are MEDIUM or larger.
 - The canonical validation gate is `just check`; release validation is `just release-check`.
 - Version reporting derives from installed package metadata and must remain consistent with `pyproject.toml` and the changelog.
+
+## Sensitive-file policy
+
+The bundled inclusion policy conservatively omits common credential-bearing filenames, environment-file variants, and private-key patterns. These are path-based safeguards rather than a claim of content-level secret detection; explicit higher-precedence include rules remain available when the user intentionally wants such a file in context.

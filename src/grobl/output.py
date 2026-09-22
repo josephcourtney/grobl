@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import pyperclip
 
+from grobl.errors import ClipboardUnavailableError, OutputWriteError
 from grobl.logging_utils import StructuredLogEvent, get_logger, log_event
 
 if TYPE_CHECKING:
@@ -25,7 +26,10 @@ class FileOutput:
         self._path = path
 
     def write(self, content: str) -> None:
-        self._path.write_text(content, encoding="utf-8")
+        try:
+            self._path.write_text(content, encoding="utf-8")
+        except OSError as err:
+            raise OutputWriteError(f"cannot write output {self._path}: {err}") from err
 
 
 class ClipboardOutput:
@@ -62,7 +66,7 @@ class ClipboardOutput:
                     context={"max_attempts": MAX_CLIPBOARD_RETRIES},
                 ),
             )
-            raise last_error
+            raise ClipboardUnavailableError("clipboard unavailable") from last_error
 
 
 class StdoutOutput:
@@ -70,8 +74,13 @@ class StdoutOutput:
 
     @staticmethod
     def write(content: str) -> None:
-        sys.stdout.write(content)
-        sys.stdout.flush()
+        try:
+            sys.stdout.write(content)
+            sys.stdout.flush()
+        except BrokenPipeError:
+            raise
+        except OSError as err:
+            raise OutputWriteError(f"cannot write output stdout: {err}") from err
 
 
 def build_writer_from_config(*, copy: bool, output: Path | None) -> Callable[[str], None]:
