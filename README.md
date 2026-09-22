@@ -189,6 +189,9 @@ All subcommands share a top-level CLI group:
 
 * `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}`: explicit log level
 
+* `--debug`: print scan phase timings to stderr; this is independent of
+  `-vv`, which enables debug logging
+
 * `-V, --version`: same as `grobl version`
 
 * `-h, --help`: help for the group when placed before the command token; use it after a subcommand for that subcommand's help
@@ -198,6 +201,7 @@ Examples:
 ```bash
 grobl -vv scan --summary table .
 grobl --log-level=DEBUG scan .
+grobl --debug scan .
 ```
 
 ## Scan options
