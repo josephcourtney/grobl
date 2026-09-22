@@ -329,7 +329,7 @@ The **summary** defaults to `stderr`, not stdout. This keeps operator feedback s
 
 Grobl bounds prompt content by default: 1 MiB per file, 16 MiB total included file bytes, and 200,000 included tokens. Set a limit to `0` to disable that limit for the invocation. The same settings can be persisted as `max_file_bytes`, `max_total_bytes`, and `max_tokens`.
 
-Budget limits omit whole file contents rather than truncating a file. The path remains visible in the hierarchy and summary, with a `resource-limit` reason that is also surfaced by `grobl explain`. Per-file and byte budgets are checked before content is read when file size is available; token limits are checked after text decoding/tokenization.
+Budget limits omit whole file contents rather than truncating a file. The path remains visible in the hierarchy and summary, with a `resource-limit` reason that is also surfaced by `grobl explain`. Per-file and byte budgets are checked before content is read when file size is available; token limits are checked after text decoding/tokenization. When several explicit files are passed to `explain`, aggregate budgets are evaluated across those files in deterministic scan order. A standalone explain cannot reconstruct budget already consumed by other files from an earlier, wider scan.
 
 Examples:
 
