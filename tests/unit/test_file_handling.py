@@ -44,7 +44,6 @@ def test_text_handler_respects_exclude_print_and_records_contents(tmp_path: Path
     deps = _deps(detector=detector, reader=reader)
     ignores = build_ignore_matcher(
         repo_root=tmp_path,
-        scan_paths=[tmp_path],
         print_patterns=["skip.txt"],
     )
     ctx = FileProcessingContext(
@@ -99,7 +98,7 @@ def test_text_handler_normalizes_late_read_failure(tmp_path: Path) -> None:
     target = tmp_path / "note.txt"
     target.write_text("hello\n", encoding="utf-8")
     builder = DirectoryTreeBuilder(base_path=tmp_path, exclude_patterns=[])
-    ignores = build_ignore_matcher(repo_root=tmp_path, scan_paths=[tmp_path])
+    ignores = build_ignore_matcher(repo_root=tmp_path)
 
     def reader(_path: Path) -> str:
         msg = "permission changed"
