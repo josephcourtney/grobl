@@ -37,7 +37,7 @@ def test_is_text_missing_file_returns_false(tmp_path: Path) -> None:
     assert detection.content is None
 
 
-def test_detect_text_prefetches_content(tmp_path: Path) -> None:
+def test_detect_text_detects_text_without_prefetching(tmp_path: Path) -> None:
     sample = tmp_path / "sample.txt"
     sample.write_text("héllo\nworld", encoding="utf-8")
 
@@ -66,7 +66,6 @@ def test_detect_text_handles_utf8_chunk_boundary(tmp_path: Path) -> None:
     detection = detect_text(plan)
 
     assert detection.is_text is True
-    expected_content = payload.decode("utf-8", errors="ignore")
     assert detection.content is None
 
 
