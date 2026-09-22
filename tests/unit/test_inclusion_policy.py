@@ -15,7 +15,7 @@ from grobl.constants import (
 )
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
-from grobl.ignore import build_layered_ignores
+from grobl.ignore import InclusionLayer, InclusionRule, LayerSource, build_layered_ignores
 from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS
 
@@ -227,3 +227,34 @@ def test_unanchored_basename_reinclude_remains_conservative_without_leaking(
 
     assert ".gitmodules" in tree
     assert "vendor.c" not in tree
+
+
+@pytest.mark.medium
+def test_reinclude_layer_below_omitted_directory_keeps_ancestor_traversable(
+    tmp_path: Path,
+) -> None:
+    omitted = tmp_path / "generated"
+    deeper = omitted / "special"
+    deeper.mkdir(parents=True)
+
+    matcher = build_layered_ignores(
+        repo_root=tmp_path,
+        include_defaults=False,
+        default_cfg={},
+        runtime_exclude=("generated",),
+        config_layers=(
+            InclusionLayer(
+                base_dir=deeper,
+                rules=(
+                    InclusionRule(
+                        pattern="keep.txt",
+                        level=InclusionLevel.FULL,
+                    ),
+                ),
+                source=LayerSource.CONFIG,
+                config_path=deeper / ".grobl.toml",
+            ),
+        ),
+    )
+
+    assert matcher.may_reinclude_descendant(omitted) is True
