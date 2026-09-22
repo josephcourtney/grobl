@@ -66,3 +66,21 @@ def test_missing_path_with_help_uses_scan_help_not_unknown_command() -> None:
     assert result.exit_code == 0
     assert "Unknown command:" not in (result.stdout + result.stderr)
     assert "--scope" in result.output
+
+
+def test_debug_flag_preserves_implicit_scan(repo_root: Path) -> None:
+    (repo_root / "timed.txt").write_text("timed\n", encoding="utf-8")
+    result = CliRunner().invoke(
+        cli,
+        [
+            "--debug",
+            str(repo_root),
+            "--stdout",
+            "--summary",
+            "none",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "timed.txt" in result.stdout
+    assert "Grobl timings:" in result.stderr
