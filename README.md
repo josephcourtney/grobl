@@ -255,7 +255,7 @@ The payload is always written to a clipboard or file destination (see below), no
 --inclusion-status/--no-inclusion-status
 ```
 
-* `--summary auto` (default): behave like `table` when stdout is a TTY and like `none` otherwise.
+* `--summary auto` (default): behave like `table` when the invocation is interactive for the selected summary routing (stderr by default) and like `none` otherwise.
 * `--summary table`: print a human-readable summary to the selected destination.
   * `--summary-style auto` (default) chooses `full` on TTYs and `compact` otherwise.
   * `--summary-style full` renders the directory tree plus totals.
@@ -801,25 +801,19 @@ Use `--no-ignore` cautiously: it disables every inclusion-policy rule and can si
 
 ## Testing
 
-grobl uses `pytest` with coverage:
+The canonical repository validation gate is:
 
-* Run tests (from the project root):
+```bash
+just check
+```
 
-  ```bash
-  uv run pytest
-  ```
+It runs syntax and formatting validation, Ruff linting, static typing, import-architecture contracts, the full pytest suite, and coverage reporting. Before a release, run:
 
-* Coverage is configured via `pyproject.toml` and `coverage`:
+```bash
+just release-check
+```
 
-  * Branch coverage enabled (`--cov-branch`)
-  * Source limited to `src/grobl`
-  * XML report written to `.coverage.xml`
-
-The test suite includes:
-
-* Unit tests for core logic, config, traversal, formatting, logging, and utilities.
-* Component tests for CLI behavior (including JSON output and payloads).
-* System tests that exercise flows described in this README (quick-start scan, `--output`, `version`, `completions`, `init`).
+That repeats repository validation and builds the source and wheel distributions without local `uv` source overrides. Use narrower test or lint recipes during development, but the two commands above are the authoritative pre-commit/release gates.
 
 ## Exit codes
 
