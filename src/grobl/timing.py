@@ -43,3 +43,18 @@ class TimingRecorder:
             lines.append(f"  {display:<{width}}  {seconds:8.3f} s")
         lines.append(f"  {'total':<{width}}  {total:8.3f} s")
         return "\n".join(lines)
+
+
+@contextmanager
+def measure_timing(
+    recorder: TimingRecorder | None,
+    label: str,
+    *,
+    depth: int = 0,
+) -> Iterator[None]:
+    """Measure a phase when a recorder is active; otherwise do nothing."""
+    if recorder is None:
+        yield
+        return
+    with recorder.measure(label, depth=depth):
+        yield
