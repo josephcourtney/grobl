@@ -4,11 +4,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from grobl.app.command_support import ScanParams
 from grobl.app.scan_runtime import assemble_layered_ignores
-from grobl.constants import InclusionLevel
+from grobl.constants import ContentScope, InclusionLevel, PayloadFormat, SummaryFormat, TableStyle
 from grobl.core import run_scan
 from grobl.file_handling import ScanDependencies
 from grobl.ignore import build_layered_ignores
+from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY
+from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -98,11 +101,6 @@ def test_deeper_config_can_restore_full_inclusion(tmp_path: Path) -> None:
     target.write_text("keep", encoding="utf-8")
     (tmp_path / ".grobl.toml").write_text('exclude = ["generated/**"]\n', encoding="utf-8")
     (subtree / ".grobl.toml").write_text('include = ["keep.txt"]\n', encoding="utf-8")
-
-    from grobl.app.command_support import ScanParams
-    from grobl.constants import ContentScope, PayloadFormat, SummaryFormat, TableStyle
-    from grobl.metadata_visibility import DEFAULT_METADATA_VISIBILITY
-    from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS
 
     params = ScanParams(
         paths=(subtree,),
