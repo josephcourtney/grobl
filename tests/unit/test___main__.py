@@ -10,6 +10,7 @@ from click.testing import CliRunner
 
 from grobl.cli import root as cli_root
 from grobl.cli.root import main as module_main
+from grobl.constants import EXIT_IO
 
 pytestmark = pytest.mark.small
 
@@ -132,3 +133,23 @@ def test_main_handles_broken_pipe(monkeypatch: pytest.MonkeyPatch) -> None:
     assert excinfo.value.args[0] == 0
     assert broken_cli.called_with == ["scan"]
     assert helper_calls["count"] == 1
+
+
+
+def test_main_normalizes_unhandled_oserror(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class FailingCLI:
+        @staticmethod
+        def main(*, args: list[str], prog_name: str, standalone_mode: bool) -> None:
+            _ = args, prog_name, standalone_mode
+            raise OSError("permission denied")
+
+    monkeypatch.setattr(cli_root, "cli", FailingCLI(), raising=True)
+
+    with pytest.raises(SystemExit) as excinfo:
+        module_main(["scan"])
+
+    assert excinfo.value.code == EXIT_IO
+    assert "error: I/O failure: permission denied" in capsys.readouterr().err
