@@ -92,7 +92,7 @@ The `grobl` entry point treats the first positional token as a subcommand only w
 
 ### `grobl scan [OPTIONS] [PATHS...]`
 
-Main command: traverse paths and build LLM/MARKDOWN/JSON-friendly output.
+Main command: traverse paths and build LLM, Markdown, JSON, or NDJSON output.
 
 * If `PATHS` is omitted, the current directory is used.
 * If you pass only a single file, grobl treats its **parent directory** as the tree root (the file is still included).
@@ -205,7 +205,7 @@ grobl --log-level=DEBUG scan .
 The `scan` command controls four orthogonal concerns:
 
 1. **Scope** – what to collect (tree, files, or both)
-2. **Payload** – heavy output format (LLM XML-like, JSON, or none)
+2. **Payload** – heavy output format (LLM XML-like, Markdown, JSON, NDJSON, or none)
 3. **Summary** – light metadata output (human, JSON, or none)
 4. **Sink** – where the payload is sent (clipboard, stdout, file)
 
@@ -749,10 +749,10 @@ In these cases, grobl writes a structured JSON payload to the selected destinati
 
 ### In tree but no contents
 
-A path in this condition has effective policy state `tree_only`, or is `full` but was rejected by binary detection.
+A path in this condition has effective policy state `tree_only`, or is `full` but its contents were rejected by binary detection or an active resource budget.
 
-* Run `grobl explain PATH --format json` to distinguish the cases and see the winning rule.
-* Use `--include PATTERN` or an `include` entry in `.grobl.toml` to restore `full` policy.
+* Run `grobl explain PATH --format json` to distinguish policy, text-detection, and `resource-limit` reasons.
+* Use `--include PATTERN` or an `include` entry in `.grobl.toml` to restore `full` policy when policy is the cause. Inclusion rules do not override binary detection or content budgets.
 
 ### Docs contents missing
 
