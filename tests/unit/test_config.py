@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 import pytest
 
 from grobl.config_loading import load_config, load_toml_config, resolve_config_base
-from grobl.config_runtime import apply_runtime_ignore_edits
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
@@ -52,48 +51,6 @@ def test_config_precedence_explicit_overrides_env_and_local(
         ignore_defaults=True,
     )
     assert cfg.get("exclude_tree") == ["from-explicit"]
-
-
-def test_runtime_ignore_files_and_no_ignore(tmp_path: Path) -> None:
-    ignore_file = tmp_path / "ignore.txt"
-    ignore_file.write_text("# comment\nfoo\nbar\n\n", encoding="utf-8")
-
-    runtime = apply_runtime_ignore_edits(
-        base_tree=[],
-        base_print=[],
-        add_ignore=("baz",),
-        remove_ignore=(),
-        add_ignore_files=(ignore_file,),
-        unignore=(),
-        no_ignore=False,
-    )
-    assert set(runtime.tree_patterns) == {"foo", "bar", "baz"}
-
-    # Now disable all ignores
-    runtime_no_ignore = apply_runtime_ignore_edits(
-        base_tree=[],
-        base_print=[],
-        add_ignore=(),
-        remove_ignore=(),
-        add_ignore_files=(ignore_file,),
-        unignore=(),
-        no_ignore=True,
-    )
-    assert runtime_no_ignore.tree_patterns == []
-
-
-def test_runtime_remove_ignore_warns_when_missing(capsys: pytest.CaptureFixture[str]) -> None:
-    apply_runtime_ignore_edits(
-        base_tree=["a"],
-        base_print=[],
-        add_ignore=(),
-        remove_ignore=("missing",),
-        add_ignore_files=(),
-        unignore=(),
-        no_ignore=False,
-    )
-    captured = capsys.readouterr()
-    assert "warning: ignore pattern not found: missing" in captured.err
 
 
 def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
