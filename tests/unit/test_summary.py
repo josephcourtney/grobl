@@ -135,7 +135,14 @@ def test_build_summary_omits_disabled_metadata_fields(tmp_path: Path) -> None:
 
     summary = build_summary(ctx)
     file_entry = summary["files"][0]
-    assert set(summary["totals"]) == {"total_characters", "all_total_characters"}
+    assert set(summary["totals"]) == {
+        "included_files",
+        "all_files",
+        "total_characters",
+        "all_total_characters",
+    }
+    assert summary["totals"]["included_files"] == 1
+    assert summary["totals"]["all_files"] == 1
     assert "chars" in file_entry
     assert "lines" not in file_entry
     assert "tokens" not in file_entry
