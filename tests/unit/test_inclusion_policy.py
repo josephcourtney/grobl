@@ -137,3 +137,64 @@ def test_deeper_config_can_restore_full_inclusion(tmp_path: Path) -> None:
     assert decision.level is InclusionLevel.FULL
     assert decision.reason is not None
     assert decision.reason.config_path == (subtree / ".grobl.toml").resolve()
+
+
+@pytest.mark.medium
+def test_unrelated_reinclude_does_not_open_omitted_vendor_subtree(tmp_path: Path) -> None:
+    (tmp_path / ".gitmodules").write_text("root module\n", encoding="utf-8")
+    source_dir = tmp_path / "third_party" / "vendor" / "src"
+    source_dir.mkdir(parents=True)
+    (source_dir / "vendor.c").write_text("vendor implementation\n", encoding="utf-8")
+
+    matcher = _matcher(
+        tmp_path,
+        exclude=("third_party/*/*",),
+        include=("/.gitmodules",),
+    )
+
+    assert matcher.may_reinclude_descendant(source_dir) is False
+
+    result = run_scan(paths=[tmp_path], cfg={}, ignores=matcher)
+    tree = "\n".join(result.builder.tree_output())
+
+    assert ".gitmodules" in tree
+    assert "vendor.c" not in tree
+
+
+@pytest.mark.medium
+def test_targeted_reinclude_descends_only_far_enough_to_restore_target(tmp_path: Path) -> None:
+    private = tmp_path / "generated" / "private"
+    private.mkdir(parents=True)
+    keep = private / "keep.txt"
+    drop = private / "drop.txt"
+    keep.write_text("keep\n", encoding="utf-8")
+    drop.write_text("drop\n", encoding="utf-8")
+
+    matcher = _matcher(
+        tmp_path,
+        exclude=("generated/*",),
+        include=("generated/private/keep.txt",),
+    )
+
+    assert matcher.may_reinclude_descendant(private) is True
+
+    result = run_scan(paths=[tmp_path], cfg={}, ignores=matcher)
+    tree = "\n".join(result.builder.tree_output())
+
+    assert "keep.txt" in tree
+    assert "drop.txt" not in tree
+    metadata = dict(result.builder.metadata_items())
+    assert metadata["generated/private/keep.txt"].included is True
+    assert "generated/private/drop.txt" not in metadata
+
+
+@pytest.mark.medium
+def test_unanchored_basename_reinclude_remains_conservative(tmp_path: Path) -> None:
+    vendor = tmp_path / "third_party" / "vendor"
+    vendor.mkdir(parents=True)
+
+    matcher = _matcher(tmp_path, include=(".gitmodules",))
+
+    # Gitignore-style basename patterns can match at any depth, so Grobl cannot
+    # prove that an arbitrary subtree is irrelevant to this restoration.
+    assert matcher.may_reinclude_descendant(vendor) is True
