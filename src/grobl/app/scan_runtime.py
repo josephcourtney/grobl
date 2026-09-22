@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 import click
 
-from grobl.config_defaults import TOML_CONFIG, load_default_config
-from grobl.config_loading import load_toml_config
+from grobl.config_defaults import load_default_config
+from grobl.config_loading import discover_grobl_toml_files, load_toml_config
 from grobl.constants import IgnorePolicy
 from grobl.ignore import (
     InclusionLayer,
@@ -78,41 +78,6 @@ def expand_path_token(path: Path) -> Path:
 def resolve_runtime_paths(paths: tuple[Path, ...]) -> tuple[tuple[Path, ...], Path]:
     requested_paths = tuple(expand_path_token(path) for path in paths) if paths else (Path(),)
     return requested_paths, resolve_repo_root(cwd=Path(), paths=requested_paths)
-
-
-def _coerce_to_dir(path: Path) -> Path:
-    return path.parent if path.is_file() else path
-
-
-def discover_grobl_toml_files(
-    *,
-    repo_root: Path,
-    scan_paths: tuple[Path, ...],
-) -> list[Path]:
-    """Return applicable .grobl.toml files ordered from repository root to leaf."""
-    root = repo_root.resolve()
-    targets = [_coerce_to_dir(path.resolve(strict=False)) for path in scan_paths]
-
-    found: set[Path] = set()
-    for target in targets:
-        if not target.is_relative_to(root):
-            continue
-        current = target
-        while True:
-            candidate = current / TOML_CONFIG
-            if candidate.exists():
-                found.add(candidate.resolve())
-            if current == root:
-                break
-            current = current.parent
-
-    return sorted(
-        found,
-        key=lambda path: (
-            len(path.parent.relative_to(root).parts),
-            path.as_posix().casefold(),
-        ),
-    )
 
 
 def _load_config_layers(
