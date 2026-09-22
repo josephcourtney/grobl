@@ -86,13 +86,20 @@ class RootGroup(LiteralEpilogGroup):
     type=click.Choice(["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"], case_sensitive=False),
     help="Set log level explicitly (overrides -v / -vv).",
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Print scan phase timings to stderr.",
+)
 @click.version_option(__version__, "-V", "--version", message="%(version)s")
 def cli(
     *,
     verbose: int,
     log_level: str | None,
+    debug: bool,
 ) -> None:
     """Build prompt-ready project snapshots and explain filtering decisions."""
+    _ = debug
     logging.basicConfig(level=resolve_log_level(verbose=verbose, log_level=log_level), force=True)
 
 
