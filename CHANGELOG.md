@@ -1,15 +1,21 @@
 ## [Unreleased]
 
 ### Added
-- add a global `--debug` scan profiler that reports setup, traversal, policy matching, text detection, file reading, token counting, payload, summary, and output timings to stderr.
 - add explicit symlink tree entries plus bounded `--follow-symlinks` and `--allow-external-symlinks` controls with persistent configuration equivalents and explain diagnostics.
 
 ### Changed
 - treat symbolic links as logical tree references by default instead of silently dereferencing file links, preserve logical paths for policy matching, and deduplicate followed targets by filesystem identity.
 
 ### Fixed
-- scope traversal through omitted directories to subtrees that can actually contain a restored path, while preserving ancestor omission for non-restored descendants.
 - resolve a standalone symlink scan from its logical parent so broken or external links remain inspectable without making the target the scan root.
+
+## [2.4.2] - 2026-09-22
+
+### Added
+- add a global `--debug` scan profiler that reports setup, traversal, policy matching, text detection, file reading, token counting, payload, summary, and output timings to stderr.
+
+### Fixed
+- scope traversal through omitted directories to subtrees that can actually contain a restored path, while preserving ancestor omission for non-restored descendants.
 
 ## [2.4.0] - 2026-09-22
 
