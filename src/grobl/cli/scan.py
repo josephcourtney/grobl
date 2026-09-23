@@ -17,6 +17,7 @@ from .options import (
     add_resource_limit_options,
     add_scan_output_options,
     add_scope_option,
+    add_symlink_options,
 )
 
 if TYPE_CHECKING:
@@ -29,6 +30,9 @@ Examples:
 
   grobl scan src tests --scope all
     Build one payload from multiple paths.
+
+  grobl scan --follow-symlinks vendor/link
+    Follow eligible internal symlink targets while retaining logical paths.
 
   grobl scan --copy
     Force the payload to the clipboard.
@@ -57,6 +61,7 @@ Examples:
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
+@add_symlink_options
 @add_scan_output_options
 @add_resource_limit_options
 @add_scope_option
@@ -80,6 +85,8 @@ def scan(
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
+    follow_symlinks: bool,
+    allow_external_symlinks: bool,
     payload_format: str,
     copy: bool,
     output: Path | None,
@@ -117,6 +124,8 @@ def scan(
         no_ignore_config=no_ignore_config,
         no_ignore=no_ignore,
         ignore_policy=ignore_policy,
+        follow_symlinks=follow_symlinks,
+        allow_external_symlinks=allow_external_symlinks,
         payload_format=payload_format,
         copy=copy,
         output=output,
