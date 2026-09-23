@@ -70,7 +70,7 @@ def resolve_repo_root(*, cwd: Path, paths: Sequence[Path]) -> Path:
     except (ValueError, PathNotFoundError):
         return cwd.absolute()
 
-    if common.is_file() and not common.is_symlink():
+    if common.is_symlink() or common.is_file():
         return common.parent
 
     return common
