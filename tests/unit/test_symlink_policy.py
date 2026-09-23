@@ -149,6 +149,24 @@ def test_broken_symlink_is_retained_without_dereferencing(tmp_path: Path) -> Non
     assert result.builder.files_json() == []
 
 
+def test_symlink_loop_is_retained_as_broken(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    link = repo / "loop"
+    link.symlink_to(link.name)
+
+    ignores = build_ignore_matcher(repo_root=repo)
+    result = run_scan(
+        paths=[repo],
+        cfg={"_follow_symlinks": True},
+        ignores=ignores,
+        repo_root=repo,
+    )
+
+    assert "loop -> loop [broken]" in "\n".join(result.builder.tree_output())
+    assert result.builder.files_json() == []
+
+
 def test_single_symlink_scan_uses_logical_parent_as_root(tmp_path: Path) -> None:
     target = tmp_path / "target.txt"
     target.write_text("hello\n", encoding="utf-8")
