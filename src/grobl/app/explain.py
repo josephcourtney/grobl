@@ -18,7 +18,7 @@ from grobl.directory import (
 from grobl.provenance import format_content_reason, inclusion_reason_to_dict
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
 from grobl.token_counting import count_tokens
-from grobl.utils import detect_text, read_text
+from grobl.utils import detect_text, logical_absolute, read_text
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -31,12 +31,13 @@ def validate_existing_paths(paths: tuple[Path, ...]) -> list[Path]:
     """Validate explain targets without dereferencing symlinks."""
     validated: list[Path] = []
     for path in paths:
+        logical = logical_absolute(path)
         try:
-            path.lstat()
+            logical.lstat()
         except OSError as err:
             msg = f"path not found: {path}"
             raise click.UsageError(msg) from err
-        validated.append(path.absolute())
+        validated.append(logical)
     return validated
 
 
@@ -56,7 +57,7 @@ def build_explain_entries(
     )
     if not validated_paths:
         return []
-    root = (repo_root or validated_paths[0].parent).absolute()
+    root = logical_absolute(repo_root or validated_paths[0].parent)
     traversal = TraverseConfig(
         paths=validated_paths,
         base=root,
