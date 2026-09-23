@@ -7,7 +7,7 @@ Rules are evaluated sequentially across layers and the last matching rule wins.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -62,7 +62,6 @@ class CompiledRule:
     core: str
     negated: bool
     level: InclusionLevel
-    spec: PathSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +70,7 @@ class CompiledLayer:
     source: LayerSource
     config_path: Path | None
     rules: tuple[CompiledRule, ...]
+    spec: PathSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,22 +182,24 @@ def _compile_rules(rules: Iterable[InclusionRule]) -> tuple[CompiledRule, ...]:
                 core=core,
                 negated=negated,
                 level=level,
-                spec=PathSpec.from_lines("gitignore", [core]),
             )
         )
     return tuple(compiled)
 
 
-def compile_layers(layers: Sequence[InclusionLayer]) -> tuple[CompiledLayer, ...]:
-    return tuple(
-        CompiledLayer(
-            base_dir=layer.base_dir,
-            source=layer.source,
-            config_path=layer.config_path,
-            rules=_compile_rules(layer.rules),
-        )
-        for layer in layers
+def _compile_layer(layer: InclusionLayer) -> CompiledLayer:
+    rules = _compile_rules(layer.rules)
+    return CompiledLayer(
+        base_dir=layer.base_dir,
+        source=layer.source,
+        config_path=layer.config_path,
+        rules=rules,
+        spec=PathSpec.from_lines("gitignore", (rule.core for rule in rules)),
     )
+
+
+def compile_layers(layers: Sequence[InclusionLayer]) -> tuple[CompiledLayer, ...]:
+    return tuple(_compile_layer(layer) for layer in layers)
 
 
 def _to_git_path(rel: Path, *, is_dir: bool) -> str:
@@ -209,9 +211,9 @@ def _to_git_path(rel: Path, *, is_dir: bool) -> str:
 
 def _match_candidates(rel: Path, *, is_dir: bool) -> tuple[str, ...]:
     """Return the path plus ancestor directories for gitignore-style matching."""
-    candidates = [_to_git_path(Path(*rel.parts[:index]), is_dir=True) for index in range(1, len(rel.parts))]
-    candidates.append(_to_git_path(rel, is_dir=is_dir))
-    return tuple(candidates)
+    parts = rel.parts
+    ancestors = tuple("/".join(parts[:index]) + "/" for index in range(1, len(parts)))
+    return (*ancestors, _to_git_path(rel, is_dir=is_dir))
 
 
 def _literal_prefix(core: str) -> tuple[tuple[str, ...], bool, bool]:
@@ -283,10 +285,29 @@ class LayeredIgnoreMatcher:
 
     layers: tuple[CompiledLayer, ...]
     has_reinclusions: bool
+    _candidate_cache: dict[tuple[int, str], int | None] = field(
+        default_factory=dict,
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
-    @staticmethod
+    def _candidate_rule_index(
+        self,
+        layer_index: int,
+        layer: CompiledLayer,
+        candidate: str,
+    ) -> int | None:
+        key = (layer_index, candidate)
+        if key in self._candidate_cache:
+            return self._candidate_cache[key]
+
+        index = layer.spec.check_file(candidate).index
+        self._candidate_cache[key] = index
+        return index
+
     def _decide(
-        layers: tuple[CompiledLayer, ...],
+        self,
         abs_path: Path,
         *,
         is_dir: bool,
@@ -294,7 +315,9 @@ class LayeredIgnoreMatcher:
         level = InclusionLevel.FULL
         reason: InclusionReason | None = None
 
-        for layer in layers:
+        for layer_index, layer in enumerate(self.layers):
+            if not layer.rules:
+                continue
             try:
                 if not abs_path.is_relative_to(layer.base_dir):
                     continue
@@ -302,24 +325,31 @@ class LayeredIgnoreMatcher:
             except OSError:
                 continue
 
-            candidates = _match_candidates(rel, is_dir=is_dir)
-            for rule in layer.rules:
-                if any(rule.spec.match_file(candidate) for candidate in candidates):
-                    level = rule.level
-                    reason = InclusionReason(
-                        raw=rule.raw,
-                        core=rule.core,
-                        negated=rule.negated,
-                        level=rule.level,
-                        base_dir=layer.base_dir,
-                        source=layer.source,
-                        config_path=layer.config_path,
-                    )
+            winning_index: int | None = None
+            for candidate in _match_candidates(rel, is_dir=is_dir):
+                index = self._candidate_rule_index(layer_index, layer, candidate)
+                if index is not None and (winning_index is None or index > winning_index):
+                    winning_index = index
+
+            if winning_index is None:
+                continue
+
+            rule = layer.rules[winning_index]
+            level = rule.level
+            reason = InclusionReason(
+                raw=rule.raw,
+                core=rule.core,
+                negated=rule.negated,
+                level=rule.level,
+                base_dir=layer.base_dir,
+                source=layer.source,
+                config_path=layer.config_path,
+            )
 
         return InclusionDecision(level=level, reason=reason)
 
     def explain_inclusion(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
-        return self._decide(self.layers, abs_path, is_dir=is_dir)
+        return self._decide(abs_path, is_dir=is_dir)
 
     def explain_policy(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
         """Compatibility wrapper for the policy-migration API."""
