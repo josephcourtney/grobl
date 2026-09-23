@@ -143,11 +143,17 @@ def run_scan(
             else:
                 with timing.measure("policy matching", depth=1):
                     decision = ignores.explain_inclusion(path, is_dir=info.target_is_dir)
+
+            can_follow = should_follow_symlink(info, traversal)
             if decision.level is InclusionLevel.OMIT:
-                return False
+                return (
+                    can_follow
+                    and info.target_is_dir
+                    and ignores.may_reinclude_descendant(path)
+                )
 
             builder.add_symlink_to_tree(path, info, prefix, is_last=is_last)
-            if not should_follow_symlink(info, traversal):
+            if not can_follow:
                 return False
             if info.target_is_file and decision.level is InclusionLevel.FULL:
                 if info.identity is not None and info.identity in followed_file_identities:
