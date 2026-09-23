@@ -8,6 +8,7 @@ import click
 
 from grobl.config_loading import LEGACY_TOML_CONFIG, discover_grobl_toml_files
 from grobl.config_migration import ConfigMigrationError, migrate_config_text
+from grobl.utils import logical_absolute
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -20,11 +21,11 @@ def _candidate_configs(
     explicit_config: Path | None,
 ) -> tuple[Path, ...]:
     candidates = discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths)
-    legacy_path = (repo_root / LEGACY_TOML_CONFIG).resolve(strict=False)
+    legacy_path = logical_absolute(repo_root / LEGACY_TOML_CONFIG)
     if legacy_path.exists() and legacy_path not in candidates:
         candidates.append(legacy_path)
     if explicit_config is not None:
-        explicit = explicit_config.resolve(strict=False)
+        explicit = logical_absolute(explicit_config)
         if explicit.exists() and explicit not in candidates:
             candidates.append(explicit)
     return tuple(candidates)
