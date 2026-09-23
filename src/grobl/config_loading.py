@@ -10,6 +10,7 @@ import tomlkit
 from tomlkit.exceptions import TOMLKitError
 
 from grobl.errors import ConfigLoadError
+from grobl.utils import logical_absolute
 
 from .config_defaults import TOML_CONFIG, load_default_config
 
@@ -32,8 +33,8 @@ def discover_grobl_toml_files(
     scan_paths: Sequence[Path],
 ) -> list[Path]:
     """Return applicable .grobl.toml files ordered from repository root to leaf."""
-    root = repo_root.absolute()
-    targets = [_coerce_to_dir(path.absolute()) for path in scan_paths]
+    root = logical_absolute(repo_root)
+    targets = [_coerce_to_dir(logical_absolute(path)) for path in scan_paths]
 
     found: set[Path] = set()
     for target in targets:
