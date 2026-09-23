@@ -9,6 +9,13 @@ from typing import TYPE_CHECKING, Any
 import click
 
 from grobl.constants import InclusionLevel
+from grobl.directory import (
+    SymlinkInfo,
+    TraverseConfig,
+    inspect_symlink,
+    should_follow_symlink,
+    symlink_target_is_selected,
+)
 from grobl.provenance import format_content_reason, inclusion_reason_to_dict
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
 from grobl.token_counting import count_tokens
@@ -21,7 +28,7 @@ if TYPE_CHECKING:
 
 
 def validate_existing_paths(paths: tuple[Path, ...]) -> list[Path]:
-    """Resolve and validate explain targets."""
+    """Validate explain targets without dereferencing symlinks."""
     validated: list[Path] = []
     for path in paths:
         try:
@@ -29,7 +36,7 @@ def validate_existing_paths(paths: tuple[Path, ...]) -> list[Path]:
         except OSError as err:
             msg = f"path not found: {path}"
             raise click.UsageError(msg) from err
-        validated.append(path.resolve(strict=False))
+        validated.append(path.absolute())
     return validated
 
 
@@ -38,15 +45,28 @@ def build_explain_entries(
     paths: tuple[Path, ...],
     ignores: LayeredIgnoreMatcher,
     limits: ResourceLimits = UNLIMITED_RESOURCE_LIMITS,
+    repo_root: Path | None = None,
+    follow_symlinks: bool = False,
+    allow_external_symlinks: bool = False,
 ) -> list[dict[str, Any]]:
     """Return sorted explain entries for the given targets."""
     validated_paths = sorted(
         validate_existing_paths(paths),
         key=lambda path: tuple(part.casefold() for part in path.parts),
     )
+    if not validated_paths:
+        return []
+    root = (repo_root or validated_paths[0].parent).absolute()
+    traversal = TraverseConfig(
+        paths=validated_paths,
+        base=root,
+        repo_root=root,
+        follow_symlinks=follow_symlinks,
+        allow_external_symlinks=allow_external_symlinks,
+    )
     budget = ResourceBudget(limits)
     return sorted(
-        (_explain_entry(path, ignores, budget) for path in validated_paths),
+        (_explain_entry(path, ignores, budget, traversal) for path in validated_paths),
         key=operator.itemgetter("path"),
     )
 
@@ -79,6 +99,13 @@ def _render_human(entries: list[dict[str, Any]]) -> str:
         lines.extend((f"Path: {entry['path']}", f"  state: {entry['state']}"))
         if entry.get("reason"):
             lines.append(f"    reason: {_build_reason(entry['reason'])}")
+        symlink = entry.get("symlink")
+        if isinstance(symlink, dict):
+            lines.append(f"  symlink: {symlink['target']}")
+            if symlink.get("resolved_target"):
+                lines.append(f"    resolved: {symlink['resolved_target']}")
+            lines.append(f"    target scope: {symlink['target_scope']}")
+            lines.append(f"    disposition: {symlink['disposition']}")
         tree = entry["tree"]
         lines.append(f"  tree: {'included' if tree['included'] else 'excluded'}")
         content = entry["content"]
@@ -89,13 +116,13 @@ def _render_human(entries: list[dict[str, Any]]) -> str:
             details = entry["text_detection"]
             detail = details.get("detail") or "binary file"
             lines.append(f"  text detection: binary ({detail})")
-        limits = entry.get("resource_limits")
-        if limits:
+        resource_limits = entry.get("resource_limits")
+        if resource_limits:
             lines.append(
                 "  resource limits: "
-                f"file-bytes={limits['max_file_bytes'] or 'unlimited'}; "
-                f"total-bytes={limits['max_total_bytes'] or 'unlimited'}; "
-                f"tokens={limits['max_tokens'] or 'unlimited'}"
+                f"file-bytes={resource_limits['max_file_bytes'] or 'unlimited'}; "
+                f"total-bytes={resource_limits['max_total_bytes'] or 'unlimited'}; "
+                f"tokens={resource_limits['max_tokens'] or 'unlimited'}"
             )
     lines.append("")
     return "\n".join(lines)
@@ -128,11 +155,7 @@ def _apply_full_file_limits(
     if actual_bytes is None:
         return True, None
 
-    budget_reason = budget.accept(
-        abs_path,
-        file_bytes=actual_bytes,
-        tokens=tokens,
-    )
+    budget_reason = budget.accept(abs_path, file_bytes=actual_bytes, tokens=tokens)
     return budget_reason is None, budget_reason
 
 
@@ -167,13 +190,27 @@ def _evaluate_full_file(
     return content_included, content_reason, None
 
 
+def _symlink_disposition(info: SymlinkInfo, traversal: TraverseConfig) -> str:
+    if info.broken:
+        return "broken target; not followed"
+    if not traversal.follow_symlinks:
+        return "not followed; symlink following is disabled"
+    if info.external and not traversal.allow_external_symlinks:
+        return "not followed; target is outside the repository root"
+    if symlink_target_is_selected(info, traversal.paths):
+        return "not followed; target is already selected through its real path"
+    return "followed"
+
+
 def _explain_entry(
     abs_path: Path,
     ignores: LayeredIgnoreMatcher,
     budget: ResourceBudget,
+    traversal: TraverseConfig,
 ) -> dict[str, Any]:
     limits = budget.limits
-    is_dir = abs_path.is_dir()
+    symlink_info = inspect_symlink(abs_path, root=traversal.repo_root) if abs_path.is_symlink() else None
+    is_dir = symlink_info.target_is_dir if symlink_info is not None else abs_path.is_dir()
     decision = ignores.explain_inclusion(abs_path, is_dir=is_dir)
     reason = inclusion_reason_to_dict(decision.reason) if decision.reason is not None else None
 
@@ -188,11 +225,28 @@ def _explain_entry(
         },
     }
 
-    content_included = decision.level is InclusionLevel.FULL
+    if symlink_info is not None:
+        entry["symlink"] = {
+            "target": symlink_info.target,
+            "resolved_target": (
+                str(symlink_info.resolved_target) if symlink_info.resolved_target is not None else None
+            ),
+            "target_scope": symlink_info.scope,
+            "broken": symlink_info.broken,
+            "disposition": _symlink_disposition(symlink_info, traversal),
+        }
+
+    content_included = decision.level is InclusionLevel.FULL and symlink_info is None
     content_reason: dict[str, Any] | None = reason if decision.level is InclusionLevel.TREE_ONLY else None
     text_detection: dict[str, Any] | None = None
 
-    if abs_path.is_file() and decision.level is InclusionLevel.FULL:
+    should_evaluate_file = abs_path.is_file() and decision.level is InclusionLevel.FULL
+    if symlink_info is not None:
+        should_evaluate_file = symlink_info.target_is_file and should_follow_symlink(
+            symlink_info,
+            traversal,
+        )
+    if should_evaluate_file:
         content_included, content_reason, text_detection = _evaluate_full_file(abs_path, budget)
 
     entry["content"] = {"included": content_included, "reason": content_reason}
