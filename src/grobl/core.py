@@ -69,22 +69,22 @@ class _ScanCollector:
         self.registry.handle(path=path, context=self.context)
         return False
 
-    def __call__(self, path: Path, prefix: str, *, is_last: bool) -> bool:
-        if path.is_symlink():
-            return self._collect_symlink(path, prefix, is_last=is_last)
+    def __call__(self, item: Path, prefix: str, *, is_last: bool) -> bool:
+        if item.is_symlink():
+            return self._collect_symlink(item, prefix, is_last=is_last)
 
-        is_dir = path.is_dir()
-        decision = self._decision(path, is_dir=is_dir)
+        is_dir = item.is_dir()
+        decision = self._decision(item, is_dir=is_dir)
         if is_dir:
             if decision.level is not InclusionLevel.OMIT:
-                self.context.builder.add_directory(path, prefix, is_last=is_last)
+                self.context.builder.add_directory(item, prefix, is_last=is_last)
                 return True
-            return self.context.ignores.may_reinclude_descendant(path)
+            return self.context.ignores.may_reinclude_descendant(item)
 
         if decision.level is InclusionLevel.OMIT:
             return False
-        self.context.builder.add_file_to_tree(path, prefix, is_last=is_last)
-        self.registry.handle(path=path, context=self.context)
+        self.context.builder.add_file_to_tree(item, prefix, is_last=is_last)
+        self.registry.handle(path=item, context=self.context)
         return False
 
 
