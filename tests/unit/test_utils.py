@@ -7,7 +7,7 @@ import pytest
 
 from grobl import utils
 from grobl.errors import PathNotFoundError
-from grobl.utils import detect_text, find_common_ancestor, is_text, resolve_repo_root
+from grobl.utils import detect_text, find_common_ancestor, is_text, logical_absolute, resolve_repo_root
 
 pytestmark = pytest.mark.medium
 
@@ -26,6 +26,16 @@ def test_find_common_ancestor_single_path(tmp_path: Path) -> None:
 def test_find_common_ancestor_allows_filesystem_root() -> None:
     got = find_common_ancestor([Path("/"), Path("/tmp")])  # ruff: ignore[hardcoded-temp-file] - controlled use in test
     assert got == Path("/")
+
+
+def test_logical_absolute_normalizes_dot_segments_without_resolving_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "alias"
+    link.symlink_to(target, target_is_directory=True)
+
+    assert logical_absolute(link) == link
+    assert logical_absolute(tmp_path / "nested" / ".." / "leaf.txt") == tmp_path / "leaf.txt"
 
 
 def test_is_text_missing_file_returns_false(tmp_path: Path) -> None:
@@ -164,7 +174,9 @@ def test_resolve_repo_root_falls_back_to_cwd_when_common_raises(
 ) -> None:
     monkeypatch.setattr(utils, "_git_root_for_cwd", lambda *_: None)
     monkeypatch.setattr(
-        utils, "find_common_ancestor", lambda _: (_ for _ in ()).throw(PathNotFoundError("boom"))
+        utils,
+        "find_common_ancestor",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(PathNotFoundError("boom")),
     )
 
     got = resolve_repo_root(cwd=tmp_path, paths=(tmp_path / "missing",))
