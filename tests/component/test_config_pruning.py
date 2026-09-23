@@ -140,7 +140,8 @@ def test_current_tree_skips_omitted_subtree_with_unrelated_reinclusion(
 
     def guarded_iterdir(path: Path) -> Iterator[Path]:
         if path == vendor:
-            raise AssertionError("current-tree pruning descended into unrelated omitted subtree")
+            msg = "current-tree pruning descended into unrelated omitted subtree"
+            raise AssertionError(msg)
         return original_iterdir(path)
 
     monkeypatch.setattr(path_type, "iterdir", guarded_iterdir)

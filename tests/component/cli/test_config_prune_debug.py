@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from click.testing import CliRunner
 
 from grobl.cli import cli
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 pytestmark = pytest.mark.medium
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import cProfile
 import io
 import pstats
-from collections.abc import Callable
 from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, TypeVar
@@ -27,6 +26,8 @@ from grobl.config_pruning import (
 from .help_format import LiteralEpilogGroup
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from grobl.config_migration import ConfigMigrationResult
     from grobl.config_pruning import ConfigPruneResult
 
@@ -111,7 +112,7 @@ def _format_prune_profile(profile: cProfile.Profile, *, elapsed: float) -> str:
     )
 
 
-def _run_prune_profiled(operation: Callable[[], _ResultT], *, debug: bool) -> _ResultT:
+def _run_prune_profiled[ResultT](operation: Callable[[], _ResultT], *, debug: bool) -> _ResultT:
     if not debug:
         return operation()
 
