@@ -89,10 +89,7 @@ def _load_config_layers(
     layers: list[InclusionLayer] = []
     discovered: set[Path] = set()
 
-    for config_path in discover_grobl_toml_files(
-        repo_root=repo_root,
-        scan_paths=scan_paths,
-    ):
+    for config_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths):
         real = config_path.resolve()
         discovered.add(real)
         layers.append(
@@ -135,16 +132,8 @@ def gather_runtime_ignore_patterns(
         _path_to_runtime_pattern(path, repo_root=repo_root) for path in ignore_args.include_file
     )
 
-    runtime_exclude = (
-        *ignore_args.exclude_tree,
-        *ignore_args.exclude,
-        *file_excludes,
-    )
-    runtime_tree_only = (
-        *ignore_args.exclude_content,
-        *ignore_args.tree_only,
-        *file_tree_only,
-    )
+    runtime_exclude = (*ignore_args.exclude_tree, *ignore_args.exclude, *file_excludes)
+    runtime_tree_only = (*ignore_args.exclude_content, *ignore_args.tree_only, *file_tree_only)
     runtime_include = (
         *ignore_args.include,
         *file_includes,
@@ -160,11 +149,12 @@ def ensure_paths_within_repo(
     requested_paths: tuple[Path, ...],
     ctx: click.Context,
 ) -> None:
+    """Validate logical scan paths without dereferencing symlink targets."""
     msg = "scan paths must be within the resolved repository root"
     try:
-        resolved_targets = [path.resolve(strict=False) for path in requested_paths]
-        if not all(target.is_relative_to(repo_root) for target in resolved_targets):
-            details = "\n".join(f"  - {target}" for target in resolved_targets)
+        logical_targets = [path.absolute() for path in requested_paths]
+        if not all(target.is_relative_to(repo_root) for target in logical_targets):
+            details = "\n".join(f"  - {target}" for target in logical_targets)
             msg = f"{msg}\nrepo_root: {repo_root}\nrequested:\n{details}"
             raise click.UsageError(msg, ctx=ctx)
     except OSError as err:
@@ -225,13 +215,13 @@ def assemble_layered_ignores(
 
 def _path_to_runtime_pattern(path: Path, *, repo_root: Path) -> str:
     normalized = expand_path_token(path)
-    resolved = normalized.resolve(strict=False)
+    logical = normalized.absolute()
     try:
-        rel = resolved.relative_to(repo_root)
+        rel = logical.relative_to(repo_root)
     except (ValueError, OSError):
-        rel = resolved
+        rel = logical
     pattern = rel.as_posix()
-    if normalized.is_dir() and not pattern.endswith("/"):
+    if normalized.is_dir() and not normalized.is_symlink() and not pattern.endswith("/"):
         pattern += "/"
     return pattern
 
