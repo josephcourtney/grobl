@@ -11,6 +11,8 @@ characters = true
 tokens = true
 inclusion_status = true
 ignore_policy = "auto"
+follow_symlinks = false
+allow_external_symlinks = false
 
 # Content budgets. Set any value to 0 to disable that limit.
 max_file_bytes = 1048576
