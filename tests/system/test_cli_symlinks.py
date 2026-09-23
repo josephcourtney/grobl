@@ -83,6 +83,36 @@ def test_follow_symlinks_can_be_persisted_in_project_config(
     assert [entry["path"] for entry in payload["files"]] == ["links/alias.txt"]
 
 
+def test_symlinked_project_config_keeps_logical_rule_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, links = _make_repo(tmp_path, monkeypatch)
+    central_config = repo / "central.toml"
+    central_config.write_text("exclude = ['/alias.txt']\n", encoding="utf-8")
+    (links / ".grobl.toml").symlink_to(central_config)
+
+    result = CliRunner().invoke(
+        cli,
+        [
+            "scan",
+            str(links),
+            "--follow-symlinks",
+            "--format",
+            "json",
+            "--output",
+            "-",
+            "--summary",
+            "none",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert "links/alias.txt" not in {entry["path"] for entry in payload["files"]}
+    assert "links/alias.txt" not in {entry["path"] for entry in payload["tree"]}
+
+
 def test_external_symlink_opt_in_requires_following(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
