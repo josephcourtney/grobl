@@ -1,10 +1,14 @@
 ## [Unreleased]
 
+## [2.4.6] - 2026-09-23
+
 ### Added
 - add explicit symlink tree entries plus bounded `--follow-symlinks` and `--allow-external-symlinks` controls with persistent configuration equivalents and explain diagnostics.
+- extend global `--debug` diagnostics to `grobl config prune`, reporting wall-clock time and cumulative CPU profiling to stderr without contaminating `--stdout` TOML output.
 
 ### Changed
 - treat symbolic links as logical tree references by default instead of silently dereferencing file links, preserve logical paths for policy matching, and deduplicate followed targets by filesystem identity.
+- speed up `grobl config prune --current-tree` by snapshotting the reachable tree once, pruning unrelated omitted subtrees, and batching counterfactual duplicate-policy checks with recursive bisection only when needed.
 
 ### Fixed
 - resolve a standalone symlink scan from its logical parent so broken or external links remain inspectable without making the target the scan root.
