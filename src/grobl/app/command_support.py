@@ -87,9 +87,7 @@ def execute_scan_with_handling(
     """Run the application scan executor and translate failures into exit codes."""
     try:
         executor = (
-            ScanExecutor(sink=write_fn)
-            if timing is None
-            else ScanExecutor(sink=write_fn, timing=timing)
+            ScanExecutor(sink=write_fn) if timing is None else ScanExecutor(sink=write_fn, timing=timing)
         )
         ignores = cfg.get("_ignores")
         if not isinstance(ignores, LayeredIgnoreMatcher):

@@ -39,7 +39,7 @@ class TimingRecorder:
         width = max((len(label) for label in labels), default=0)
         lines = ["Grobl timings:"]
         for (depth, label), display in zip(self._order, labels, strict=True):
-            seconds = self._durations[(depth, label)]
+            seconds = self._durations[depth, label]
             lines.append(f"  {display:<{width}}  {seconds:8.3f} s")
         lines.append(f"  {'total':<{width}}  {total:8.3f} s")
         return "\n".join(lines)

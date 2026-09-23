@@ -105,8 +105,7 @@ def _render_human(entries: list[dict[str, Any]]) -> str:
             lines.append(f"  symlink: {symlink['target']}")
             if symlink.get("resolved_target"):
                 lines.append(f"    resolved: {symlink['resolved_target']}")
-            lines.append(f"    target scope: {symlink['target_scope']}")
-            lines.append(f"    disposition: {symlink['disposition']}")
+            lines.extend((f"    target scope: {symlink['target_scope']}", f"    disposition: {symlink['disposition']}"))
         tree = entry["tree"]
         lines.append(f"  tree: {'included' if tree['included'] else 'excluded'}")
         content = entry["content"]
