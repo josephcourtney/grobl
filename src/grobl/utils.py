@@ -4,7 +4,7 @@ import codecs
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from os.path import commonpath  # <-- needed by find_common_ancestor
+from os.path import commonpath
 from pathlib import Path
 from typing import BinaryIO
 
@@ -36,18 +36,17 @@ class TextDetectionResult:
     detail: str | None = None
 
 
-def find_common_ancestor(paths: list[Path]) -> Path:
+def find_common_ancestor(paths: list[Path], *, resolve_symlinks: bool = True) -> Path:
     """Return the deepest common ancestor of the given paths."""
     if not paths:
         msg = ERROR_MSG_EMPTY_PATHS
         raise ValueError(msg)
     try:
-        # Using os.path.commonpath for cross-drive safety.
-        root = Path(commonpath([str(p.resolve()) for p in paths]))
-    except ValueError as e:
-        # Different drives or otherwise disjoint paths.
+        normalized = [path.resolve() if resolve_symlinks else path.absolute() for path in paths]
+        root = Path(commonpath([str(path) for path in normalized]))
+    except ValueError as err:
         msg = ERROR_MSG_NO_COMMON_ANCESTOR
-        raise PathNotFoundError(msg) from e
+        raise PathNotFoundError(msg) from err
     return root
 
 
@@ -67,11 +66,11 @@ def resolve_repo_root(*, cwd: Path, paths: Sequence[Path]) -> Path:
     if git_root is not None:
         return git_root
     try:
-        common = find_common_ancestor(candidates)
+        common = find_common_ancestor(candidates, resolve_symlinks=False)
     except (ValueError, PathNotFoundError):
-        return cwd
+        return cwd.absolute()
 
-    if common.is_file():
+    if common.is_file() and not common.is_symlink():
         return common.parent
 
     return common
