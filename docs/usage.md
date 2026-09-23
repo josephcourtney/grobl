@@ -99,13 +99,34 @@ CLI rules have higher precedence than bundled defaults and discovered configurat
 
 Use `--ignore-policy auto|all|none|defaults|config|cli` to choose which rule sources participate. `--no-ignore` disables all inclusion-policy rules. In config, `inherit_defaults = false` disables only the bundled policy layer when source selection is automatic.
 
-Persistent config equivalents exist for `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, `ignore_policy`, `max_file_bytes`, `max_total_bytes`, and `max_tokens`; explicit CLI values override them. Output destinations, explicit config selection, and logging remain invocation-only.
+Persistent config equivalents exist for `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, `ignore_policy`, `follow_symlinks`, `allow_external_symlinks`, `max_file_bytes`, `max_total_bytes`, and `max_tokens`; explicit CLI values override them. Output destinations, explicit config selection, and logging remain invocation-only.
 
 Content budgets can also be set directly with `--max-file-bytes`, `--max-total-bytes`, and `--max-tokens`. The bundled defaults are 1 MiB per file, 16 MiB total included bytes, and 200,000 included tokens; `0` disables an individual limit. Files that would exceed a budget remain visible but their contents are omitted with an explainable `resource-limit` reason.
 
 The bundled policy conservatively excludes common sensitive filenames and credential locations, including `.env.*`, package-registry credential files, private-key patterns, and common cloud credential paths. This is path-based protection; an explicit `--include` can restore a file when inclusion is intentional.
 
 When scan or explain encounters an applicable legacy inclusion schema, it warns and continues through compatibility parsing without changing configuration. Migration and pruning happen only through the explicit `grobl config migrate` and `grobl config prune` commands.
+
+### Symbolic links
+
+Grobl preserves POSIX symbolic links as relationships in the logical tree and does not dereference them by default. For example, a link may appear as:
+
+```text
+alias.py -> ../shared/target.py
+```
+
+Use `--follow-symlinks` when the target should be read or traversed. Following remains inside the resolved repository root unless `--allow-external-symlinks` is also supplied:
+
+```bash
+grobl scan --follow-symlinks links/
+grobl scan --follow-symlinks --allow-external-symlinks links/
+```
+
+The same settings can be persisted as `follow_symlinks` and `allow_external_symlinks`. External following cannot be enabled without following itself.
+
+Inclusion rules continue to match the logical link path, not the resolved target pathname. Broken links remain visible but are never followed. Grobl prevents directory-link cycles and avoids duplicate physical traversal when the same target is already selected through its real path. `grobl explain LINK` reports the raw and resolved target, whether it is internal or external, and why it would or would not be followed.
+
+macOS Finder aliases are ordinary files to Grobl; they are not resolved through Finder-specific APIs.
 
 ## Global CLI options
 
