@@ -82,15 +82,29 @@ Sources are evaluated from lowest to highest precedence:
 
 Each source retains its own matching base. Compatibility inputs are normalized at the boundary into these same states before the core sees them.
 
+## Symlink and path identity model
+
+Traversal distinguishes the **logical path** through which a filesystem entry was reached from the **physical identity** of the object a symlink may reference.
+
+The logical path is authoritative for inclusion-policy matching, hierarchy rendering, payload names, and explain output. Resolving a symlink must not silently replace that logical path with the target path. Existence checks use link-aware filesystem metadata so a broken link can still be represented.
+
+Symbolic links are structural references by default. Grobl records the raw link target and whether the target is broken, internal, or external, but does not read a file target or recurse into a directory target unless following is explicitly enabled. Enabling ordinary following remains bounded to the resolved repository root; following a target outside that root requires a second explicit opt-in.
+
+When following is enabled, traversal uses the target's `(st_dev, st_ino)` identity to prevent directory cycles and repeated physical traversal. A link whose physical target is already reachable through a separately selected non-link scan path is represented but not followed, so selecting both a canonical path and an alias does not duplicate content.
+
+Followed files are read through the logical link path and emitted under that logical path. Followed directory descendants likewise retain their logical paths beneath the link. Inclusion-policy checks therefore remain predictable from the tree the user named rather than from an implementation-dependent resolved pathname.
+
+Broken links are representable but never followable. macOS Finder aliases are ordinary files rather than filesystem links; Grobl does not invoke platform-specific alias-resolution APIs.
+
 ## Configuration ownership and persistent behavior
 
 Bundled policy is implementation-owned data, not project-owned boilerplate. `grobl init` therefore creates a small commented project-delta file instead of copying the bundled policy. A project config records only choices that differ from or intentionally document package behavior.
 
 `inherit_defaults` controls only installation of the bundled inclusion-policy layer. Under automatic source selection, `false` starts policy composition with project/config layers; it does not erase payload, summary, metadata, tag, or other program defaults. Explicit CLI source-selection remains the final authority.
 
-Stable scan-wide behavior can be persisted using config keys corresponding to `scope`, payload `format`, summary mode/style, metadata visibility, `ignore_policy`, and content resource limits. Explicit CLI values override those settings. Routing/actions remain invocation-owned so a repository cannot unexpectedly force clipboard writes, output paths, JSON convenience mode, logging, explicit config selection, or interactivity.
+Stable scan-wide behavior can be persisted using config keys corresponding to `scope`, payload `format`, summary mode/style, metadata visibility, `ignore_policy`, symlink traversal policy, and content resource limits. Explicit CLI values override those settings. Routing/actions remain invocation-owned so a repository cannot unexpectedly force clipboard writes, output paths, JSON convenience mode, logging, explicit config selection, or interactivity.
 
-Inclusion policy remains hierarchical because each policy source has a path-relative matching base. Scan-wide scalar behavior is resolved through the general config merge rather than varying by nested path; one scan invocation has one payload format, scope, summary mode, and metadata-visibility policy even when it spans multiple subtrees.
+Inclusion policy remains hierarchical because each policy source has a path-relative matching base. Scan-wide scalar behavior is resolved through the general config merge rather than varying by nested path; one scan invocation has one payload format, scope, summary mode, metadata-visibility policy, and symlink traversal policy even when it spans multiple subtrees.
 
 ## Compatibility and migration policy
 
@@ -106,11 +120,11 @@ Canonical configuration maintenance distinguishes tree-independent structural pr
 
 A scan proceeds conceptually through stable boundaries:
 
-- resolve paths and repository root
-- assemble the layered inclusion policy
-- traverse deterministically while honoring possible reinclusion
-- classify visible files by inclusion state
-- preflight `full` files against per-file and aggregate byte budgets before reading
+- resolve logical paths and repository root without replacing link paths with target paths
+- assemble the layered inclusion policy and scan-wide symlink traversal policy
+- traverse deterministically while honoring possible reinclusion and physical-target cycle detection
+- classify visible regular files and symlink relationships by inclusion state
+- preflight eligible `full` files against per-file and aggregate byte budgets before reading
 - perform streaming text detection and content reads only for budget-eligible `full` files
 - enforce aggregate token budget before admitting content to the payload
 - build metadata, tree, payload, and summary representations
@@ -126,6 +140,7 @@ Payload and summary are independent streams.
 - Summary formats may be human-oriented or machine-readable.
 - If both streams share a destination, merging is allowed only when the selected formats are compatible.
 - Machine-readable JSON/NDJSON output is deterministic, uses stable ordering, and ends with a newline.
+- Tree output preserves symlinks as a distinct entry kind and carries target metadata in machine-readable formats.
 - Path ordering is based on normalized POSIX-style representations with the normalization rules defined in SPEC.md.
 
 ## Error handling
