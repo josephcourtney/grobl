@@ -80,6 +80,35 @@ def test_logical_exclusion_prevents_following_symlink(tmp_path: Path) -> None:
     assert result.builder.files_json() == []
 
 
+def test_omitted_directory_symlink_can_reach_reincluded_descendant(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    links = repo / "links"
+    shared = repo / "shared"
+    links.mkdir(parents=True)
+    shared.mkdir()
+    (shared / "keep.txt").write_text("keep\n", encoding="utf-8")
+    (shared / "drop.txt").write_text("drop\n", encoding="utf-8")
+    (links / "tree-link").symlink_to(shared, target_is_directory=True)
+
+    ignores = build_ignore_matcher(
+        repo_root=repo,
+        exclude_patterns=("links/tree-link/",),
+        include_patterns=("links/tree-link/keep.txt",),
+    )
+    result = run_scan(
+        paths=[links],
+        cfg={"_follow_symlinks": True},
+        ignores=ignores,
+        repo_root=repo,
+    )
+
+    rendered = "\n".join(result.builder.tree_output())
+    assert "tree-link ->" not in rendered
+    assert "keep.txt" in rendered
+    assert "drop.txt" not in rendered
+    assert [entry["path"] for entry in result.builder.files_json()] == ["links/tree-link/keep.txt"]
+
+
 def test_external_symlink_requires_second_opt_in(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -220,4 +249,25 @@ def test_explain_reports_external_symlink_disposition(tmp_path: Path) -> None:
     symlink = entries[0]["symlink"]
     assert symlink["target_scope"] == "external"
     assert symlink["disposition"] == "not followed; target is outside the repository root"
+    assert entries[0]["content"]["included"] is False
+
+
+def test_explain_reports_tree_only_symlink_as_not_followed(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    target = repo / "target.txt"
+    target.write_text("contents\n", encoding="utf-8")
+    link = repo / "alias.txt"
+    link.symlink_to(target.name)
+    ignores = build_ignore_matcher(repo_root=repo, tree_only_patterns=("alias.txt",))
+
+    entries = build_explain_entries(
+        paths=(link,),
+        ignores=ignores,
+        repo_root=repo,
+        follow_symlinks=True,
+    )
+
+    assert entries[0]["state"] == "tree_only"
+    assert entries[0]["symlink"]["disposition"] == "not followed; content state is tree_only"
     assert entries[0]["content"]["included"] is False
