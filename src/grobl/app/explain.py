@@ -194,7 +194,13 @@ def _evaluate_full_file(
     return content_included, content_reason, None
 
 
-def _symlink_disposition(info: SymlinkInfo, traversal: TraverseConfig) -> str:
+def _symlink_disposition(
+    info: SymlinkInfo,
+    traversal: TraverseConfig,
+    *,
+    level: InclusionLevel,
+    may_reinclude_descendant: bool,
+) -> str:
     if info.broken:
         return "broken target; not followed"
     if not traversal.follow_symlinks:
@@ -203,6 +209,14 @@ def _symlink_disposition(info: SymlinkInfo, traversal: TraverseConfig) -> str:
         return "not followed; target is outside the repository root"
     if symlink_target_is_selected(info, traversal.paths):
         return "not followed; target is already selected through its real path"
+    if level is InclusionLevel.OMIT:
+        if info.target_is_dir and may_reinclude_descendant:
+            return "followed to evaluate re-included descendants"
+        return "not followed; path is omitted"
+    if info.target_is_file and level is InclusionLevel.TREE_ONLY:
+        return "not followed; content state is tree_only"
+    if not info.target_is_dir and not info.target_is_file:
+        return "not followed; unsupported target type"
     return "followed"
 
 
@@ -237,19 +251,28 @@ def _explain_entry(
             ),
             "target_scope": symlink_info.scope,
             "broken": symlink_info.broken,
-            "disposition": _symlink_disposition(symlink_info, traversal),
+            "disposition": _symlink_disposition(
+                symlink_info,
+                traversal,
+                level=decision.level,
+                may_reinclude_descendant=(
+                    symlink_info.target_is_dir and ignores.may_reinclude_descendant(abs_path)
+                ),
+            ),
         }
 
     content_included = decision.level is InclusionLevel.FULL and symlink_info is None
     content_reason: dict[str, Any] | None = reason if decision.level is InclusionLevel.TREE_ONLY else None
     text_detection: dict[str, Any] | None = None
 
-    should_evaluate_file = abs_path.is_file() and decision.level is InclusionLevel.FULL
     if symlink_info is not None:
         should_evaluate_file = symlink_info.target_is_file and should_follow_symlink(
             symlink_info,
             traversal,
         )
+    else:
+        should_evaluate_file = abs_path.is_file()
+    should_evaluate_file = should_evaluate_file and decision.level is InclusionLevel.FULL
     if should_evaluate_file:
         content_included, content_reason, text_detection = _evaluate_full_file(abs_path, budget)
 
