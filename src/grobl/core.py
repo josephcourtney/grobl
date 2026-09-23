@@ -102,7 +102,7 @@ def run_scan(
         raise PathNotFoundError(msg)
 
     common = find_common_ancestor(logical_paths, resolve_symlinks=False)
-    if common.is_file() and not common.is_symlink():
+    if common.is_symlink() or common.is_file():
         common = common.parent
 
     builder_base = _determine_builder_base(common, logical_paths, repo_root)
