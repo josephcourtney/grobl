@@ -101,19 +101,6 @@ def explain(
     paths: tuple[Path, ...],
 ) -> None:
     """Explain the effective inclusion state for one or more paths."""
-    ignore_args = IgnoreCLIArgs.from_values(
-        exclude=exclude,
-        tree_only=tree_only,
-        include=include,
-        exclude_file=exclude_file,
-        tree_only_file=tree_only_file,
-        include_file=include_file,
-        exclude_tree=exclude_tree,
-        include_tree=include_tree,
-        exclude_content=exclude_content,
-        include_content=include_content,
-    )
-
     requested_paths, repo_root = resolve_runtime_paths(paths)
     ensure_paths_within_repo(repo_root=repo_root, requested_paths=requested_paths, ctx=ctx)
     config_base = resolve_config_base(base_path=repo_root, explicit_config=config_path)
@@ -126,7 +113,18 @@ def explain(
 
     runtime_exclude, runtime_tree_only, runtime_include = gather_runtime_ignore_patterns(
         repo_root=repo_root,
-        ignore_args=ignore_args,
+        ignore_args=IgnoreCLIArgs.from_values(
+            exclude=exclude,
+            tree_only=tree_only,
+            include=include,
+            exclude_file=exclude_file,
+            tree_only_file=tree_only_file,
+            include_file=include_file,
+            exclude_tree=exclude_tree,
+            include_tree=include_tree,
+            exclude_content=exclude_content,
+            include_content=include_content,
+        ),
     )
 
     try:

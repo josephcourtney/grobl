@@ -44,7 +44,7 @@ class SymlinkInfo:
 
     @property
     def scope(self) -> str:
-        """Return the target's relationship to the repository root."""
+        """Target relationship to the repository root."""
         if self.broken:
             return "unknown"
         return "external" if self.external else "internal"

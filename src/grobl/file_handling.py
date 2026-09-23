@@ -56,6 +56,20 @@ class FileAnalysis:
     content_reason: dict[str, object] | None = None
 
 
+def _read_text_content(
+    path: Path,
+    context: FileProcessingContext,
+    detection: TextDetectionResult,
+) -> str:
+    if detection.content is not None:
+        return detection.content
+    reader = context.dependencies.text_reader
+    if context.timing is None:
+        return reader(path)
+    with context.timing.measure("file reading", depth=1):
+        return reader(path)
+
+
 class BaseFileHandler:
     """Template method workflow for handling files."""
 
@@ -124,16 +138,8 @@ class TextFileHandler(BaseFileHandler):
     ) -> FileAnalysis:
         _ = self
         del is_text_file
-        deps = context.dependencies
         try:
-            if detection.content is None:
-                if context.timing is None:
-                    content = deps.text_reader(path)
-                else:
-                    with context.timing.measure("file reading", depth=1):
-                        content = deps.text_reader(path)
-            else:
-                content = detection.content
+            content = _read_text_content(path, context, detection)
         except OSError as err:
             try:
                 size = path.stat().st_size
