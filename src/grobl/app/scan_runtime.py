@@ -20,7 +20,7 @@ from grobl.ignore import (
     build_layered_ignores,
     rules_from_config,
 )
-from grobl.utils import resolve_repo_root
+from grobl.utils import logical_absolute, resolve_repo_root
 
 if TYPE_CHECKING:
     from grobl.app.command_support import ScanParams
@@ -76,7 +76,11 @@ def expand_path_token(path: Path) -> Path:
 
 
 def resolve_runtime_paths(paths: tuple[Path, ...]) -> tuple[tuple[Path, ...], Path]:
-    requested_paths = tuple(expand_path_token(path) for path in paths) if paths else (Path(),)
+    requested_paths = (
+        tuple(logical_absolute(expand_path_token(path)) for path in paths)
+        if paths
+        else (logical_absolute(Path()),)
+    )
     return requested_paths, resolve_repo_root(cwd=Path(), paths=requested_paths)
 
 
@@ -152,7 +156,7 @@ def ensure_paths_within_repo(
     """Validate logical scan paths without dereferencing symlink targets."""
     msg = "scan paths must be within the resolved repository root"
     try:
-        logical_targets = [path.absolute() for path in requested_paths]
+        logical_targets = [logical_absolute(path) for path in requested_paths]
         if not all(target.is_relative_to(repo_root) for target in logical_targets):
             details = "\n".join(f"  - {target}" for target in logical_targets)
             msg = f"{msg}\nrepo_root: {repo_root}\nrequested:\n{details}"
@@ -215,7 +219,7 @@ def assemble_layered_ignores(
 
 def _path_to_runtime_pattern(path: Path, *, repo_root: Path) -> str:
     normalized = expand_path_token(path)
-    logical = normalized.absolute()
+    logical = logical_absolute(normalized)
     try:
         rel = logical.relative_to(repo_root)
     except (ValueError, OSError):
