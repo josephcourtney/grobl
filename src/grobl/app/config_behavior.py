@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from click import UsageError
 from click.core import ParameterSource
 
 from grobl.constants import (
@@ -186,6 +187,9 @@ def resolve_symlink_behavior(
         key="allow_external_symlinks",
     )
     if allow_external and not follow:
+        if not _use_config(ctx, "allow_external_symlinks") or not _use_config(ctx, "follow_symlinks"):
+            msg = "--allow-external-symlinks requires --follow-symlinks"
+            raise UsageError(msg, ctx=ctx)
         msg = "config key 'allow_external_symlinks' requires follow_symlinks = true"
         raise ConfigLoadError(msg)
     return follow, allow_external
