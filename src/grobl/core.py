@@ -18,7 +18,7 @@ from grobl.directory import (
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
-from grobl.utils import find_common_ancestor
+from grobl.utils import find_common_ancestor, logical_absolute
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -40,7 +40,7 @@ def _coerce_to_directory(path: Path) -> Path:
 def _determine_builder_base(common: Path, paths: list[Path], repo_root: Path | None) -> Path:
     if repo_root is None:
         return common
-    candidate = _coerce_to_directory(repo_root.absolute())
+    candidate = _coerce_to_directory(logical_absolute(repo_root))
     if all(path.is_relative_to(candidate) for path in paths):
         return candidate
     return common
@@ -49,7 +49,7 @@ def _determine_builder_base(common: Path, paths: list[Path], repo_root: Path | N
 def _determine_match_base(match_base: Path | None, paths: list[Path], default: Path) -> Path:
     if match_base is None:
         return default
-    normalized = _coerce_to_directory(match_base.absolute())
+    normalized = _coerce_to_directory(logical_absolute(match_base))
     if all(path.is_relative_to(normalized) for path in paths):
         return normalized
     return default
@@ -87,7 +87,7 @@ def run_scan(
     timing: TimingRecorder | None = None,
 ) -> ScanResult:
     """Run a filesystem scan under the effective three-state inclusion policy."""
-    logical_paths = [path.absolute() for path in paths]
+    logical_paths = [logical_absolute(path) for path in paths]
     if not logical_paths:
         msg = "run_scan requires at least one path"
         raise ValueError(msg)
@@ -128,7 +128,7 @@ def run_scan(
     traversal = TraverseConfig(
         paths=logical_paths,
         base=match_base,
-        repo_root=(repo_root or builder_base).absolute(),
+        repo_root=logical_absolute(repo_root or builder_base),
         follow_symlinks=bool(cfg.get("_follow_symlinks", cfg.get("follow_symlinks", False))),
         allow_external_symlinks=bool(
             cfg.get("_allow_external_symlinks", cfg.get("allow_external_symlinks", False))
