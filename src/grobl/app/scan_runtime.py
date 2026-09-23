@@ -94,26 +94,26 @@ def _load_config_layers(
     discovered: set[Path] = set()
 
     for config_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths):
-        real = config_path.resolve()
-        discovered.add(real)
+        logical = logical_absolute(config_path)
+        discovered.add(logical)
         layers.append(
             InclusionLayer(
-                base_dir=real.parent,
-                rules=rules_from_config(load_toml_config(real)),
+                base_dir=logical.parent,
+                rules=rules_from_config(load_toml_config(logical)),
                 source=LayerSource.CONFIG,
-                config_path=real,
+                config_path=logical,
             )
         )
 
     if explicit_config is not None:
-        real = explicit_config.resolve(strict=False)
-        if real.exists() and real not in discovered:
+        logical = logical_absolute(explicit_config)
+        if logical.exists() and logical not in discovered:
             layers.append(
                 InclusionLayer(
-                    base_dir=real.parent,
-                    rules=rules_from_config(load_toml_config(real)),
+                    base_dir=logical.parent,
+                    rules=rules_from_config(load_toml_config(logical)),
                     source=LayerSource.EXPLICIT_CONFIG,
-                    config_path=real,
+                    config_path=logical,
                 )
             )
 
