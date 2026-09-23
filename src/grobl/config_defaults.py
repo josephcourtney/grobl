@@ -42,6 +42,8 @@ inherit_defaults = true
 # tokens = true
 # inclusion_status = true
 # ignore_policy = "auto"
+# follow_symlinks = false
+# allow_external_symlinks = false  # requires follow_symlinks = true
 # max_file_bytes = 1048576   # 0 disables
 # max_total_bytes = 16777216 # 0 disables
 # max_tokens = 200000        # 0 disables
