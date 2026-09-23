@@ -84,6 +84,8 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
+    follow_symlinks: bool,
+    allow_external_symlinks: bool,
     scope: str,
     paths: tuple[Path, ...],
 ) -> None:
@@ -137,6 +139,8 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
                 show_tokens=show_tokens,
                 show_inclusion_status=show_inclusion_status,
                 ignore_policy=ignore_policy,
+                follow_symlinks=follow_symlinks,
+                allow_external_symlinks=allow_external_symlinks,
                 max_file_bytes=max_file_bytes,
                 max_total_bytes=max_total_bytes,
                 max_tokens=max_tokens,
@@ -226,7 +230,12 @@ def run_scan_command(  # ruff: ignore[too-many-locals]
     try:
         summary_json, payload_bytes = _execute_scan_outputs(
             params=params,
-            cfg={**cfg, "_ignores": ignores},
+            cfg={
+                **cfg,
+                "_ignores": ignores,
+                "_follow_symlinks": behavior.follow_symlinks,
+                "_allow_external_symlinks": behavior.allow_external_symlinks,
+            },
             cwd=cwd,
             summary_output=summary_output,
             destination=destination,
@@ -252,10 +261,7 @@ def _execute_scan_outputs(
     merged_destination: bool,
     timing: TimingRecorder | None,
 ) -> tuple[dict[str, object], int]:
-    direct_writer = build_writer_from_config(
-        copy=params.payload_copy,
-        output=params.payload_output,
-    )
+    direct_writer = build_writer_from_config(copy=params.payload_copy, output=params.payload_output)
     payload_buffer: list[str] | None = [] if merged_destination else None
     payload_bytes = 0
 
