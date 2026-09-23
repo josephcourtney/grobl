@@ -10,7 +10,6 @@ import click
 
 from grobl.constants import InclusionLevel
 from grobl.directory import (
-    SymlinkInfo,
     TraverseConfig,
     inspect_symlink,
     should_follow_symlink,
@@ -24,6 +23,7 @@ from grobl.utils import detect_text, read_text
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from grobl.directory import SymlinkInfo
     from grobl.ignore import LayeredIgnoreMatcher
 
 
@@ -116,13 +116,13 @@ def _render_human(entries: list[dict[str, Any]]) -> str:
             details = entry["text_detection"]
             detail = details.get("detail") or "binary file"
             lines.append(f"  text detection: binary ({detail})")
-        resource_limits = entry.get("resource_limits")
-        if resource_limits:
+        limits = entry.get("resource_limits")
+        if limits:
             lines.append(
                 "  resource limits: "
-                f"file-bytes={resource_limits['max_file_bytes'] or 'unlimited'}; "
-                f"total-bytes={resource_limits['max_total_bytes'] or 'unlimited'}; "
-                f"tokens={resource_limits['max_tokens'] or 'unlimited'}"
+                f"file-bytes={limits['max_file_bytes'] or 'unlimited'}; "
+                f"total-bytes={limits['max_total_bytes'] or 'unlimited'}; "
+                f"tokens={limits['max_tokens'] or 'unlimited'}"
             )
     lines.append("")
     return "\n".join(lines)
@@ -155,7 +155,11 @@ def _apply_full_file_limits(
     if actual_bytes is None:
         return True, None
 
-    budget_reason = budget.accept(abs_path, file_bytes=actual_bytes, tokens=tokens)
+    budget_reason = budget.accept(
+        abs_path,
+        file_bytes=actual_bytes,
+        tokens=tokens,
+    )
     return budget_reason is None, budget_reason
 
 
