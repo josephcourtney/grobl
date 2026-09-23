@@ -98,6 +98,8 @@ characters = true
 tokens = true
 inclusion_status = true
 ignore_policy = "auto"
+follow_symlinks = false
+allow_external_symlinks = false
 max_file_bytes = 1048576
 max_total_bytes = 16777216
 max_tokens = 200000
@@ -108,6 +110,39 @@ A resource-limit value of `0` disables that limit. Budgeted files are omitted as
 The existing `include_tree_tags` and `include_file_tags` settings remain configurable as well. Routing and invocation controls stay CLI-only: `--copy`, `--output`, `--stdout`, `--json`, `--summary-to`, `--summary-output`, `--config`, and logging flags.
 
 General non-policy values use the normal scalar merge precedence (bundled values, XDG/project/pyproject/environment sources, explicit config, then explicit CLI values). Inclusion patterns retain the separate hierarchical root-to-leaf policy layering above because each policy source has its own matching base.
+
+## Symlink policy
+
+Grobl preserves symbolic links as part of the logical tree but does not dereference them by default. A link is rendered as a relationship such as `alias.py -> ../shared/target.py`; broken and external links are marked explicitly. A link itself is not counted as captured file content unless following has been enabled and the target is eligible.
+
+Use either persistent configuration or the corresponding CLI option to follow targets:
+
+```toml
+follow_symlinks = true
+```
+
+```bash
+grobl scan --follow-symlinks .
+```
+
+Following remains bounded to the resolved repository root. Crossing that boundary requires a second explicit opt-in:
+
+```toml
+follow_symlinks = true
+allow_external_symlinks = true
+```
+
+```bash
+grobl scan --follow-symlinks --allow-external-symlinks .
+```
+
+`allow_external_symlinks = true` is invalid unless symlink following is also enabled.
+
+Inclusion patterns are evaluated against the logical path at which a link appears. Traversed descendants continue to use their logical paths beneath the link. Grobl tracks followed directory targets by filesystem identity (`st_dev`, `st_ino`) to prevent cycles and avoids following a link when its physical target is already reachable through a separately selected real path, so the same physical content is not emitted twice merely because it has an alias.
+
+Machine-readable tree output uses `type = "symlink"` and includes the raw target, resolved target when available, target scope, and broken-target state. `grobl explain` reports the same target information together with the reason a link is or is not followed.
+
+macOS Finder aliases are ordinary files from Grobl's perspective. Grobl does not invoke Finder alias-resolution APIs; normal text/binary detection and inclusion policy apply to those files.
 
 ## Pattern semantics
 
