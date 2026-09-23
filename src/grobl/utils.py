@@ -4,7 +4,7 @@ import codecs
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from os.path import commonpath
+from os.path import abspath, commonpath
 from pathlib import Path
 from typing import BinaryIO
 
@@ -39,7 +39,7 @@ class TextDetectionResult:
 
 def logical_absolute(path: Path) -> Path:
     """Return an absolute, dot-normalized path without resolving symlinks."""
-    return Path(Path(path).resolve())
+    return Path(abspath(path))  # ruff: ignore[os-path-abspath]
 
 
 def find_common_ancestor(paths: list[Path], *, resolve_symlinks: bool = True) -> Path:
