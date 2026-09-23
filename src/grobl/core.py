@@ -7,7 +7,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from grobl.constants import InclusionLevel
-from grobl.directory import DirectoryTreeBuilder, TraverseConfig, inspect_symlink, should_follow_symlink, traverse_dir
+from grobl.directory import (
+    DirectoryTreeBuilder,
+    TraverseConfig,
+    inspect_symlink,
+    should_follow_symlink,
+    traverse_dir,
+)
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
@@ -28,19 +34,16 @@ class ScanResult:
 
 @dataclass(slots=True)
 class _ScanCollector:
-    builder: DirectoryTreeBuilder
     context: FileProcessingContext
     registry: FileHandlerRegistry
-    ignores: LayeredIgnoreMatcher
     traversal: TraverseConfig
-    timing: TimingRecorder | None
     followed_file_identities: set[tuple[int, int]] = field(default_factory=set)
 
     def _decision(self, path: Path, *, is_dir: bool) -> InclusionDecision:
-        if self.timing is None:
-            return self.ignores.explain_inclusion(path, is_dir=is_dir)
-        with self.timing.measure("policy matching", depth=1):
-            return self.ignores.explain_inclusion(path, is_dir=is_dir)
+        if self.context.timing is None:
+            return self.context.ignores.explain_inclusion(path, is_dir=is_dir)
+        with self.context.timing.measure("policy matching", depth=1):
+            return self.context.ignores.explain_inclusion(path, is_dir=is_dir)
 
     def _collect_symlink(self, path: Path, prefix: str, *, is_last: bool) -> bool:
         info = inspect_symlink(path, root=self.traversal.repo_root)
@@ -48,9 +51,13 @@ class _ScanCollector:
         can_follow = should_follow_symlink(info, self.traversal)
 
         if decision.level is InclusionLevel.OMIT:
-            return can_follow and info.target_is_dir and self.ignores.may_reinclude_descendant(path)
+            return (
+                can_follow
+                and info.target_is_dir
+                and self.context.ignores.may_reinclude_descendant(path)
+            )
 
-        self.builder.add_symlink_to_tree(path, info, prefix, is_last=is_last)
+        self.context.builder.add_symlink_to_tree(path, info, prefix, is_last=is_last)
         if not can_follow:
             return False
         if not info.target_is_file or decision.level is not InclusionLevel.FULL:
@@ -70,13 +77,13 @@ class _ScanCollector:
         decision = self._decision(path, is_dir=is_dir)
         if is_dir:
             if decision.level is not InclusionLevel.OMIT:
-                self.builder.add_directory(path, prefix, is_last=is_last)
+                self.context.builder.add_directory(path, prefix, is_last=is_last)
                 return True
-            return self.ignores.may_reinclude_descendant(path)
+            return self.context.ignores.may_reinclude_descendant(path)
 
         if decision.level is InclusionLevel.OMIT:
             return False
-        self.builder.add_file_to_tree(path, prefix, is_last=is_last)
+        self.context.builder.add_file_to_tree(path, prefix, is_last=is_last)
         self.registry.handle(path=path, context=self.context)
         return False
 
@@ -199,13 +206,6 @@ def run_scan(
         builder_base=builder_base,
         cfg=cfg,
     )
-    collector = _ScanCollector(
-        builder=builder,
-        context=context,
-        registry=registry,
-        ignores=ignores,
-        traversal=traversal,
-        timing=timing,
-    )
+    collector = _ScanCollector(context=context, registry=registry, traversal=traversal)
     traverse_dir(builder_base, traversal, collector)
     return ScanResult(builder=builder, common=builder_base)
