@@ -101,6 +101,63 @@ def test_current_tree_walks_filesystem_once_for_multiple_duplicates(
     assert root_reads == 1
 
 
+def test_current_tree_bisects_bulk_candidates_when_one_reassertion_is_required(tmp_path: Path) -> None:
+    config = tmp_path / ".grobl.toml"
+    config.write_text('exclude = ["docs/", "build"]\n', encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "build").mkdir()
+
+    result = inspect_config_pruning(
+        config,
+        current_tree=True,
+        repo_root=tmp_path,
+        default_cfg={
+            "exclude": ["docs/", "build"],
+            "tree_only": ["docs/"],
+        },
+    )
+    parsed = tomlkit.parse(result.text)
+
+    assert list(parsed["exclude"]) == ["docs/"]
+    assert {rule.pattern for rule in result.removed} == {"build"}
+
+
+def test_current_tree_skips_omitted_subtree_with_unrelated_reinclusion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / ".grobl.toml"
+    config.write_text('exclude = ["vendor"]\n', encoding="utf-8")
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    (vendor / "large").mkdir()
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "keep.py").write_text("keep", encoding="utf-8")
+
+    path_type = type(tmp_path)
+    original_iterdir = path_type.iterdir
+
+    def guarded_iterdir(path: Path) -> Iterator[Path]:
+        if path == vendor:
+            raise AssertionError("current-tree pruning descended into unrelated omitted subtree")
+        return original_iterdir(path)
+
+    monkeypatch.setattr(path_type, "iterdir", guarded_iterdir)
+
+    result = inspect_config_pruning(
+        config,
+        current_tree=True,
+        repo_root=tmp_path,
+        default_cfg={
+            "exclude": ["vendor"],
+            "include": ["src/keep.py"],
+        },
+    )
+
+    assert {rule.pattern for rule in result.removed} == {"vendor"}
+
+
 def test_prune_removes_empty_policy_key_and_inherited_setting(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -533,7 +533,7 @@ def _snapshot_current_tree(
             entries.append(_CurrentTreeEntry(path=item, is_dir=is_dir, level=decision.level))
             if not is_dir or item.is_symlink():
                 continue
-            if decision.level is InclusionLevel.OMIT and not matcher.has_reinclusions:
+            if decision.level is InclusionLevel.OMIT and not matcher.may_reinclude_descendant(item):
                 continue
             stack.append(item)
     return tuple(entries)
@@ -562,35 +562,89 @@ def _inherited_identities(context: _PruneContext) -> frozenset[tuple[str, Inclus
     return frozenset(identities)
 
 
+def _rule_ref_signature(ref: _RuleRef) -> tuple[str, str, str, InclusionLevel]:
+    return ref.key, ref.pattern, ref.core, ref.level
+
+
+def _delete_rule_group(document: TOMLDocument, refs: Sequence[_RuleRef]) -> None:
+    wanted = {_rule_ref_signature(ref) for ref in refs}
+    live = [ref for ref in _rule_refs(document) if _rule_ref_signature(ref) in wanted]
+    for key in CANONICAL_POLICY_KEYS:
+        key_refs = sorted(
+            (ref for ref in live if ref.key == key),
+            key=lambda ref: ref.index,
+            reverse=True,
+        )
+        for ref in key_refs:
+            _delete_rule(document, ref)
+
+
+def _pruned_rule(ref: _RuleRef) -> PrunedRule:
+    return PrunedRule(
+        key=ref.key,
+        pattern=ref.pattern,
+        reason="duplicates inherited policy without changing the current scan tree",
+    )
+
+
+def _prune_candidate_group(
+    document: TOMLDocument,
+    candidates: Sequence[_RuleRef],
+    *,
+    context: _PruneContext,
+    snapshot: Sequence[_CurrentTreeEntry],
+    removed: list[PrunedRule],
+) -> None:
+    if not candidates:
+        return
+
+    variant = _parse_document(tomlkit.dumps(document))
+    _delete_rule_group(variant, candidates)
+    without = _matcher_for_document(variant, context=context)
+    if _matches_current_tree_snapshot(without, snapshot):
+        _delete_rule_group(document, candidates)
+        removed.extend(_pruned_rule(ref) for ref in candidates)
+        return
+
+    if len(candidates) == 1:
+        return
+    midpoint = len(candidates) // 2
+    _prune_candidate_group(
+        document,
+        candidates[:midpoint],
+        context=context,
+        snapshot=snapshot,
+        removed=removed,
+    )
+    _prune_candidate_group(
+        document,
+        candidates[midpoint:],
+        context=context,
+        snapshot=snapshot,
+        removed=removed,
+    )
+
+
 def _prune_current_tree(document: TOMLDocument, *, context: _PruneContext) -> list[PrunedRule]:
     inherited = _inherited_identities(context)
     if not inherited:
         return []
 
+    candidates = tuple(ref for ref in _rule_refs(document) if (ref.core, ref.level) in inherited)
+    if not candidates:
+        return []
+
     baseline = _matcher_for_document(document, context=context)
     snapshot = _snapshot_current_tree(baseline, root=context.path.parent)
     removed: list[PrunedRule] = []
-    while True:
-        candidate: _RuleRef | None = None
-        for ref in _rule_refs(document):
-            if (ref.core, ref.level) not in inherited:
-                continue
-            variant = _parse_document(tomlkit.dumps(document))
-            _delete_rule(variant, ref)
-            without = _matcher_for_document(variant, context=context)
-            if _matches_current_tree_snapshot(without, snapshot):
-                candidate = ref
-                break
-        if candidate is None:
-            return removed
-        _delete_rule(document, candidate)
-        removed.append(
-            PrunedRule(
-                key=candidate.key,
-                pattern=candidate.pattern,
-                reason="duplicates inherited policy without changing the current scan tree",
-            )
-        )
+    _prune_candidate_group(
+        document,
+        candidates,
+        context=context,
+        snapshot=snapshot,
+        removed=removed,
+    )
+    return removed
 
 
 def _apply_contextual_pruning(
