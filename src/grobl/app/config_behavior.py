@@ -36,6 +36,8 @@ class ScanBehavior:
     show_inclusion_status: bool
     ignore_policy: str
     inherit_defaults: bool
+    follow_symlinks: bool
+    allow_external_symlinks: bool
     limits: ResourceLimits
 
 
@@ -155,6 +157,40 @@ def resolve_ignore_policy(
     return _choice(value, key="ignore_policy", choices=tuple(item.value for item in IgnorePolicy))
 
 
+def resolve_symlink_behavior(
+    ctx: click.Context,
+    cfg: dict[str, object],
+    *,
+    follow_symlinks: bool,
+    allow_external_symlinks: bool,
+) -> tuple[bool, bool]:
+    """Resolve symlink traversal policy with explicit CLI values taking precedence."""
+    follow = _boolean(
+        _configured_value(
+            ctx,
+            cfg,
+            parameter="follow_symlinks",
+            key="follow_symlinks",
+            current=follow_symlinks,
+        ),
+        key="follow_symlinks",
+    )
+    allow_external = _boolean(
+        _configured_value(
+            ctx,
+            cfg,
+            parameter="allow_external_symlinks",
+            key="allow_external_symlinks",
+            current=allow_external_symlinks,
+        ),
+        key="allow_external_symlinks",
+    )
+    if allow_external and not follow:
+        msg = "config key 'allow_external_symlinks' requires follow_symlinks = true"
+        raise ConfigLoadError(msg)
+    return follow, allow_external
+
+
 def resolve_scan_behavior(
     ctx: click.Context,
     cfg: dict[str, object],
@@ -168,6 +204,8 @@ def resolve_scan_behavior(
     show_tokens: bool,
     show_inclusion_status: bool,
     ignore_policy: str,
+    follow_symlinks: bool,
+    allow_external_symlinks: bool,
     max_file_bytes: int | None,
     max_total_bytes: int | None,
     max_tokens: int | None,
@@ -176,13 +214,7 @@ def resolve_scan_behavior(
     """Resolve persistent scan settings with explicit CLI values taking precedence."""
     use_config_output = not json_mode
 
-    scope_value = _configured_value(
-        ctx,
-        cfg,
-        parameter="scope",
-        key="scope",
-        current=scope,
-    )
+    scope_value = _configured_value(ctx, cfg, parameter="scope", key="scope", current=scope)
     payload_value = _configured_value(
         ctx,
         cfg,
@@ -226,12 +258,15 @@ def resolve_scan_behavior(
             choices=tuple(item.value for item in TableStyle),
         )
 
+    follow, allow_external = resolve_symlink_behavior(
+        ctx,
+        cfg,
+        follow_symlinks=follow_symlinks,
+        allow_external_symlinks=allow_external_symlinks,
+    )
+
     return ScanBehavior(
-        scope=_choice(
-            scope_value,
-            key="scope",
-            choices=tuple(item.value for item in ContentScope),
-        ),
+        scope=_choice(scope_value, key="scope", choices=tuple(item.value for item in ContentScope)),
         payload_format=_choice(
             payload_value,
             key="format",
@@ -240,13 +275,7 @@ def resolve_scan_behavior(
         summary=resolved_summary,
         summary_style=resolved_style,
         show_lines=_boolean(
-            _configured_value(
-                ctx,
-                cfg,
-                parameter="show_lines",
-                key="lines",
-                current=show_lines,
-            ),
+            _configured_value(ctx, cfg, parameter="show_lines", key="lines", current=show_lines),
             key="lines",
         ),
         show_chars=_boolean(
@@ -260,13 +289,7 @@ def resolve_scan_behavior(
             key="characters",
         ),
         show_tokens=_boolean(
-            _configured_value(
-                ctx,
-                cfg,
-                parameter="show_tokens",
-                key="tokens",
-                current=show_tokens,
-            ),
+            _configured_value(ctx, cfg, parameter="show_tokens", key="tokens", current=show_tokens),
             key="tokens",
         ),
         show_inclusion_status=_boolean(
@@ -281,6 +304,8 @@ def resolve_scan_behavior(
         ),
         ignore_policy=resolve_ignore_policy(ctx, cfg, current=ignore_policy),
         inherit_defaults=config_inherit_defaults(cfg),
+        follow_symlinks=follow,
+        allow_external_symlinks=allow_external,
         limits=resolve_resource_limits(
             ctx,
             cfg,
