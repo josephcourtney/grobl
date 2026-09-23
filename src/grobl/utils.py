@@ -4,7 +4,7 @@ import codecs
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from os.path import commonpath
+from os.path import abspath, commonpath
 from pathlib import Path
 from typing import BinaryIO
 
@@ -19,6 +19,7 @@ __all__ = [
     "detect_text",
     "find_common_ancestor",
     "is_text",
+    "logical_absolute",
     "read_text",
     "resolve_repo_root",
 ]
@@ -36,13 +37,18 @@ class TextDetectionResult:
     detail: str | None = None
 
 
+def logical_absolute(path: Path) -> Path:
+    """Return an absolute, dot-normalized path without resolving symlinks."""
+    return Path(abspath(path))
+
+
 def find_common_ancestor(paths: list[Path], *, resolve_symlinks: bool = True) -> Path:
     """Return the deepest common ancestor of the given paths."""
     if not paths:
         msg = ERROR_MSG_EMPTY_PATHS
         raise ValueError(msg)
     try:
-        normalized = [path.resolve() if resolve_symlinks else path.absolute() for path in paths]
+        normalized = [path.resolve() if resolve_symlinks else logical_absolute(path) for path in paths]
         root = Path(commonpath([str(path) for path in normalized]))
     except ValueError as err:
         msg = ERROR_MSG_NO_COMMON_ANCESTOR
@@ -68,7 +74,7 @@ def resolve_repo_root(*, cwd: Path, paths: Sequence[Path]) -> Path:
     try:
         common = find_common_ancestor(candidates, resolve_symlinks=False)
     except (ValueError, PathNotFoundError):
-        return cwd.absolute()
+        return logical_absolute(cwd)
 
     if common.is_symlink() or common.is_file():
         return common.parent
