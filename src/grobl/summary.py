@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from .constants import ContentScope, TableStyle
 from .metadata_visibility import DEFAULT_METADATA_VISIBILITY, MetadataVisibility
 
-if TYPE_CHECKING:  # resolve types for static checkers without runtime imports
+if TYPE_CHECKING:
     from pathlib import Path
 
     from .directory import DirectoryTreeBuilder, SummaryTotals
@@ -99,27 +99,34 @@ def _visible_payload_file_entry(
     return filtered
 
 
-def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
-    """Build the JSON payload written to the sink for JSON format runs.
+def _tree_entry(builder: DirectoryTreeBuilder, typ: str, rel: Path) -> dict[str, Any]:
+    entry: dict[str, Any] = {"type": typ, "path": str(rel)}
+    if typ != "symlink":
+        return entry
+    info = builder.symlink_info(rel)
+    if info is None:
+        return entry
+    entry.update({
+        "target": info.target,
+        "target_scope": info.scope,
+        "broken": info.broken,
+    })
+    if info.resolved_target is not None:
+        entry["resolved_target"] = str(info.resolved_target)
+    return entry
 
-    Structure is preserved for backward compatibility with existing behavior:
-    {
-      "root": str,
-      "mode": str,
-      "tree"?: list,
-      "files"?: list,
-      "summary": {"table": str, "totals": {...}, "files": [...]}
-    }
-    """
+
+def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
+    """Build the JSON payload written to the sink for JSON format runs."""
     builder = context.builder
     payload: dict[str, Any] = {
         "root": str(context.common),
         "scope": context.scope.value,
     }
-    tree_entries: list[dict[str, str]] = []
+    tree_entries: list[dict[str, Any]] = []
     file_entries: list[dict[str, Any]] = []
     if context.scope in {ContentScope.ALL, ContentScope.TREE}:
-        tree_entries = [{"type": typ, "path": str(rel)} for typ, rel in builder.ordered_entries()]
+        tree_entries = [_tree_entry(builder, typ, rel) for typ, rel in builder.ordered_entries()]
     if context.scope in {ContentScope.ALL, ContentScope.FILES}:
         file_entries = [
             _visible_payload_file_entry(entry, visibility=context.visibility)
@@ -127,7 +134,6 @@ def build_sink_payload_json(context: SummaryContext) -> dict[str, Any]:
         ]
     payload["tree"] = tree_entries
     payload["files"] = file_entries
-
     payload["summary"] = build_summary(context)
     return payload
 
