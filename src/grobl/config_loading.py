@@ -21,6 +21,8 @@ PYPROJECT_TOML = "pyproject.toml"
 
 
 def _coerce_to_dir(path: Path) -> Path:
+    if path.is_symlink():
+        return path.parent
     return path.parent if path.is_file() else path
 
 
@@ -30,8 +32,8 @@ def discover_grobl_toml_files(
     scan_paths: Sequence[Path],
 ) -> list[Path]:
     """Return applicable .grobl.toml files ordered from repository root to leaf."""
-    root = repo_root.resolve()
-    targets = [_coerce_to_dir(path.resolve(strict=False)) for path in scan_paths]
+    root = repo_root.absolute()
+    targets = [_coerce_to_dir(path.absolute()) for path in scan_paths]
 
     found: set[Path] = set()
     for target in targets:
