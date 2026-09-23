@@ -27,6 +27,21 @@ def _coerce_to_dir(path: Path) -> Path:
     return path.parent if path.is_file() else path
 
 
+def _config_discovery_start(path: Path, *, root: Path) -> Path:
+    """Return the deepest logical config directory before any symlink boundary."""
+    target = _coerce_to_dir(logical_absolute(path))
+    if not target.is_relative_to(root):
+        return target
+
+    current = root
+    for part in target.relative_to(root).parts:
+        candidate = current / part
+        if candidate.is_symlink():
+            return current
+        current = candidate
+    return target
+
+
 def discover_grobl_toml_files(
     *,
     repo_root: Path,
@@ -34,7 +49,7 @@ def discover_grobl_toml_files(
 ) -> list[Path]:
     """Return applicable .grobl.toml files ordered from repository root to leaf."""
     root = logical_absolute(repo_root)
-    targets = [_coerce_to_dir(logical_absolute(path)) for path in scan_paths]
+    targets = [_config_discovery_start(path, root=root) for path in scan_paths]
 
     found: set[Path] = set()
     for target in targets:
@@ -44,7 +59,7 @@ def discover_grobl_toml_files(
         while True:
             candidate = current / TOML_CONFIG
             if candidate.exists():
-                found.add(candidate.resolve())
+                found.add(logical_absolute(candidate))
             if current == root:
                 break
             current = current.parent
