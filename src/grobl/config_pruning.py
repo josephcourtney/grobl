@@ -37,7 +37,7 @@ from grobl.ignore import (
     compile_layers,
     rules_from_config,
 )
-from grobl.utils import resolve_repo_root
+from grobl.utils import logical_absolute, resolve_repo_root
 
 if TYPE_CHECKING:
     from tomlkit.toml_document import TOMLDocument
@@ -320,11 +320,12 @@ def prune_config_text(text: str) -> ConfigPruneResult:
 
 
 def _config_layer(path: Path, data: dict[str, object], *, source: LayerSource) -> InclusionLayer:
+    logical = logical_absolute(path)
     return InclusionLayer(
-        base_dir=path.parent.resolve(),
+        base_dir=logical.parent,
         rules=rules_from_config(data),
         source=source,
-        config_path=path.resolve(),
+        config_path=logical,
     )
 
 
@@ -344,15 +345,15 @@ def _lower_layers(
                 source=LayerSource.DEFAULTS,
             )
         )
-    target = path.resolve()
-    for config_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=[path.parent]):
-        real = config_path.resolve()
-        if real == target:
+    target = logical_absolute(path)
+    for config_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=[target.parent]):
+        logical = logical_absolute(config_path)
+        if logical == target:
             continue
         layers.append(
             _config_layer(
-                real,
-                load_toml_config(real),
+                logical,
+                load_toml_config(logical),
                 source=LayerSource.CONFIG,
             )
         )
@@ -418,8 +419,9 @@ def _lower_general_config(
     default_cfg: dict[str, object],
 ) -> dict[str, object]:
     """Resolve general config values that precede the target in merge precedence."""
-    target = path.resolve()
-    base = target.parent
+    logical_target = logical_absolute(path)
+    physical_target = path.resolve()
+    base = logical_target.parent
     config = dict(default_cfg)
 
     for source in (
@@ -427,7 +429,7 @@ def _lower_general_config(
         base / LEGACY_TOML_CONFIG,
         base / TOML_CONFIG,
     ):
-        if source.resolve(strict=False) == target:
+        if logical_absolute(source) == logical_target or source.resolve(strict=False) == physical_target:
             return config
         _merge_config_file(config, source)
 
@@ -436,7 +438,7 @@ def _lower_general_config(
     env_path = os.environ.get("GROBL_CONFIG_PATH")
     if env_path:
         source = Path(env_path)
-        if source.resolve(strict=False) == target:
+        if logical_absolute(source) == logical_target or source.resolve(strict=False) == physical_target:
             return config
         _merge_config_file(config, source)
 
@@ -509,7 +511,7 @@ def _same_current_tree(
     *,
     root: Path,
 ) -> bool:
-    root = root.resolve()
+    root = logical_absolute(root)
     stack = [root]
     while stack:
         directory = stack.pop()
@@ -535,7 +537,7 @@ def _same_current_tree(
 
 def _inherited_identities(context: _PruneContext) -> frozenset[tuple[str, InclusionLevel]]:
     identities: set[tuple[str, InclusionLevel]] = set()
-    base = context.path.parent.resolve()
+    base = logical_absolute(context.path).parent
     for layer in context.lower_layers:
         if layer.base_dir != base:
             continue
@@ -587,25 +589,26 @@ def _apply_contextual_pruning(
     defaults = load_default_config() if default_cfg is None else default_cfg
     current_removed: list[PrunedRule] = []
     warnings: tuple[str, ...] = ()
+    logical_path = logical_absolute(path)
 
     if current_tree:
         resolved_root = (
-            repo_root.resolve()
+            logical_absolute(repo_root)
             if repo_root is not None
-            else resolve_repo_root(cwd=path.parent, paths=(path.parent,))
+            else resolve_repo_root(cwd=logical_path.parent, paths=(logical_path.parent,))
         )
-        inherited_general = _lower_general_config(path, default_cfg=defaults)
+        inherited_general = _lower_general_config(logical_path, default_cfg=defaults)
         effective_target = dict(inherited_general)
-        effective_target |= _target_data(document, path)
+        effective_target |= _target_data(document, logical_path)
         inherit_defaults = effective_target.get(CONFIG_INHERIT_DEFAULTS, True)
         if not isinstance(inherit_defaults, bool):
             msg = f"{CONFIG_INHERIT_DEFAULTS} must be true or false"
             raise ConfigPruneError(msg)
         context = _PruneContext(
-            path=path.resolve(),
+            path=logical_path,
             repo_root=resolved_root,
             lower_layers=_lower_layers(
-                path,
+                logical_path,
                 repo_root=resolved_root,
                 default_cfg=defaults,
                 include_defaults=inherit_defaults,
@@ -620,9 +623,9 @@ def _apply_contextual_pruning(
                 ),
             )
 
-    removed_empty_keys = _prune_empty_policy_keys(document, path=path)
-    inherited = _lower_general_config(path, default_cfg=defaults)
-    inherited |= _extends_base(document, path)
+    removed_empty_keys = _prune_empty_policy_keys(document, path=logical_path)
+    inherited = _lower_general_config(logical_path, default_cfg=defaults)
+    inherited |= _extends_base(document, logical_path)
     removed_settings = _prune_redundant_settings(document, inherited=inherited)
     return current_removed, removed_empty_keys, removed_settings, warnings
 
