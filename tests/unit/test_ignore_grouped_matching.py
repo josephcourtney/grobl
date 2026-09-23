@@ -41,12 +41,13 @@ def test_grouped_matcher_preserves_basename_and_root_anchored_patterns(tmp_path:
         runtime_exclude=("*.log", "/root-only.txt"),
     )
 
-    assert matcher.explain_inclusion(tmp_path / "a" / "b" / "trace.log", is_dir=False).level is InclusionLevel.OMIT
-    assert matcher.explain_inclusion(tmp_path / "root-only.txt", is_dir=False).level is InclusionLevel.OMIT
-    assert (
-        matcher.explain_inclusion(tmp_path / "nested" / "root-only.txt", is_dir=False).level
-        is InclusionLevel.FULL
-    )
+    nested_log = matcher.explain_inclusion(tmp_path / "a" / "b" / "trace.log", is_dir=False)
+    root_only = matcher.explain_inclusion(tmp_path / "root-only.txt", is_dir=False)
+    nested_root_only = matcher.explain_inclusion(tmp_path / "nested" / "root-only.txt", is_dir=False)
+
+    assert nested_log.level is InclusionLevel.OMIT
+    assert root_only.level is InclusionLevel.OMIT
+    assert nested_root_only.level is InclusionLevel.FULL
 
 
 def test_grouped_matcher_preserves_higher_layer_precedence(tmp_path: Path) -> None:
