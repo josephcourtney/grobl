@@ -89,7 +89,7 @@ class RootGroup(LiteralEpilogGroup):
 @click.option(
     "--debug",
     is_flag=True,
-    help="Print scan phase timings to stderr.",
+    help="Print performance diagnostics to stderr.",
 )
 @click.version_option(__version__, "-V", "--version", message="%(version)s")
 def cli(
