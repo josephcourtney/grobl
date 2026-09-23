@@ -124,6 +124,20 @@ The repository root **MUST** be resolved using the following precedence:
 
 If scan paths reside on different filesystem volumes with no common ancestor, the CLI **MUST** fall back to the current working directory.
 
+A single symlink target used as a scan path **MUST** be rooted from the symlink's logical parent when no Git root applies; repository-root inference **MUST NOT** replace the logical link path with its resolved target.
+
+### 3.6 Symbolic links
+
+Symbolic links **MUST** be represented as distinct logical tree entries and **MUST NOT** be dereferenced by default. Tree output **SHOULD** show the raw link target, and machine-readable tree output **MUST** identify symlink entries separately from regular files and directories.
+
+The scan and explain commands **MUST** support explicit symlink following. Ordinary following **MUST** remain bounded to the resolved repository root. Following a target outside that root **MUST** require a separate explicit opt-in; enabling external following without enabling following itself **MUST** be rejected.
+
+Inclusion policy **MUST** be evaluated against the logical path at which a symlink is encountered. Followed file content **MUST** be named by that logical path, and followed directory descendants **MUST** retain logical descendant paths beneath the link.
+
+Broken symlinks **MUST** remain representable and **MUST NOT** be followed. Implementations **MUST** prevent symlink cycles and repeated directory traversal using physical filesystem identity or an equivalent identity-preserving mechanism. If a physical target is already reachable through a separately selected non-link scan path, Grobl **SHOULD** represent the link without emitting the same physical content again under the alias.
+
+macOS Finder aliases are not POSIX symbolic links and are outside Grobl's link-following semantics; they **MUST** be processed as ordinary files unless a future explicit feature defines otherwise.
+
 ---
 
 ## 4. Payload Output (scan)
@@ -269,11 +283,13 @@ If payload output is written to stdout and no explicit summary destination is sp
 * Applicable `.grobl.toml` files **MUST** be discovered from the repository root toward each scanned path.
 * Rules from a configuration file **MUST** be interpreted relative to the directory containing that file.
 * `grobl init` **MUST** create a minimal, commented project-delta `.grobl.toml`; it **MUST NOT** materialize the bundled inclusion-policy lists into the project file.
-* General configuration **MUST** recognize persistent equivalents for the stable scan settings `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, `ignore_policy`, `max_file_bytes`, `max_total_bytes`, and `max_tokens`.
+* General configuration **MUST** recognize persistent equivalents for the stable scan settings `scope`, `format`, `summary`, `summary_style`, `lines`, `characters`, `tokens`, `inclusion_status`, `ignore_policy`, `follow_symlinks`, `allow_external_symlinks`, `max_file_bytes`, `max_total_bytes`, and `max_tokens`.
 * An explicitly supplied CLI value **MUST** override the corresponding persistent config value.
 * Payload/summary destinations, explicit config selection, logging, and JSON convenience mode are invocation controls and are not required to have persistent config equivalents.
 
 The boolean `inherit_defaults` setting controls only whether the bundled inclusion-policy layer participates under automatic source selection. It defaults to `true`. Setting it to `false` **MUST NOT** remove unrelated program defaults or general configuration values.
+
+`follow_symlinks` and `allow_external_symlinks` both default to `false`. `allow_external_symlinks = true` **MUST** require `follow_symlinks = true`.
 
 ### 7.2 Three inclusion states
 
@@ -516,6 +532,7 @@ For each target, explain output **MUST** report:
 * compatibility tree/content projections showing the consequences of that state.
 * text-detection information when a `full` file is omitted from content because it is non-text.
 * active content resource limits and any direct resource-limit reason that makes the target ineligible for content.
+* for a symbolic link, the raw target, resolved target when available, target scope, broken-target state, and whether the target would be followed under the effective symlink policy.
 
 The compatibility projections **MUST** obey:
 
