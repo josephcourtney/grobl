@@ -89,6 +89,19 @@ _IGNORE_POLICY_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
     ),
 )
 
+_SYMLINK_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
+    click.option(
+        "--follow-symlinks/--no-follow-symlinks",
+        default=False,
+        help="Follow symlink targets; internal targets only unless separately allowed",
+    ),
+    click.option(
+        "--allow-external-symlinks/--no-allow-external-symlinks",
+        default=False,
+        help="Allow followed symlinks to leave the resolved repository root",
+    ),
+)
+
 _SCAN_OUTPUT_OPTION_DECORATORS: tuple[CommandDecorator, ...] = (
     click.option(
         "--format",
@@ -217,6 +230,11 @@ def add_ignore_policy_options(func: Callable[..., Any]) -> Callable[..., Any]:
     return _apply_decorators(func, _IGNORE_POLICY_OPTION_DECORATORS)
 
 
+def add_symlink_options(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Attach explicit symlink traversal options to a subcommand."""
+    return _apply_decorators(func, _SYMLINK_OPTION_DECORATORS)
+
+
 def add_scope_option(func: Callable[..., Any]) -> Callable[..., Any]:
     """Attach the shared scan scope option."""
     decorators: tuple[CommandDecorator, ...] = (
@@ -231,7 +249,7 @@ def add_scope_option(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def add_paths_argument(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Attach the shared paths argument."""
+    """Attach the shared scan paths argument."""
     return _PATHS_ARGUMENT(func)
 
 
