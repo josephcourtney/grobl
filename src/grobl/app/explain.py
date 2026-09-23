@@ -105,7 +105,12 @@ def _render_human(entries: list[dict[str, Any]]) -> str:
             lines.append(f"  symlink: {symlink['target']}")
             if symlink.get("resolved_target"):
                 lines.append(f"    resolved: {symlink['resolved_target']}")
-            lines.extend((f"    target scope: {symlink['target_scope']}", f"    disposition: {symlink['disposition']}"))
+            lines.extend(
+                (
+                    f"    target scope: {symlink['target_scope']}",
+                    f"    disposition: {symlink['disposition']}",
+                )
+            )
         tree = entry["tree"]
         lines.append(f"  tree: {'included' if tree['included'] else 'excluded'}")
         content = entry["content"]
@@ -201,23 +206,26 @@ def _symlink_disposition(
     level: InclusionLevel,
     may_reinclude_descendant: bool,
 ) -> str:
+    disposition = "followed"
     if info.broken:
-        return "broken target; not followed"
-    if not traversal.follow_symlinks:
-        return "not followed; symlink following is disabled"
-    if info.external and not traversal.allow_external_symlinks:
-        return "not followed; target is outside the repository root"
-    if symlink_target_is_selected(info, traversal.paths):
-        return "not followed; target is already selected through its real path"
-    if level is InclusionLevel.OMIT:
-        if info.target_is_dir and may_reinclude_descendant:
-            return "followed to evaluate re-included descendants"
-        return "not followed; path is omitted"
-    if info.target_is_file and level is InclusionLevel.TREE_ONLY:
-        return "not followed; content state is tree_only"
-    if not info.target_is_dir and not info.target_is_file:
-        return "not followed; unsupported target type"
-    return "followed"
+        disposition = "broken target; not followed"
+    elif not traversal.follow_symlinks:
+        disposition = "not followed; symlink following is disabled"
+    elif info.external and not traversal.allow_external_symlinks:
+        disposition = "not followed; target is outside the repository root"
+    elif symlink_target_is_selected(info, traversal.paths):
+        disposition = "not followed; target is already selected through its real path"
+    elif level is InclusionLevel.OMIT:
+        disposition = (
+            "followed to evaluate re-included descendants"
+            if info.target_is_dir and may_reinclude_descendant
+            else "not followed; path is omitted"
+        )
+    elif info.target_is_file and level is InclusionLevel.TREE_ONLY:
+        disposition = "not followed; content state is tree_only"
+    elif not info.target_is_dir and not info.target_is_file:
+        disposition = "not followed; unsupported target type"
+    return disposition
 
 
 def _explain_entry(
