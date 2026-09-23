@@ -51,11 +51,7 @@ class _ScanCollector:
         can_follow = should_follow_symlink(info, self.traversal)
 
         if decision.level is InclusionLevel.OMIT:
-            return (
-                can_follow
-                and info.target_is_dir
-                and self.context.ignores.may_reinclude_descendant(path)
-            )
+            return can_follow and info.target_is_dir and self.context.ignores.may_reinclude_descendant(path)
 
         self.context.builder.add_symlink_to_tree(path, info, prefix, is_last=is_last)
         if not can_follow:
