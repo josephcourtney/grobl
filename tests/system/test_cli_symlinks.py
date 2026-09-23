@@ -105,4 +105,4 @@ def test_external_symlink_opt_in_requires_following(
     )
 
     assert result.exit_code != 0
-    assert "requires follow_symlinks = true" in result.output
+    assert "--allow-external-symlinks requires --follow-symlinks" in result.output
