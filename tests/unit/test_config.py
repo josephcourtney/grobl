@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from grobl.config_loading import load_config, load_toml_config, resolve_config_base
+from grobl.config_loading import (
+    discover_grobl_toml_files,
+    load_config,
+    load_toml_config,
+    resolve_config_base,
+)
 from grobl.errors import ConfigLoadError
 from grobl.utils import find_common_ancestor
 
@@ -69,6 +74,31 @@ def test_config_is_read_from_common_ancestor(tmp_path: Path) -> None:
         ignore_defaults=True,
     )
     assert cfg.get("exclude_tree") == ["from-base"]
+
+
+def test_discovered_config_uses_logical_symlink_ancestors(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    links = repo / "links"
+    target_dir = repo / "physical" / "nested"
+    links.mkdir(parents=True)
+    target_dir.mkdir(parents=True)
+
+    root_config = repo / ".grobl.toml"
+    logical_config = links / ".grobl.toml"
+    physical_config = target_dir / ".grobl.toml"
+    root_config.write_text("exclude = ['root']\n", encoding="utf-8")
+    logical_config.write_text("exclude = ['logical']\n", encoding="utf-8")
+    physical_config.write_text("exclude = ['physical']\n", encoding="utf-8")
+
+    target = target_dir / "target.txt"
+    target.write_text("contents\n", encoding="utf-8")
+    link = links / "alias.txt"
+    link.symlink_to(target)
+
+    discovered = discover_grobl_toml_files(repo_root=repo, scan_paths=[link])
+
+    assert discovered == [root_config.resolve(), logical_config.resolve()]
+    assert physical_config.resolve() not in discovered
 
 
 def test_legacy_config_file_is_loaded(tmp_path: Path) -> None:
