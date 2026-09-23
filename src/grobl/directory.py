@@ -399,7 +399,7 @@ def inspect_symlink(path: Path, *, root: Path) -> SymlinkInfo:
     try:
         resolved = path.resolve(strict=True)
         result = path.stat()
-    except OSError:
+    except (OSError, RuntimeError):
         return SymlinkInfo(
             target=target,
             resolved_target=None,
@@ -412,7 +412,7 @@ def inspect_symlink(path: Path, *, root: Path) -> SymlinkInfo:
 
     try:
         external = not resolved.is_relative_to(root.resolve(strict=False))
-    except OSError:
+    except (OSError, RuntimeError):
         external = True
     return SymlinkInfo(
         target=target,
@@ -437,7 +437,7 @@ def symlink_target_is_selected(info: SymlinkInfo, paths: Iterable[Path]) -> bool
             selected = path.resolve(strict=False)
             if target == selected or target.is_relative_to(selected):
                 return True
-        except OSError:
+        except (OSError, RuntimeError):
             continue
     return False
 
