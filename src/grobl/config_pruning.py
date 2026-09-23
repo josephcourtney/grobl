@@ -97,6 +97,13 @@ class _PruneContext:
     lower_layers: tuple[InclusionLayer, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _CurrentTreeEntry:
+    path: Path
+    is_dir: bool
+    level: InclusionLevel
+
+
 def _parse_document(text: str) -> TOMLDocument:
     try:
         return tomlkit.parse(text)
@@ -505,14 +512,15 @@ def _matcher_for_document(
     return _matcher((*context.lower_layers, target))
 
 
-def _same_current_tree(
-    left: LayeredIgnoreMatcher,
-    right: LayeredIgnoreMatcher,
+def _snapshot_current_tree(
+    matcher: LayeredIgnoreMatcher,
     *,
     root: Path,
-) -> bool:
+) -> tuple[_CurrentTreeEntry, ...]:
+    """Capture the reachable current tree and its baseline inclusion states once."""
     root = logical_absolute(root)
     stack = [root]
+    entries: list[_CurrentTreeEntry] = []
     while stack:
         directory = stack.pop()
         try:
@@ -521,18 +529,25 @@ def _same_current_tree(
             continue
         for item in items:
             is_dir = item.is_dir()
-            left_decision = left.explain_inclusion(item, is_dir=is_dir)
-            right_decision = right.explain_inclusion(item, is_dir=is_dir)
-            if left_decision.level is not right_decision.level:
-                return False
+            decision = matcher.explain_inclusion(item, is_dir=is_dir)
+            entries.append(_CurrentTreeEntry(path=item, is_dir=is_dir, level=decision.level))
             if not is_dir or item.is_symlink():
                 continue
-            if left_decision.level is InclusionLevel.OMIT and not (
-                left.has_reinclusions or right.has_reinclusions
-            ):
+            if decision.level is InclusionLevel.OMIT and not matcher.has_reinclusions:
                 continue
             stack.append(item)
-    return True
+    return tuple(entries)
+
+
+def _matches_current_tree_snapshot(
+    matcher: LayeredIgnoreMatcher,
+    snapshot: Sequence[_CurrentTreeEntry],
+) -> bool:
+    """Return whether ``matcher`` preserves every state in a captured current tree."""
+    return all(
+        matcher.explain_inclusion(entry.path, is_dir=entry.is_dir).level is entry.level
+        for entry in snapshot
+    )
 
 
 def _inherited_identities(context: _PruneContext) -> frozenset[tuple[str, InclusionLevel]]:
@@ -553,9 +568,10 @@ def _prune_current_tree(document: TOMLDocument, *, context: _PruneContext) -> li
     if not inherited:
         return []
 
+    baseline = _matcher_for_document(document, context=context)
+    snapshot = _snapshot_current_tree(baseline, root=context.path.parent)
     removed: list[PrunedRule] = []
     while True:
-        baseline = _matcher_for_document(document, context=context)
         candidate: _RuleRef | None = None
         for ref in _rule_refs(document):
             if (ref.core, ref.level) not in inherited:
@@ -563,7 +579,7 @@ def _prune_current_tree(document: TOMLDocument, *, context: _PruneContext) -> li
             variant = _parse_document(tomlkit.dumps(document))
             _delete_rule(variant, ref)
             without = _matcher_for_document(variant, context=context)
-            if _same_current_tree(baseline, without, root=context.path.parent):
+            if _matches_current_tree_snapshot(without, snapshot):
                 candidate = ref
                 break
         if candidate is None:
