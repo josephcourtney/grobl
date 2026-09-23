@@ -7,7 +7,7 @@ import io
 import pstats
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 import click
 
@@ -45,8 +45,6 @@ Examples:
   grobl config prune --current-tree
     Also remove exact inherited policy duplicates that do not affect the current scan tree.
 """
-
-_ResultT = TypeVar("_ResultT")
 
 
 @click.group(name="config", cls=LiteralEpilogGroup, epilog=CONFIG_EPILOG)
@@ -112,7 +110,7 @@ def _format_prune_profile(profile: cProfile.Profile, *, elapsed: float) -> str:
     )
 
 
-def _run_prune_profiled[ResultT](operation: Callable[[], _ResultT], *, debug: bool) -> _ResultT:
+def _run_prune_profiled[ResultT](operation: Callable[[], ResultT], *, debug: bool) -> ResultT:
     if not debug:
         return operation()
 
