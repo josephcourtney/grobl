@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import cProfile
+import io
+import pstats
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from time import perf_counter
+from typing import TYPE_CHECKING, TypeVar
 
 import click
 
@@ -39,6 +44,8 @@ Examples:
   grobl config prune --current-tree
     Also remove exact inherited policy duplicates that do not affect the current scan tree.
 """
+
+_ResultT = TypeVar("_ResultT")
 
 
 @click.group(name="config", cls=LiteralEpilogGroup, epilog=CONFIG_EPILOG)
@@ -92,9 +99,38 @@ def _run_migration_in_place(path: Path, *, backup: bool) -> None:
     _emit_migration_warnings(result)
 
 
-def _read_pruning(path: Path, *, current_tree: bool) -> ConfigPruneResult:
+def _format_prune_profile(profile: cProfile.Profile, *, elapsed: float) -> str:
+    stream = io.StringIO()
+    stats = pstats.Stats(profile, stream=stream).strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+    stats.print_stats(30)
+    return (
+        "Grobl config prune debug:\n"
+        f"  elapsed wall time: {elapsed:.3f} s\n"
+        "  top 30 functions by cumulative time:\n"
+        f"{stream.getvalue().rstrip()}"
+    )
+
+
+def _run_prune_profiled(operation: Callable[[], _ResultT], *, debug: bool) -> _ResultT:
+    if not debug:
+        return operation()
+
+    profile = cProfile.Profile()
+    started = perf_counter()
+    profile.enable()
     try:
-        return inspect_config_pruning(path, current_tree=current_tree)
+        return operation()
+    finally:
+        profile.disable()
+        click.echo(_format_prune_profile(profile, elapsed=perf_counter() - started), err=True)
+
+
+def _read_pruning(path: Path, *, current_tree: bool, debug: bool) -> ConfigPruneResult:
+    try:
+        return _run_prune_profiled(
+            lambda: inspect_config_pruning(path, current_tree=current_tree),
+            debug=debug,
+        )
     except ConfigPruneError as err:
         raise click.ClickException(str(err)) from err
 
@@ -113,8 +149,8 @@ def _run_prune_check(path: Path, result: ConfigPruneResult) -> None:
     click.echo(f"{path} has no redundant config entries")
 
 
-def _run_prune_preview(path: Path, *, current_tree: bool, check: bool) -> None:
-    result = _read_pruning(path, current_tree=current_tree)
+def _run_prune_preview(path: Path, *, current_tree: bool, check: bool, debug: bool) -> None:
+    result = _read_pruning(path, current_tree=current_tree, debug=debug)
     if check:
         _run_prune_check(path, result)
         return
@@ -122,12 +158,15 @@ def _run_prune_preview(path: Path, *, current_tree: bool, check: bool) -> None:
     _emit_prune_warnings(result)
 
 
-def _run_prune_in_place(path: Path, *, current_tree: bool, backup: bool) -> None:
+def _run_prune_in_place(path: Path, *, current_tree: bool, backup: bool, debug: bool) -> None:
     try:
-        result, backup_path = prune_config_file(
-            path,
-            current_tree=current_tree,
-            backup=backup,
+        result, backup_path = _run_prune_profiled(
+            lambda: prune_config_file(
+                path,
+                current_tree=current_tree,
+                backup=backup,
+            ),
+            debug=debug,
         )
     except ConfigPruneError as err:
         raise click.ClickException(str(err)) from err
@@ -216,7 +255,9 @@ def migrate(path: Path, *, to_stdout: bool, check: bool, backup: bool) -> None:
     show_default=True,
     help="Keep the original as PATH.bak when writing in place.",
 )
+@click.pass_context
 def prune(
+    ctx: click.Context,
     path: Path,
     *,
     current_tree: bool,
@@ -226,7 +267,8 @@ def prune(
 ) -> None:
     """Remove redundant canonical config entries conservatively."""
     _validate_output_modes(to_stdout=to_stdout, check=check)
+    debug = bool(ctx.find_root().params.get("debug", False))
     if check or to_stdout:
-        _run_prune_preview(path, current_tree=current_tree, check=check)
+        _run_prune_preview(path, current_tree=current_tree, check=check, debug=debug)
         return
-    _run_prune_in_place(path, current_tree=current_tree, backup=backup)
+    _run_prune_in_place(path, current_tree=current_tree, backup=backup, debug=debug)
