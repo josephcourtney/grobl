@@ -8,6 +8,7 @@ import tomlkit
 from grobl.config_pruning import inspect_config_pruning
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 pytestmark = pytest.mark.medium
@@ -66,6 +67,38 @@ def test_current_tree_does_not_remove_unique_dormant_rule(tmp_path: Path) -> Non
 
     assert result.changed is False
     assert result.text == source
+
+
+def test_current_tree_walks_filesystem_once_for_multiple_duplicates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / ".grobl.toml"
+    config.write_text('exclude = ["build", "dist"]\n', encoding="utf-8")
+    (tmp_path / "build").mkdir()
+    (tmp_path / "dist").mkdir()
+
+    path_type = type(tmp_path)
+    original_iterdir = path_type.iterdir
+    root_reads = 0
+
+    def counted_iterdir(path: Path) -> Iterator[Path]:
+        nonlocal root_reads
+        if path == tmp_path:
+            root_reads += 1
+        return original_iterdir(path)
+
+    monkeypatch.setattr(path_type, "iterdir", counted_iterdir)
+
+    result = inspect_config_pruning(
+        config,
+        current_tree=True,
+        repo_root=tmp_path,
+        default_cfg={"exclude": ["build", "dist"]},
+    )
+
+    assert {rule.pattern for rule in result.removed} == {"build", "dist"}
+    assert root_reads == 1
 
 
 def test_prune_removes_empty_policy_key_and_inherited_setting(
