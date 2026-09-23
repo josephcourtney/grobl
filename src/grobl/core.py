@@ -108,6 +108,7 @@ def run_scan(
     builder_base = _determine_builder_base(common, logical_paths, repo_root)
     match_base = _determine_match_base(match_base, logical_paths, builder_base)
 
+    # Kept only for interrupt diagnostics/backward-compatible builder state.
     diagnostic_excludes = cfg.get("exclude", cfg.get("exclude_tree"))
     builder = DirectoryTreeBuilder(
         base_path=builder_base,
@@ -135,34 +136,33 @@ def run_scan(
     )
     followed_file_identities: set[tuple[int, int]] = set()
 
+    def collect_symlink(path: Path, prefix: str, *, is_last: bool) -> bool:
+        info = inspect_symlink(path, root=traversal.repo_root)
+        if timing is None:
+            decision = ignores.explain_inclusion(path, is_dir=info.target_is_dir)
+        else:
+            with timing.measure("policy matching", depth=1):
+                decision = ignores.explain_inclusion(path, is_dir=info.target_is_dir)
+
+        can_follow = should_follow_symlink(info, traversal)
+        if decision.level is InclusionLevel.OMIT:
+            return can_follow and info.target_is_dir and ignores.may_reinclude_descendant(path)
+
+        builder.add_symlink_to_tree(path, info, prefix, is_last=is_last)
+        if not can_follow:
+            return False
+        if not info.target_is_file or decision.level is not InclusionLevel.FULL:
+            return info.target_is_dir
+        if info.identity is not None and info.identity in followed_file_identities:
+            return False
+        if info.identity is not None:
+            followed_file_identities.add(info.identity)
+        registry.handle(path=path, context=context)
+        return False
+
     def collect(path: Path, prefix: str, *, is_last: bool) -> bool:
         if path.is_symlink():
-            info = inspect_symlink(path, root=traversal.repo_root)
-            if timing is None:
-                decision = ignores.explain_inclusion(path, is_dir=info.target_is_dir)
-            else:
-                with timing.measure("policy matching", depth=1):
-                    decision = ignores.explain_inclusion(path, is_dir=info.target_is_dir)
-
-            can_follow = should_follow_symlink(info, traversal)
-            if decision.level is InclusionLevel.OMIT:
-                return (
-                    can_follow
-                    and info.target_is_dir
-                    and ignores.may_reinclude_descendant(path)
-                )
-
-            builder.add_symlink_to_tree(path, info, prefix, is_last=is_last)
-            if not can_follow:
-                return False
-            if info.target_is_file and decision.level is InclusionLevel.FULL:
-                if info.identity is not None and info.identity in followed_file_identities:
-                    return False
-                if info.identity is not None:
-                    followed_file_identities.add(info.identity)
-                registry.handle(path=path, context=context)
-                return False
-            return info.target_is_dir
+            return collect_symlink(path, prefix, is_last=is_last)
 
         is_dir = path.is_dir()
         if timing is None:
@@ -182,5 +182,9 @@ def run_scan(
         registry.handle(path=path, context=context)
         return False
 
-    traverse_dir(builder_base, traversal, cast("TreeCallback", collect))
+    traverse_dir(
+        builder_base,
+        traversal,
+        cast("TreeCallback", collect),
+    )
     return ScanResult(builder=builder, common=builder_base)
