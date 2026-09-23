@@ -101,6 +101,50 @@ def test_discovered_config_uses_logical_symlink_ancestors(tmp_path: Path) -> Non
     assert physical_config.resolve() not in discovered
 
 
+def test_discovered_config_stops_before_symlinked_directory_component(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    links = repo / "links"
+    physical = repo / "physical"
+    nested = physical / "nested"
+    links.mkdir(parents=True)
+    nested.mkdir(parents=True)
+
+    root_config = repo / ".grobl.toml"
+    logical_config = links / ".grobl.toml"
+    physical_config = physical / ".grobl.toml"
+    root_config.write_text("exclude = ['root']\n", encoding="utf-8")
+    logical_config.write_text("exclude = ['logical']\n", encoding="utf-8")
+    physical_config.write_text("exclude = ['physical']\n", encoding="utf-8")
+
+    target = nested / "target.txt"
+    target.write_text("contents\n", encoding="utf-8")
+    directory_link = links / "vendor"
+    directory_link.symlink_to(physical, target_is_directory=True)
+    logical_target = directory_link / "nested" / "target.txt"
+
+    discovered = discover_grobl_toml_files(repo_root=repo, scan_paths=[logical_target])
+
+    assert discovered == [root_config.resolve(), logical_config.resolve()]
+    assert physical_config.resolve() not in discovered
+
+
+def test_discovered_symlinked_config_keeps_logical_path(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    links = repo / "links"
+    child = links / "child"
+    child.mkdir(parents=True)
+
+    central_config = repo / "central.toml"
+    central_config.write_text("exclude = ['child.txt']\n", encoding="utf-8")
+    logical_config = links / ".grobl.toml"
+    logical_config.symlink_to(central_config)
+
+    discovered = discover_grobl_toml_files(repo_root=repo, scan_paths=[child])
+
+    assert discovered == [logical_config]
+    assert discovered[0].resolve() == central_config
+
+
 def test_legacy_config_file_is_loaded(tmp_path: Path) -> None:
     base = tmp_path / "proj"
     base.mkdir()
