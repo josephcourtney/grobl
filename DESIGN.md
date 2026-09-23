@@ -88,13 +88,15 @@ Traversal distinguishes the **logical path** through which a filesystem entry wa
 
 The logical path is authoritative for inclusion-policy matching, hierarchy rendering, payload names, and explain output. Resolving a symlink must not silently replace that logical path with the target path. Existence checks use link-aware filesystem metadata so a broken link can still be represented.
 
+Hierarchical project-configuration discovery follows those same logical ancestors and stops at a symlink boundary rather than importing `.grobl.toml` files from the physical target tree. If `.grobl.toml` itself is a symlink, its rules retain the link's logical containing directory as their matching base. Configuration inspection and pruning use the same logical base so maintenance cannot silently change policy semantics.
+
 Symbolic links are structural references by default. Grobl records the raw link target and whether the target is broken, internal, or external, but does not read a file target or recurse into a directory target unless following is explicitly enabled. Enabling ordinary following remains bounded to the resolved repository root; following a target outside that root requires a second explicit opt-in.
 
 When following is enabled, traversal uses the target's `(st_dev, st_ino)` identity to prevent directory cycles and repeated physical traversal. A link whose physical target is already reachable through a separately selected non-link scan path is represented but not followed, so selecting both a canonical path and an alias does not duplicate content.
 
 Followed files are read through the logical link path and emitted under that logical path. Followed directory descendants likewise retain their logical paths beneath the link. Inclusion-policy checks therefore remain predictable from the tree the user named rather than from an implementation-dependent resolved pathname.
 
-Broken links are representable but never followable. macOS Finder aliases are ordinary files rather than filesystem links; Grobl does not invoke platform-specific alias-resolution APIs.
+Broken links and resolution loops are representable but never followable. macOS Finder aliases are ordinary files rather than filesystem links; Grobl does not invoke platform-specific alias-resolution APIs.
 
 ## Configuration ownership and persistent behavior
 
