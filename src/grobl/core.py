@@ -7,7 +7,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from grobl.constants import InclusionLevel
-from grobl.directory import DirectoryTreeBuilder, TraverseConfig, TreeCallback, traverse_dir
+from grobl.directory import (
+    DirectoryTreeBuilder,
+    TraverseConfig,
+    TreeCallback,
+    inspect_symlink,
+    should_follow_symlink,
+    traverse_dir,
+)
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
@@ -27,23 +34,23 @@ class ScanResult:
 
 
 def _coerce_to_directory(path: Path) -> Path:
-    return path.parent if path.is_file() else path
+    return path.parent if path.is_file() and not path.is_symlink() else path
 
 
-def _determine_builder_base(common: Path, resolved: list[Path], repo_root: Path | None) -> Path:
+def _determine_builder_base(common: Path, paths: list[Path], repo_root: Path | None) -> Path:
     if repo_root is None:
         return common
-    candidate = _coerce_to_directory(repo_root.resolve(strict=False))
-    if all(p.is_relative_to(candidate) for p in resolved):
+    candidate = _coerce_to_directory(repo_root.absolute())
+    if all(path.is_relative_to(candidate) for path in paths):
         return candidate
     return common
 
 
-def _determine_match_base(match_base: Path | None, resolved: list[Path], default: Path) -> Path:
+def _determine_match_base(match_base: Path | None, paths: list[Path], default: Path) -> Path:
     if match_base is None:
         return default
-    normalized = _coerce_to_directory(match_base.resolve())
-    if all(p.is_relative_to(normalized) for p in resolved):
+    normalized = _coerce_to_directory(match_base.absolute())
+    if all(path.is_relative_to(normalized) for path in paths):
         return normalized
     return default
 
@@ -59,6 +66,14 @@ def _coerce_exclude_patterns(value: object | None) -> list[str]:
     return []
 
 
+def _exists_without_dereferencing(path: Path) -> bool:
+    try:
+        path.lstat()
+    except OSError:
+        return False
+    return True
+
+
 def run_scan(
     *,
     paths: Iterable[Path],
@@ -72,12 +87,12 @@ def run_scan(
     timing: TimingRecorder | None = None,
 ) -> ScanResult:
     """Run a filesystem scan under the effective three-state inclusion policy."""
-    resolved_paths = [p.resolve() for p in paths]
-    if not resolved_paths:
+    logical_paths = [path.absolute() for path in paths]
+    if not logical_paths:
         msg = "run_scan requires at least one path"
         raise ValueError(msg)
 
-    missing = [path for path in resolved_paths if not path.exists()]
+    missing = [path for path in logical_paths if not _exists_without_dereferencing(path)]
     if missing:
         if len(missing) == 1:
             msg = f"scan path not found: {missing[0]}"
@@ -86,14 +101,13 @@ def run_scan(
             msg = f"scan paths not found: {joined}"
         raise PathNotFoundError(msg)
 
-    common = find_common_ancestor(resolved_paths)
-    if common.is_file():
+    common = find_common_ancestor(logical_paths, resolve_symlinks=False)
+    if common.is_file() and not common.is_symlink():
         common = common.parent
 
-    builder_base = _determine_builder_base(common, resolved_paths, repo_root)
-    match_base = _determine_match_base(match_base, resolved_paths, builder_base)
+    builder_base = _determine_builder_base(common, logical_paths, repo_root)
+    match_base = _determine_match_base(match_base, logical_paths, builder_base)
 
-    # Kept only for interrupt diagnostics/backward-compatible builder state.
     diagnostic_excludes = cfg.get("exclude", cfg.get("exclude_tree"))
     builder = DirectoryTreeBuilder(
         base_path=builder_base,
@@ -110,8 +124,40 @@ def run_scan(
     )
 
     registry = FileHandlerRegistry.default() if handlers is None else handlers
+    traversal = TraverseConfig(
+        paths=logical_paths,
+        base=match_base,
+        repo_root=(repo_root or builder_base).absolute(),
+        follow_symlinks=bool(cfg.get("_follow_symlinks", cfg.get("follow_symlinks", False))),
+        allow_external_symlinks=bool(
+            cfg.get("_allow_external_symlinks", cfg.get("allow_external_symlinks", False))
+        ),
+    )
+    followed_file_identities: set[tuple[int, int]] = set()
 
     def collect(path: Path, prefix: str, *, is_last: bool) -> bool:
+        if path.is_symlink():
+            info = inspect_symlink(path, root=traversal.repo_root)
+            if timing is None:
+                decision = ignores.explain_inclusion(path, is_dir=info.target_is_dir)
+            else:
+                with timing.measure("policy matching", depth=1):
+                    decision = ignores.explain_inclusion(path, is_dir=info.target_is_dir)
+            if decision.level is InclusionLevel.OMIT:
+                return False
+
+            builder.add_symlink_to_tree(path, info, prefix, is_last=is_last)
+            if not should_follow_symlink(info, traversal):
+                return False
+            if info.target_is_file and decision.level is InclusionLevel.FULL:
+                if info.identity is not None and info.identity in followed_file_identities:
+                    return False
+                if info.identity is not None:
+                    followed_file_identities.add(info.identity)
+                registry.handle(path=path, context=context)
+                return False
+            return info.target_is_dir
+
         is_dir = path.is_dir()
         if timing is None:
             decision = ignores.explain_inclusion(path, is_dir=is_dir)
@@ -130,14 +176,5 @@ def run_scan(
         registry.handle(path=path, context=context)
         return False
 
-    traverse_dir(
-        builder_base,
-        TraverseConfig(
-            paths=resolved_paths,
-            base=match_base,
-            repo_root=repo_root or builder_base,
-        ),
-        cast("TreeCallback", collect),
-    )
-
+    traverse_dir(builder_base, traversal, cast("TreeCallback", collect))
     return ScanResult(builder=builder, common=builder_base)
