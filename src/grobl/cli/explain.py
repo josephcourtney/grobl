@@ -12,6 +12,7 @@ from grobl.app.config_behavior import (
     config_inherit_defaults,
     resolve_ignore_policy,
     resolve_resource_limits,
+    resolve_symlink_behavior,
 )
 from grobl.app.config_maintenance import warn_legacy_project_configs
 from grobl.app.explain import build_explain_entries, render_explain
@@ -33,6 +34,7 @@ from .options import (
     add_ignore_policy_options,
     add_paths_argument,
     add_resource_limit_options,
+    add_symlink_options,
 )
 
 if TYPE_CHECKING:
@@ -46,6 +48,9 @@ Examples:
   grobl explain README.md --format human
     Inspect one path in a human-readable form.
 
+  grobl explain --follow-symlinks linked-file
+    Show whether a symlink target would be followed.
+
   grobl explain --format json src
     Emit machine-readable diagnostics for scripting.
 
@@ -58,6 +63,7 @@ Examples:
 @add_config_option
 @add_ignore_policy_options
 @add_ignore_options
+@add_symlink_options
 @add_resource_limit_options
 @click.option(
     "--format",
@@ -86,6 +92,8 @@ def explain(
     no_ignore_config: bool,
     no_ignore: bool,
     ignore_policy: str,
+    follow_symlinks: bool,
+    allow_external_symlinks: bool,
     explain_format: str,
     max_file_bytes: int | None,
     max_total_bytes: int | None,
@@ -129,6 +137,12 @@ def explain(
         )
         effective_ignore_policy = resolve_ignore_policy(ctx, cfg, current=ignore_policy)
         inherit_defaults = config_inherit_defaults(cfg)
+        effective_follow, effective_external = resolve_symlink_behavior(
+            ctx,
+            cfg,
+            follow_symlinks=follow_symlinks,
+            allow_external_symlinks=allow_external_symlinks,
+        )
         limits = resolve_resource_limits(
             ctx,
             cfg,
@@ -168,5 +182,12 @@ def explain(
         runtime_include=runtime_include,
     )
 
-    entries = build_explain_entries(paths=requested_paths, ignores=ignores, limits=limits)
+    entries = build_explain_entries(
+        paths=requested_paths,
+        ignores=ignores,
+        limits=limits,
+        repo_root=repo_root,
+        follow_symlinks=effective_follow,
+        allow_external_symlinks=effective_external,
+    )
     click.echo(render_explain(entries, explain_format=explain_format), nl=False)
