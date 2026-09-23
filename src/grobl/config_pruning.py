@@ -545,8 +545,7 @@ def _matches_current_tree_snapshot(
 ) -> bool:
     """Return whether ``matcher`` preserves every state in a captured current tree."""
     return all(
-        matcher.explain_inclusion(entry.path, is_dir=entry.is_dir).level is entry.level
-        for entry in snapshot
+        matcher.explain_inclusion(entry.path, is_dir=entry.is_dir).level is entry.level for entry in snapshot
     )
 
 
