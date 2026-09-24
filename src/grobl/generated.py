@@ -247,7 +247,7 @@ class GeneratedAwareMatcher(LayeredIgnoreMatcher):
         return InclusionDecision(level=decision.level, reason=generated_reason)
 
     def explain_inclusion(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
-        decision = super().explain_inclusion(abs_path, is_dir=is_dir)
+        decision = LayeredIgnoreMatcher.explain_inclusion(self, abs_path, is_dir=is_dir)
         return self._with_generated_reason(abs_path, decision, is_dir=is_dir)
 
     def explain_policy(self, abs_path: Path, *, is_dir: bool) -> InclusionDecision:
