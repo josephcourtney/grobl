@@ -189,6 +189,8 @@ class GeneratedRelationIndex:
         return tuple(sources)
 
     def reason_is_generated(self, reason: InclusionReason) -> bool:
+        if reason.level is not InclusionLevel.TREE_ONLY:
+            return False
         key = (reason.base_dir, reason.config_path, reason.raw)
         return key in self._generated_rule_keys and key not in self._explicit_tree_only_keys
 
