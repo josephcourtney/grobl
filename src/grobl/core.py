@@ -16,6 +16,7 @@ from grobl.directory import (
 )
 from grobl.errors import PathNotFoundError
 from grobl.file_handling import FileHandlerRegistry, FileProcessingContext, ScanDependencies
+from grobl.generated import builder_for_matcher
 from grobl.resource_limits import UNLIMITED_RESOURCE_LIMITS, ResourceBudget, ResourceLimits
 from grobl.utils import find_common_ancestor, logical_absolute
 
@@ -182,9 +183,10 @@ def run_scan(
     builder_base = _determine_builder_base(common, logical_paths, repo_root)
     effective_match_base = _determine_match_base(match_base, logical_paths, builder_base)
     diagnostic_excludes = cfg.get("exclude", cfg.get("exclude_tree"))
-    builder = DirectoryTreeBuilder(
+    builder = builder_for_matcher(
         base_path=builder_base,
         exclude_patterns=_coerce_exclude_patterns(diagnostic_excludes),
+        matcher=ignores,
     )
     context = FileProcessingContext(
         builder=builder,
