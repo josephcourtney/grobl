@@ -2,22 +2,22 @@
 # General scan behavior
 # ============================================
 # This switch controls only the bundled inclusion-policy layer.
-inherit_defaults = true
-scope = "all"
-format = "llm"
-summary = "auto"
-lines = true
-characters = true
-tokens = true
-inclusion_status = true
-ignore_policy = "auto"
-follow_symlinks = false
+inherit_defaults        = true
+scope                   = "all"
+format                  = "llm"
+summary                 = "auto"
+lines                   = true
+characters              = true
+tokens                  = true
+inclusion_status        = true
+ignore_policy           = "auto"
+follow_symlinks         = false
 allow_external_symlinks = false
 
 # Content budgets. Set any value to 0 to disable that limit.
-max_file_bytes = 1048576
+max_file_bytes  = 1048576
 max_total_bytes = 16777216
-max_tokens = 200000
+max_tokens      = 200000
 
 # ============================================
 # Paths that should be absent from both the hierarchy and content payload
@@ -163,6 +163,9 @@ exclude = [
 # Paths whose names/structure are useful but whose contents usually are not
 # ============================================
 tree_only = [
+  "bun.lock",
+  "bun.lockb",
+
   # legal / boilerplate
   "LICENSE",
   "LICENSE.*",
