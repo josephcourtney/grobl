@@ -19,7 +19,7 @@ def _fmt_path(value: Path | str) -> str:
 
 def inclusion_reason_to_dict(reason: InclusionReason) -> dict[str, Any]:
     """Return a JSON-friendly dict describing the winning policy rule."""
-    return {
+    result: dict[str, Any] = {
         "pattern": reason.raw,
         "state": reason.level.value,
         "negated": reason.negated,
@@ -28,6 +28,11 @@ def inclusion_reason_to_dict(reason: InclusionReason) -> dict[str, Any]:
         "config_path": _fmt_path(reason.config_path) if reason.config_path else None,
         "detail": None,
     }
+    generated_from = getattr(reason, "generated_from", ())
+    if generated_from:
+        result["origin"] = "generated"
+        result["generated_from"] = list(generated_from)
+    return result
 
 
 # Compatibility name retained for consumers of the former exclusion API.
