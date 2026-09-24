@@ -32,6 +32,12 @@ inherit_defaults = true
 #   "docs/architecture.md",
 # ]
 
+# Generated artifacts retain their provenance and are tree-only unless a later
+# inclusion rule restores or further restricts them.
+# [[generated]]
+# path = "src/generated/**"
+# from = ["schema/", "tools/generate.py"]
+
 # Stable scan defaults can also live here. Explicit CLI options override them.
 # scope = "all"
 # format = "llm"
