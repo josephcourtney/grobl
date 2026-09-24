@@ -13,6 +13,12 @@ import click
 from grobl.config_defaults import load_default_config
 from grobl.config_loading import discover_grobl_toml_files, load_toml_config
 from grobl.constants import IgnorePolicy
+from grobl.generated import (
+    GeneratedAwareMatcher,
+    GeneratedRelation,
+    GeneratedRelationIndex,
+    decorate_inclusion_layer,
+)
 from grobl.ignore import (
     InclusionLayer,
     LayeredIgnoreMatcher,
@@ -89,35 +95,39 @@ def _load_config_layers(
     repo_root: Path,
     scan_paths: tuple[Path, ...],
     explicit_config: Path | None,
-) -> tuple[InclusionLayer, ...]:
+) -> tuple[tuple[InclusionLayer, ...], GeneratedRelationIndex]:
     layers: list[InclusionLayer] = []
+    original_layers: list[InclusionLayer] = []
+    relations: list[GeneratedRelation] = []
     discovered: set[Path] = set()
+
+    def append_config_layer(logical: Path, source: LayerSource) -> None:
+        data = load_toml_config(logical)
+        original = InclusionLayer(
+            base_dir=logical.parent,
+            rules=rules_from_config(data),
+            source=source,
+            config_path=logical,
+        )
+        decorated, found = decorate_inclusion_layer(original, data)
+        original_layers.append(original)
+        layers.append(decorated)
+        relations.extend(found)
 
     for config_path in discover_grobl_toml_files(repo_root=repo_root, scan_paths=scan_paths):
         logical = logical_absolute(config_path)
         discovered.add(logical)
-        layers.append(
-            InclusionLayer(
-                base_dir=logical.parent,
-                rules=rules_from_config(load_toml_config(logical)),
-                source=LayerSource.CONFIG,
-                config_path=logical,
-            )
-        )
+        append_config_layer(logical, LayerSource.CONFIG)
 
     if explicit_config is not None:
         logical = logical_absolute(explicit_config)
         if logical.exists() and logical not in discovered:
-            layers.append(
-                InclusionLayer(
-                    base_dir=logical.parent,
-                    rules=rules_from_config(load_toml_config(logical)),
-                    source=LayerSource.EXPLICIT_CONFIG,
-                    config_path=logical,
-                )
-            )
+            append_config_layer(logical, LayerSource.EXPLICIT_CONFIG)
 
-    return tuple(layers)
+    return (
+        tuple(layers),
+        GeneratedRelationIndex(relations, explicit_layers=original_layers),
+    )
 
 
 def gather_runtime_ignore_patterns(
@@ -178,7 +188,7 @@ def assemble_layered_ignores(
     runtime_exclude: tuple[str, ...] = (),
     runtime_tree_only: tuple[str, ...] = (),
     runtime_include: tuple[str, ...] = (),
-) -> LayeredIgnoreMatcher:
+) -> LayeredIgnoreMatcher | GeneratedAwareMatcher:
     default_cfg = load_default_config()
     cli_policy_used = bool(runtime_exclude or runtime_tree_only or runtime_include)
     ignore_policy_value = IgnorePolicy(ignore_policy)
@@ -197,16 +207,17 @@ def assemble_layered_ignores(
         no_ignore_config_flag=no_ignore_config_flag,
         no_ignore_flag=no_ignore_flag,
     )
-    config_layers = (
-        _load_config_layers(
+    if include_config:
+        config_layers, generated_index = _load_config_layers(
             repo_root=repo_root,
             scan_paths=scan_paths,
             explicit_config=params.config_path,
         )
-        if include_config
-        else ()
-    )
-    return build_layered_ignores(
+    else:
+        config_layers = ()
+        generated_index = GeneratedRelationIndex()
+
+    matcher = build_layered_ignores(
         repo_root=repo_root,
         include_defaults=include_defaults,
         runtime_exclude=runtime_exclude,
@@ -214,6 +225,14 @@ def assemble_layered_ignores(
         runtime_include=runtime_include,
         default_cfg=default_cfg,
         config_layers=config_layers,
+    )
+    if generated_index.empty:
+        return matcher
+    return GeneratedAwareMatcher(
+        layers=matcher.layers,
+        has_reinclusions=matcher.has_reinclusions,
+        generated_index=generated_index,
+        repo_root=repo_root,
     )
 
 
