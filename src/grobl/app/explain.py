@@ -89,6 +89,11 @@ def _build_reason(reason: dict[str, Any] | None) -> str:
     parts.extend((f"source={reason['source']}", f"base={reason['base_dir']}"))
     if reason.get("config_path"):
         parts.append(f"config={reason['config_path']}")
+    if reason.get("origin"):
+        parts.append(f"origin={reason['origin']}")
+    generated_from = reason.get("generated_from")
+    if generated_from:
+        parts.append(f"generated_from={','.join(str(item) for item in generated_from)}")
     if reason.get("detail"):
         parts.append(f"detail={reason['detail']}")
     return "; ".join(parts)
@@ -98,6 +103,9 @@ def _render_human(entries: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for entry in entries:
         lines.extend((f"Path: {entry['path']}", f"  state: {entry['state']}"))
+        generated_from = entry.get("generated_from")
+        if generated_from:
+            lines.append(f"  generated from: {', '.join(str(item) for item in generated_from)}")
         if entry.get("reason"):
             lines.append(f"    reason: {_build_reason(entry['reason'])}")
         symlink = entry.get("symlink")
@@ -248,6 +256,15 @@ def _explain_entry(
             "reason": reason if decision.level is InclusionLevel.OMIT else None,
         },
     }
+    generated_getter = getattr(ignores, "generated_sources", None)
+    if callable(generated_getter):
+        generated_from = generated_getter(
+            abs_path,
+            display_base=traversal.repo_root,
+            is_dir=is_dir,
+        )
+        if generated_from:
+            entry["generated_from"] = list(generated_from)
 
     if symlink_info is not None:
         entry["symlink"] = {
